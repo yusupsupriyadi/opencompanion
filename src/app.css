@@ -51,7 +51,8 @@ svg { flex: none; }
 /* App shell */
 /* The painting sits behind the whole app under a haze that is thin over the sky (top 30%) and 66% from 40% down,
    the level at which ink text passes 4.5:1 over the darkest pixel. Only the sidebar is a panel (84% + blur 14px). */
-.app { display: grid; grid-template-columns: 240px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 12px; padding: var(--titlebar) 12px 12px; height: 100vh; min-height: 620px; position: relative; isolation: isolate; }
+/* The shell never scrolls: only the sidebar and the page inside it do, so the sidebar stays put over the painting. */
+.app { display: grid; grid-template-columns: 240px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 12px; padding: var(--titlebar) 12px 12px; height: 100vh; min-height: 620px; position: relative; isolation: isolate; overflow: hidden; }
 .app::before { content: ""; position: fixed; inset: 0; z-index: -1; background-color: var(--bg); background-image: var(--haze), url(/meadow-day.webp); background-position: 0 0, 70% 100%; background-size: 100% 100%, cover; background-repeat: no-repeat; filter: var(--art-filter); }
 .app > .sidebar { background: var(--glass); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border: 1px solid var(--line); border-radius: var(--r-lg); }
 /* Text straight on the painting uses ink only: ink-2 fails AA over the darkest pixels even with the haze. */
@@ -95,7 +96,8 @@ svg { flex: none; }
 .seg { display: flex; gap: 2px; padding: 3px; border-radius: var(--r-btn); background: var(--surface-2); }
 .seg button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 10px; min-height: 34px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink-2); font-weight: 600; font-size: 13px; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 700; }
-.main { overflow-y: auto; padding: 28px 40px; display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+/* Positioned so absolute children (.sr-only, hidden radios) scroll with the page instead of stretching the window. */
+.main { position: relative; overflow-y: auto; padding: 28px 40px; display: flex; flex-direction: column; gap: 28px; min-width: 0; }
 .page-head { display: flex; align-items: center; gap: 12px; }
 h1 { margin: 0; font-size: 28px; font-weight: 800; line-height: 1.2; }
 .sub { margin: 4px 0 0; color: var(--ink-2); }
@@ -202,7 +204,7 @@ a.srow:hover { background: var(--surface-2); }
 .input-wrap input:focus-visible { outline: none; }
 .input-wrap:focus-within { outline: 2px solid var(--forest); outline-offset: 2px; }
 .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.opt { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-btn); border: 1px solid var(--line-strong); background: var(--surface); cursor: pointer; }
+.opt { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-btn); border: 1px solid var(--line-strong); background: var(--surface); cursor: pointer; }
 .opt input { position: absolute; opacity: 0; pointer-events: none; }
 .opt:has(input:checked) { background: var(--surface-2); border: 2px solid var(--forest); padding: 9px 11px; }
 .opt:has(input:focus-visible) { outline: 2px solid var(--forest); outline-offset: 2px; }
