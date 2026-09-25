@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/svelte";
+import { render, screen, waitFor, within } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test } from "vitest";
 import type { ChatMessage, ChatThread, Settings } from "$lib/api";
@@ -70,8 +70,8 @@ test("switching chats shows only that chat's messages", async () => {
 
   await userEvent.setup().click(screen.getByRole("button", { name: "New chat" }));
   expect(page.url.search).toBe("");
-  expect(await screen.findByText(/Describe a task and where it should happen/)).toBeInTheDocument();
-  expect(screen.queryByText("Claude Code in uninote.")).not.toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByText("Claude Code in uninote.")).not.toBeInTheDocument());
+  expect(screen.queryByText(/Describe a task and where it should happen/)).not.toBeInTheDocument();
   expect(screen.getByLabelText("Message the planner")).toHaveFocus();
 });
 
@@ -162,7 +162,9 @@ test("a custom provider plans with no CLI installed, and one without a model can
   const api = chats([]);
   const user = userEvent.setup();
   const { unmount } = render(ChatPage);
-  expect(await screen.findByText(/Planner: qwen3-coder at localhost:11434, folder names only\./)).toBeInTheDocument();
+  expect(await list().findByText(/No chats yet/)).toBeInTheDocument();
+  expect(screen.queryByText(/Planner: qwen3-coder/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/custom provider has no base URL/)).not.toBeInTheDocument();
   await user.type(screen.getByLabelText("Message the planner"), "Add a dark mode toggle to uninote{Enter}");
   expect(await screen.findByText("Here is a card.")).toBeInTheDocument();
   expect(api.calls("chat_send")).toHaveLength(1);
@@ -172,6 +174,18 @@ test("a custom provider plans with no CLI installed, and one without a model can
   setUrl("/chat");
   render(ChatPage);
   expect(await screen.findByText("The custom provider has no base URL or model yet. Add them in Settings.")).toBeInTheDocument();
+  await user.type(screen.getByLabelText("Message the planner"), "Fix the tests");
+  expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+});
+
+test("with no CLI that can plan, the composer says why Send is off", async () => {
+  setUrl("/chat");
+  app.clis = CLIS.map((c) => ({ ...c, path: null }));
+  app.clisState = "ready";
+  chats([]);
+  const user = userEvent.setup();
+  render(ChatPage);
+  expect(await screen.findByText("No CLI that can plan is installed.")).toBeInTheDocument();
   await user.type(screen.getByLabelText("Message the planner"), "Fix the tests");
   expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
 });

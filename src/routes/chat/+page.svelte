@@ -230,16 +230,7 @@
 
   <main class="chat-col" id="chat-main">
     <header class="page-head">
-      <div class="grow">
-        <h1>Chat</h1>
-        <p class="sub">
-          {#if provider?.ready}Planner: {provider.model} at {provider.host}, folder names only. It suggests sessions, it never runs them on its own.
-          {:else if provider}The custom provider has no base URL or model yet. Add them in Settings.
-          {:else if planner}Planner: {planner.label} {planner.version ?? ""}, headless, {app.settings?.plannerCanRead === false ? "folder names only" : "read-only access to your project folders"}. It suggests sessions, it never runs them on its own.
-          {:else if app.clisState === "loading"}Checking which CLI can plan…
-          {:else}No CLI that can plan is installed.{/if}
-        </p>
-      </div>
+      <div class="grow"><h1 class="sr-only">Chat</h1></div>
       {#if current}
         <button class="btn ghost" type="button" id="btn-delete-chat" onclick={deleteChat} disabled={thinkingHere}>
           <Trash size={16} aria-hidden="true" />{confirmDelete ? "Press again to delete" : "Delete chat"}
@@ -262,11 +253,6 @@
           <h2>The conversation could not be loaded</h2>
           <p>{loadError}</p>
           <button class="btn secondary" type="button" onclick={() => open(currentId)}>Try again</button>
-        </div>
-      {:else if messages.length === 0 && !thinkingHere}
-        <div class="planner intro">
-          <span class="who">Planner</span>
-          <p>Describe a task and where it should happen. For example: "Codex: fix the failing tests in ai-remote" or "Add a dark mode toggle to uninote". I answer with a card for each session. Nothing starts until you press Run.</p>
         </div>
       {/if}
 
@@ -323,6 +309,13 @@
       </div>
       {#if pending && !thinkingHere}
         <p class="meta composer-hint" role="status">The planner is still answering in another chat. Send works again when it is done.</p>
+      {/if}
+      {#if !canPlan}
+        <p class="meta composer-hint" role="status">
+          {#if provider}The custom provider has no base URL or model yet. Add them in Settings.
+          {:else if app.clisState === "loading"}Checking which CLI can plan…
+          {:else}No CLI that can plan is installed.{/if}
+        </p>
       {/if}
     </form>
   </main>
