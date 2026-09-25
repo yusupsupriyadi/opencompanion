@@ -1,10 +1,10 @@
-# DESIGN.md: AI Remote
+# DESIGN.md: OpenCompanion
 
 Arah desain ini ditranskripsi dari gambar referensi yang diberikan pemilik produk (lukisan padang rumput sore hari, langit krem-mentega, pendaki berjaket biru duduk di batang kayu, garis tanah pixel di tengah). Dokumen ini adalah data desain untuk membangun layar di Pencil dan nanti di Svelte. Kebutuhan fitur ada di `docs/PRD.md`.
 
 ## 1. Identitas
 
-- **Produk**: AI Remote, aplikasi desktop lokal untuk menjalankan, memberi tugas, dan memonitor AI coding CLI.
+- **Produk**: OpenCompanion, aplikasi desktop lokal untuk menjalankan, memberi tugas, dan memonitor AI coding CLI.
 - **Kepribadian**: tenang, hangat, bisa diandalkan. Seperti duduk di bukit sambil mengawasi ladang: Anda tidak perlu menatap terminal terus, aplikasi yang memberi tahu saat ada yang butuh Anda.
 - **Design Read**: control room lokal untuk developer yang menjalankan beberapa AI CLI sekaligus, dengan bahasa visual pastoral painterly plus aksen garis pixel.
 - **Dial**: ENERGY 2 / RHYTHM 2 / MOTION 1.
@@ -115,7 +115,7 @@ Skala:
 | 24 | 800 | judul sesi di Session detail |
 | 22 | 800 | judul modal, H1 mobile |
 | 18 | 800 | judul panel Needs you, judul section di Settings |
-| 16 | 800 | judul section (Running in AI Remote) |
+| 16 | 800 | judul section (Running in OpenCompanion) |
 | 15 | 700 | judul tugas di baris sesi |
 | 14 | 600/700 | body, label field, tombol, nav |
 | 13 | 400/600 | meta, teks bantuan, isi tabel |
@@ -177,7 +177,7 @@ Semua ukuran dalam px. State umum: hover = isi `surface-2`; focus = ring 2px `fo
 |---|---|
 | **Title bar** | pengganti frame native (`decorations: false`), fixed di atas selebar jendela, tinggi 36, tanpa isi sehingga langit lukisan terlihat. Seluruh baris adalah area drag; klik ganda memaksimalkan. Tidak ada wordmark karena brand sudah di Sidebar. Kanan: tiga tombol 46 × 36 yang menempel ke tepi jendela (Close tepat di sudut), ikon 16 `ink` (`square` 14): Minimize, Maximize/Restore (ikon `browsers` saat maximized), Close. Isi hover berupa kotak dalam 34 × 28 radius 8: `surface-2`, dan untuk Close `st-err` dengan ikon `st-err-ink` (Day 5.48:1, Dusk 6.24:1). Focus ring di kotak dalam. Di DOM ditaruh paling akhir agar Tab mencapai isi halaman dulu. Tampil juga di Onboarding. |
 | **NavItem** | lebar 208, padding 9/12, gap 10, radius 8. Ikon 18 `ink-2` + label 14/600 `ink-2`. Aktif: isi `surface-2`, ikon `forest`, label `ink` 700. |
-| **Sidebar** | 240 × tinggi penuh, border kanan 1px `line`. Urutan: Brand (wordmark "AI Remote" 20/800 + ikon `cloud` 20), Nav (Overview, Board, Chat, CLIs, Skills, Settings), grup "Sessions" (baris label 12/700 `ink-2` + tombol ikon `plus` 28 × 28 "New session" di kanan, selalu tampil, juga saat belum ada sesi; lalu sesi yang di-pin ditambah enam sesi lain paling mendesak, dikelompokkan per folder. Folder yang di-pin paling atas (urutan pin, tetap tampil walau kosong dengan teks "No recent sessions" 12 `ink-2`), lalu folder lain menurut sesinya yang paling mendesak; di dalam folder, sesi yang di-pin paling atas. Pin disimpan di aplikasi desktop dan diingat antar restart. Kepala folder adalah tombol lipat (tinggi 30, padding 4/12/4/8, hover atau fokus `surface-2` untuk seluruh baris). Tombol baris 26 × 26 ikon 14 (`plus` "New session in {folder}", `push-pin` "Pin folder"; di item sesi: `trash` untuk sesi selesai, `push-pin` "Pin session") muncul saat hover atau fokus keyboard, menimpa ujung baris dengan latar memudar ke warna baris. Pin yang aktif (`push-pin` terisi, `aria-pressed`) selalu terlihat di kanan dan baris itu memberi ruang kanan 36: `caret-down` 12 `ink-2` (berputar ke kanan saat terlipat) + `folder-simple` 16 `ink-2` + nama folder mono 12/600 `ink`, path lengkap di tooltip. Saat terlipat, kanan kepala menampilkan `hand-palm` `accent` bila ada sesi Waiting for you, lalu jumlah sesi 12 `ink-2`; kepala diberi isi `surface` bila sesi yang dibuka ada di dalamnya. Folder yang dilipat diingat antar restart. Item mini satu baris, menjorok 12 sehingga logo sejajar ikon folder dan judul sejajar nama folder: CliMark `bare` 16 (logo tanpa kotak, `OC` untuk OpenCode) + judul tugas 13/700, padding 7/12, tooltip "judul · CLI · status"; jarak antar folder 6, antar item 2), spacer, Footer: baris Phone access (ikon, label, chip On/Off) dan segmented tema Day/Dusk. Item mini sesi yang sedang dibuka diberi isi `surface`. Judul sesi Running memakai gradasi `--rainbow` yang bergeser (lihat MOTION 1); tiap titik gradasi minimal sekontras `ink-2` terhadap latar (Day ≥ 6.38:1, Dusk ≥ 8.38:1), jadi tetap lulus di atas `glass`. |
+| **Sidebar** | 240 × tinggi penuh, border kanan 1px `line`. Urutan: Brand (wordmark "OpenCompanion" 18/800 + ikon `cloud` 20), Nav (Overview, Board, Chat, CLIs, Skills, Settings), grup "Sessions" (baris label 12/700 `ink-2` + tombol ikon `plus` 28 × 28 "New session" di kanan, selalu tampil, juga saat belum ada sesi; lalu sesi yang di-pin ditambah enam sesi lain paling mendesak, dikelompokkan per folder. Folder yang di-pin paling atas (urutan pin, tetap tampil walau kosong dengan teks "No recent sessions" 12 `ink-2`), lalu folder lain menurut sesinya yang paling mendesak; di dalam folder, sesi yang di-pin paling atas. Pin disimpan di aplikasi desktop dan diingat antar restart. Kepala folder adalah tombol lipat (tinggi 30, padding 4/12/4/8, hover atau fokus `surface-2` untuk seluruh baris). Tombol baris 26 × 26 ikon 14 (`plus` "New session in {folder}", `push-pin` "Pin folder"; di item sesi: `trash` untuk sesi selesai, `push-pin` "Pin session") muncul saat hover atau fokus keyboard, menimpa ujung baris dengan latar memudar ke warna baris. Pin yang aktif (`push-pin` terisi, `aria-pressed`) selalu terlihat di kanan dan baris itu memberi ruang kanan 36: `caret-down` 12 `ink-2` (berputar ke kanan saat terlipat) + `folder-simple` 16 `ink-2` + nama folder mono 12/600 `ink`, path lengkap di tooltip. Saat terlipat, kanan kepala menampilkan `hand-palm` `accent` bila ada sesi Waiting for you, lalu jumlah sesi 12 `ink-2`; kepala diberi isi `surface` bila sesi yang dibuka ada di dalamnya. Folder yang dilipat diingat antar restart. Item mini satu baris, menjorok 12 sehingga logo sejajar ikon folder dan judul sejajar nama folder: CliMark `bare` 16 (logo tanpa kotak, `OC` untuk OpenCode) + judul tugas 13/700, padding 7/12, tooltip "judul · CLI · status"; jarak antar folder 6, antar item 2), spacer, Footer: baris Phone access (ikon, label, chip On/Off) dan segmented tema Day/Dusk. Item mini sesi yang sedang dibuka diberi isi `surface`. Judul sesi Running memakai gradasi `--rainbow` yang bergeser (lihat MOTION 1); tiap titik gradasi minimal sekontras `ink-2` terhadap latar (Day ≥ 6.38:1, Dusk ≥ 8.38:1), jadi tetap lulus di atas `glass`. |
 | **StatusChip** | padding 3/8, radius 6, label Pixelify 12. Varian dari tabel status di bagian 2. |
 | **CliMark** | 30 × 30 (24 × 24 di list padat), radius 6, isi `surface-2`, border 1px `line`. Isi: logo brand selebar 62% kotak (lihat bagian 5), atau monogram IBM Plex Mono 11/600 `ink` bila logo tidak tersedia. |
 | **Button Primary** | padding 9/14, gap 8, radius 8, isi `forest`, ikon 16 + label 14/700 `on-forest`. Satu per layar atau per kartu. |
@@ -207,15 +207,15 @@ Status di file `design/ai-remote.pen`: ✓ = sudah ada, ✗ = belum dibuat.
 ### D1 Onboarding ✓
 - Tujuan: menunjukkan CLI yang ditemukan dan memilih planner chat. Fokus: daftar CLI.
 - Latar: `meadow-day.png` penuh. Panel 540 lebar di kiri atas (x 112, y 84), isi `#FFFAE6F2`, radius 14, padding 32, gap 22.
-- Isi: brand kecil; H1 "These coding CLIs are on your computer"; body "AI Remote looked through your PATH. Nothing was installed or changed."; daftar 4 baris (CliMark, nama, path mono, versi mono, ikon `check-circle`; Gemini CLI dengan chip "Not found" dan teks "You can add it later from CLIs"); label "Planner for Chat" + select "Claude Code 2.1.282" + bantuan "Chat runs this CLI headless to turn your requests into session suggestions. You can change it later in Settings."; tombol "Continue with Claude Code" dan "Rescan".
+- Isi: brand kecil; H1 "These coding CLIs are on your computer"; body "OpenCompanion looked through your PATH. Nothing was installed or changed."; daftar 4 baris (CliMark, nama, path mono, versi mono, ikon `check-circle`; Gemini CLI dengan chip "Not found" dan teks "You can add it later from CLIs"); label "Planner for Chat" + select "Claude Code 2.1.282" + bantuan "Chat runs this CLI headless to turn your requests into session suggestions. You can change it later in Settings."; tombol "Continue with Claude Code" dan "Rescan".
 - Loading: baris CLI tampil satu per satu dengan teks "Checking claude…", "Checking codex…".
 - Error: jika tidak ada CLI sama sekali, daftar diganti teks "No supported CLI found on PATH." + perintah instal (seperti baris Gemini di D5).
 
 ### D2 Overview ✓
 - Tujuan: tahu sesi mana yang butuh Anda. Fokus: panel Needs you (hanya tampil bila ada sesi Waiting for you; jika lebih dari satu, panel menumpuk dengan yang paling lama di atas).
-- Header: H1 "Overview", ringkasan "4 sessions in AI Remote, 1 opened outside", tombol "New session".
-- Section "Running in AI Remote" (hitungan "2 running, 1 done today") berisi SessionRow; urutan: running, lalu done hari ini.
-- Section "Opened outside AI Remote" berisi SessionRow varian eksternal + hint "Found in the running process list. You can read its transcript here, but only the terminal it was opened in can send it input."
+- Header: H1 "Overview", ringkasan "4 sessions in OpenCompanion, 1 opened outside", tombol "New session".
+- Section "Running in OpenCompanion" (hitungan "2 running, 1 done today") berisi SessionRow; urutan: running, lalu done hari ini.
+- Section "Opened outside OpenCompanion" berisi SessionRow varian eksternal + hint "Found in the running process list. You can read its transcript here, but only the terminal it was opened in can send it input."
 - Perbaikan yang perlu dilakukan di file: pada baris `~/Project/psikotes` chip harus "Done" (isi `st-idle`), pada baris `~/Project/sepulangkerja.id` chip harus "Read-only" (outline). Override ini hilang saat chip dipindah ke StatusCol, jadi sekarang tampil "Running". Hal yang sama berlaku di latar D6.
 
 ### D3 Chat ✓
@@ -233,14 +233,14 @@ Status di file `design/ai-remote.pen`: ✓ = sudah ada, ✗ = belum dibuat.
 - Baris Activity: label pixel + Horizon + "Commands, file edits and approvals in the last 12 min".
 - Body: terminal (lebar sisa) + kolom kanan 300: "Files changed" (path mono + diff mono), "Process" (PID, CPU, Memory, Child processes), "Needs-you signal" (metode deteksi: event stream, hooks, atau pola teks, sesuai FR-16).
 - State Waiting for you: panel Needs you versi ringkas muncul di atas terminal, input bar dinonaktifkan dengan teks "Answer the approval above first".
-- State eksternal: tombol Stop dan Restart tidak ada, input bar diganti "This session was opened outside AI Remote. Showing its transcript, read-only."
+- State eksternal: tombol Stop dan Restart tidak ada, input bar diganti "This session was opened outside OpenCompanion. Showing its transcript, read-only."
 
 ### D5 CLIs ✓
 - Tujuan: tahu CLI apa yang siap dipakai. Fokus: tabel.
 - Header: H1 "CLIs", sub "Found on your PATH. Versions come from each CLI's own --version output.", tombol "Add from path" dan "Rescan".
 - Kolom tabel (lebar): CLI 330 (CliMark, nama, path mono) · Version 110 · Headless command 300 (mono) · Adapter 150 ("Tested" dengan ikon atau chip "Untested version") · aksi (teks "Chat planner" `forest` atau tombol "Use as planner").
 - Baris Gemini CLI (isi `bg`): "Not found on PATH" + kotak perintah `npm install -g @google/gemini-cli` + "Copy command".
-- Catatan: "AI Remote never installs a CLI for you. Copy the command and run it in your own terminal, then press Rescan. Aider, Qwen Code and other CLIs are planned after the first release."
+- Catatan: "OpenCompanion never installs a CLI for you. Copy the command and run it in your own terminal, then press Rescan. Aider, Qwen Code and other CLIs are planned after the first release."
 
 ### D6 New session ✓
 - Modal di atas layar mana pun (satu dialog dirender oleh shell). Dibuka dari tombol New session di Overview, tombol `plus` di label Sessions (folder kosong, dipilih sendiri), atau tombol `plus` di kepala folder sidebar (folder sudah terisi). Fokus: tombol Start.
@@ -262,7 +262,7 @@ Status di file `design/ai-remote.pen`: ✓ = sudah ada, ✗ = belum dibuat.
 Satu frame berisi tiga contoh berdampingan:
 - **Empty Overview**: `meadow-day.png` sebagai pita atas, lalu "No sessions yet", teks "Start one from Chat or press New session. CLIs you open in a terminal show up here too.", tombol "Open chat" (secondary) dan "New session" (primary).
 - **Loading**: judul "Looking for coding CLIs", daftar per CLI dengan status "Checking claude…" (spinner kecil + teks), "Found codex 0.153.4", "gemini not found". Tanpa skeleton.
-- **Error sesi**: chip Error, judul "Codex CLI stopped", meta "exited with code 1 after 40 s", blok terminal berisi output stderr asli dari CLI, teks "AI Remote shows the CLI's own message. If it asks you to sign in, run the sign-in command in your own terminal.", tombol "Restart session".
+- **Error sesi**: chip Error, judul "Codex CLI stopped", meta "exited with code 1 after 40 s", blok terminal berisi output stderr asli dari CLI, teks "OpenCompanion shows the CLI's own message. If it asks you to sign in, run the sign-in command in your own terminal.", tombol "Restart session".
 
 ### D10 Board ✗ (ada di prototipe OpenDesign)
 - Tujuan: mengatur tugas dan mengirimnya ke CLI. Fokus: kolom In progress, terutama kartu yang menunggu Anda.
@@ -274,7 +274,7 @@ Satu frame berisi tiga contoh berdampingan:
 
 ### D11 Skills ✗ (hanya di Svelte)
 - Tujuan: tahu skill mana yang hilang atau berbeda isi antar-CLI. Fokus: matriks.
-- Header: H1 "Skills", sub "Skill folders in your home directory, compared by content. AI Remote reads these folders and never changes them.", tombol "Rescan".
+- Header: H1 "Skills", sub "Skill folders in your home directory, compared by content. OpenCompanion reads these folders and never changes them.", tombol "Rescan".
 - Toolbar langsung di atas lukisan (teks `ink`): ringkasan yang dihitung dari hasil pindaian (bentuknya, angka contoh: "95 skills in 5 folders · 3 differ · 13 have a problem"), segmented All / Different / Problems dengan jumlah, input cari dengan ikon `magnifying-glass`.
 - Matriks memakai Table (CLIs), lebar minimal 900 dan bergeser horizontal di kontainernya sendiri. Kolom pertama: nama skill 14/700 sebagai tombol yang membuka dialog, deskripsi satu baris 12 `ink-2`, "2 versions" bila isinya berbeda. Satu kolom per folder: CliMark 24 (Shared memakai `folder-simple` di kotak CliMark) + label, path lengkap hanya di tooltip; folder yang tidak ada diberi chip idle "Folder not found".
 - Sel: `check-circle` `forest` + "Same" (atau "Installed" bila hanya satu salinan), chip Read-only "Version A" + "3 h ago" 12 `ink-2` bila isinya berbeda (A selalu yang terbaru), "Missing" 13 `ink-2`, atau chip Error ("No SKILL.md", "Broken link", "Unreadable", "Too large").
@@ -291,7 +291,7 @@ Satu frame berisi tiga contoh berdampingan:
 Tanpa bottom nav: MVP hanya punya daftar sesi dan detail. Semua target sentuh minimal 44, tombol aksi utama 48, jarak antar tombol minimal 8.
 
 ### M1 Pair device ✗
-- Atas: `meadow-portrait.png` setinggi 280 (radius bawah 14). Di bawahnya di atas `bg`: H1 22/800 "Pair this phone", teks "On your computer, open AI Remote, go to Settings, turn on Phone access and scan the code shown there."
+- Atas: `meadow-portrait.png` setinggi 280 (radius bawah 14). Di bawahnya di atas `bg`: H1 22/800 "Pair this phone", teks "On your computer, open OpenCompanion, go to Settings, turn on Phone access and scan the code shown there."
 - Tombol "Scan pairing code" (primary, ikon `camera`, lebar penuh, 48), tombol "Enter the 6-digit code" (secondary, lebar penuh).
 - Mode kode: 6 kotak input mono 44 × 52. Error: "That code has expired. Make a new one on your computer."
 - Catatan bawah 12: "This phone talks only to your computer, over your own network."
@@ -311,7 +311,7 @@ Tanpa bottom nav: MVP hanya punya daftar sesi dan detail. Semua target sentuh mi
 
 ### M4 Can't reach your desktop ✗
 - Gema langsung dari gambar referensi "No Internet / Try:".
-- Atas: `meadow-portrait.png` setinggi 360. Di bawahnya: H1 "Can't reach your desktop", label "Try:" 14/800, tiga butir 14: "Wake your computer and open AI Remote", "Join the same Wi-Fi as your computer", "Check that Phone access is still on in Settings".
+- Atas: `meadow-portrait.png` setinggi 360. Di bawahnya: H1 "Can't reach your desktop", label "Try:" 14/800, tiga butir 14: "Wake your computer and open OpenCompanion", "Join the same Wi-Fi as your computer", "Check that Phone access is still on in Settings".
 - Tombol "Try again" (primary, lebar penuh, 48), teks kecil "Last connected 18 min ago".
 - Versi Senja memakai `meadow-dusk.png`.
 
@@ -362,5 +362,5 @@ Tanpa bottom nav: MVP hanya punya daftar sesi dan detail. Semua target sentuh mi
 - Logo brand di CliMark: pemilik produk memintanya, dan logo membuat CLI langsung dikenali di daftar sesi. Monogram hanya cadangan saat logo belum ada.
 - Ilustrasi hanya di momen tanpa data: di situ tidak ada yang perlu dibaca, jadi lukisan membawa identitas tanpa mengganggu kerja.
 - Skills sebagai matriks folder × skill, bukan daftar per CLI: tujuan layar adalah membandingkan, dan kolom sejajar membuat celah langsung terlihat. Kolomnya folder karena CLI mana membaca folder mana bergantung versi CLI.
-- Skills hanya memberi perintah salin, tidak menyalin sendiri: sama dengan aturan instal CLI, AI Remote tidak menulis ke folder konfigurasi CLI.
+- Skills hanya memberi perintah salin, tidak menyalin sendiri: sama dengan aturan instal CLI, OpenCompanion tidak menulis ke folder konfigurasi CLI.
 - Mobile tanpa bottom nav: hanya ada dua layar, bottom nav akan berisi tujuan yang belum ada.

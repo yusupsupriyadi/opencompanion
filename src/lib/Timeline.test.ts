@@ -13,7 +13,7 @@ test("headless events read as a terminal log", () => {
       row(1, { kind: "message", text: "You: add a hello file" }),
       row(2, { kind: "tool_call", tool: "Write", summary: "hello.txt" }),
       row(3, { kind: "permission_request", request_id: "r", tool: "Write", summary: "hello.txt" }),
-      row(4, { kind: "message", text: "Approved Write in AI Remote" }),
+      row(4, { kind: "message", text: "Approved Write in OpenCompanion" }),
       row(5, { kind: "file_changed", path: "hello.txt" }),
       row(6, { kind: "done", ok: true, summary: "done" }),
       ],

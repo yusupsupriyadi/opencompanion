@@ -71,7 +71,7 @@ pub enum Mode {
     Headless,
 }
 
-/// What the CLI is waiting for, and whether AI Remote can answer it.
+/// What the CLI is waiting for, and whether OpenCompanion can answer it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Waiting {
@@ -583,7 +583,7 @@ impl Db {
         self.with(|c| {
             c.execute(
                 "UPDATE sessions SET status = 'stopped', waiting = NULL, ended_at = COALESCE(ended_at, ?1),
-                   last_event = 'AI Remote was closed while this session ran', updated_at = ?1
+                   last_event = 'OpenCompanion was closed while this session ran', updated_at = ?1
                  WHERE status IN ('starting', 'running', 'waiting', 'idle')",
                 [now],
             )

@@ -1,4 +1,4 @@
-# PRD: AI Remote
+# PRD: OpenCompanion
 
 | | |
 |---|---|
@@ -9,7 +9,7 @@
 
 ## 1. Ringkasan
 
-AI Remote adalah aplikasi desktop lokal untuk mengelola AI coding CLI seperti Claude Code, Codex CLI, dan OpenCode. Dari satu jendela, Anda bisa:
+OpenCompanion adalah aplikasi desktop lokal untuk mengelola AI coding CLI seperti Claude Code, Codex CLI, dan OpenCode. Dari satu jendela, Anda bisa:
 
 1. melihat CLI apa saja yang terpasang beserta versinya,
 2. menjalankan sesi CLI di folder project mana pun,
@@ -18,7 +18,7 @@ AI Remote adalah aplikasi desktop lokal untuk mengelola AI coding CLI seperti Cl
 5. memantau dan menjawab prompt izin dari HP lewat web companion di jaringan lokal,
 6. mengatur tugas di Board kanban (Pending, Todo, In progress, Done) yang bisa langsung dijalankan ke CLI.
 
-Semua berjalan di komputer Anda. AI Remote tidak punya server cloud, akun, atau telemetri. Model AI tetap diproses oleh provider masing-masing CLI, karena CLI itu sendiri yang memanggil API-nya. Satu pengecualian yang Anda pilih sendiri: planner Chat bisa memakai custom provider (FR-29), yang dipanggil langsung oleh AI Remote.
+Semua berjalan di komputer Anda. OpenCompanion tidak punya server cloud, akun, atau telemetri. Model AI tetap diproses oleh provider masing-masing CLI, karena CLI itu sendiri yang memanggil API-nya. Satu pengecualian yang Anda pilih sendiri: planner Chat bisa memakai custom provider (FR-29), yang dipanggil langsung oleh OpenCompanion.
 
 ## 2. Masalah
 
@@ -39,7 +39,7 @@ Semua berjalan di komputer Anda. AI Remote tidak punya server cloud, akun, atau 
 
 ### Non-goals (v1)
 
-- Bukan pengganti CLI. AI Remote tidak punya agen coding sendiri. Satu-satunya panggilan API model langsung adalah planner Chat saat Anda memilih custom provider (FR-29); sesi coding tetap selalu CLI.
+- Bukan pengganti CLI. OpenCompanion tidak punya agen coding sendiri. Satu-satunya panggilan API model langsung adalah planner Chat saat Anda memilih custom provider (FR-29); sesi coding tetap selalu CLI.
 - Tidak ada sinkronisasi cloud, akun, atau multi-user.
 - Tidak mengontrol sesi eksternal (yang dibuka di luar app). Sesi eksternal hanya dilihat, tidak dikendalikan.
 - Tidak ada editor kode atau viewer diff lengkap. Diff cukup ditampilkan ringkas, pekerjaan detail tetap di editor Anda.
@@ -51,15 +51,15 @@ Semua berjalan di komputer Anda. AI Remote tidak punya server cloud, akun, atau 
 
 Skenario:
 
-- **S1** Pagi hari, Anda membuka AI Remote dan menulis di chat: "Codex perbaiki test yang gagal di ai-remote, Claude Code tulis dokumentasi API di uninote." Chat menyusun dua dispatch, Anda setujui, dua sesi berjalan.
+- **S1** Pagi hari, Anda membuka OpenCompanion dan menulis di chat: "Codex perbaiki test yang gagal di ai-remote, Claude Code tulis dokumentasi API di uninote." Chat menyusun dua dispatch, Anda setujui, dua sesi berjalan.
 - **S2** Anda sedang makan siang. HP bergetar: "Claude Code is waiting for approval in uninote: run `npm install`". Anda buka web companion, baca perintahnya, tekan Approve.
-- **S3** Anda lupa bahwa kemarin membuka OpenCode di Windows Terminal. Overview menampilkannya di bagian "Opened outside AI Remote" lengkap dengan folder dan lama berjalan.
+- **S3** Anda lupa bahwa kemarin membuka OpenCode di Windows Terminal. Overview menampilkannya di bagian "Opened outside OpenCompanion" lengkap dengan folder dan lama berjalan.
 - **S4** Codex error karena belum login. Sesi ditandai error dengan pesan asli dari CLI dan saran langkah berikutnya (`codex login`).
 
 ## 5. Prinsip produk
 
 1. **Lokal dulu.** Semua state disimpan di mesin. Server companion mati secara default.
-2. **CLI adalah pekerjanya.** AI Remote mengatur, menampilkan, dan meneruskan. Keputusan coding tetap di CLI.
+2. **CLI adalah pekerjanya.** OpenCompanion mengatur, menampilkan, dan meneruskan. Keputusan coding tetap di CLI.
 3. **Anda memegang izin.** Chat hanya mengusulkan dispatch. Tidak ada sesi yang dimulai tanpa konfirmasi Anda, kecuali Anda sendiri yang mengaktifkan auto-dispatch per project.
 4. **Jujur soal batas.** Sesi eksternal ditandai read-only, dan data yang tidak bisa dibaca ditampilkan sebagai "tidak tersedia", bukan ditebak.
 
@@ -123,14 +123,14 @@ Prioritas: **P0** wajib untuk MVP, **P1** penting setelah MVP, **P2** nanti.
 | FR-26 | P2 | Auto-dispatch per project. | Pengguna bisa mengizinkan dispatch tanpa konfirmasi untuk project tertentu; indikator jelas tampil di chat. |
 | FR-27 | P1 | Riwayat chat per percakapan. | Setiap percakapan dengan planner tersimpan sebagai chat sendiri, dinamai dari baris pertama pesan pertamanya. Daftar "Chats" menampilkan semua chat (terbaru di atas) dan membuka riwayatnya lewat `/chat?id=`. "New chat" memulai percakapan kosong. Planner hanya membaca pesan dari chat yang sedang dibuka. Hapus chat butuh tekanan kedua dan tidak menghentikan sesi yang dimulai dari kartunya. Percakapan lama dari sebelum fitur ini menjadi satu chat. |
 | FR-28 | P1 | Model dan tingkat thinking planner. | Composer Chat punya pilihan Model dan Thinking untuk CLI planner, tersimpan per CLI di Settings dan berlaku mulai pesan berikutnya. "CLI default" tidak mengirim flag apa pun. Daftar diambil dari CLI itu sendiri dan menampilkan nama berversi: Claude Code dari katalog `/model` miliknya (`~/.claude/cache/model-catalog`, misalnya "Opus 5.5", "Fable 5.1", model lama di grup "More models", ID lengkap lewat `--model` dan tingkat per model lewat `--effort`; tanpa katalog, alias `fable`, `opus`, `sonnet`, `haiku` sebagai cadangan); Codex `codex debug models` dengan `-c model_reasoning_effort`; OpenCode `opencode models --verbose` dengan `--variant` per model, dikelompokkan per provider. Tingkat yang tidak didukung model baru kembali ke default. Pilihan ini tidak tampil saat planner memakai custom provider. |
-| FR-29 | P1 | Custom provider untuk planner. | Settings, Chat planner punya pilihan "Custom provider (OpenAI-compatible API)" dengan Base URL, Model, dan API key (opsional, untuk Ollama atau LM Studio boleh kosong). Chat mengirim `POST {base}/chat/completions` langsung dari AI Remote dengan konteks yang sama seperti CLI (FR-24), lalu jawabannya divalidasi seperti FR-23. Provider tidak punya akses file, jadi hanya melihat nama folder. API key disimpan di database lokal dan hanya dikirim ke Base URL itu. Field yang kosong atau URL tanpa http(s) ditolak sebelum disimpan, dan error provider tampil dengan kata-kata provider sendiri. |
+| FR-29 | P1 | Custom provider untuk planner. | Settings, Chat planner punya pilihan "Custom provider (OpenAI-compatible API)" dengan Base URL, Model, dan API key (opsional, untuk Ollama atau LM Studio boleh kosong). Chat mengirim `POST {base}/chat/completions` langsung dari OpenCompanion dengan konteks yang sama seperti CLI (FR-24), lalu jawabannya divalidasi seperti FR-23. Provider tidak punya akses file, jadi hanya melihat nama folder. API key disimpan di database lokal dan hanya dikirim ke Base URL itu. Field yang kosong atau URL tanpa http(s) ditolak sebelum disimpan, dan error provider tampil dengan kata-kata provider sendiri. |
 
 ### D. Monitoring
 
 | ID | Prio | Requirement | Acceptance criteria |
 |---|---|---|---|
 | FR-30 | P0 | Overview semua sesi dari app. | Overview menampilkan sesi yang butuh Anda paling atas, lalu yang berjalan, lalu yang selesai hari ini. Setiap baris: CLI, folder, status, lama berjalan, event terakhir. |
-| FR-31 | P0 | Deteksi sesi eksternal. | Proses CLI yang berjalan di luar app terdeteksi lewat daftar proses (nama executable, PID, folder kerja bila bisa dibaca, waktu mulai) dan tampil di bagian "Opened outside AI Remote" dengan label Read-only. |
+| FR-31 | P0 | Deteksi sesi eksternal. | Proses CLI yang berjalan di luar app terdeteksi lewat daftar proses (nama executable, PID, folder kerja bila bisa dibaca, waktu mulai) dan tampil di bagian "Opened outside OpenCompanion" dengan label Read-only. |
 | FR-32 | P1 | Isi sesi eksternal dari transcript. | Bila CLI menulis riwayat sesi lokal (bagian 6), detail sesi eksternal menampilkan pesan terakhir dari file itu. Bila tidak bisa dibaca, tampil "Transcript not available for this CLI". |
 | FR-33 | P1 | Garis aktivitas. | Setiap sesi menampilkan garis horizon dengan titik untuk tiap event nyata (tool call, file diubah, prompt izin, error) dalam rentang waktu yang terlihat. |
 | FR-34 | P1 | Penggunaan sumber daya. | Detail sesi menampilkan CPU dan memori proses CLI (dan anak prosesnya). |
@@ -166,7 +166,7 @@ Prioritas: **P0** wajib untuk MVP, **P1** penting setelah MVP, **P2** nanti.
 | FR-61 | P0 | Tema Siang / Senja. | Toggle tema berfungsi penuh di kedua mode; default mengikuti tema OS. |
 | FR-62 | P1 | Retensi data. | Pengguna menentukan berapa lama output sesi disimpan, dan bisa menghapus riwayat. |
 | FR-63 | P1 | Bahasa UI. | UI bisa diganti Inggris / Indonesia. |
-| FR-64 | P2 | Mulai saat login. | Opsi menjalankan AI Remote saat login OS. |
+| FR-64 | P2 | Mulai saat login. | Opsi menjalankan OpenCompanion saat login OS. |
 | FR-65 | P1 | Mode izin sesi: Ask me, Plan, Auto, Bypass. | Settings menyimpan mode default untuk sesi baru; New session dan Run dari Board bisa memilih mode lain untuk satu sesi. Tiap mode diteruskan sebagai flag resmi masing-masing CLI, dan tabelnya tampil di Settings. Bypass baru tersimpan setelah konfirmasi kedua, dan form sesi memberi peringatan saat Bypass dipilih. Planner Chat tidak terpengaruh dan tetap read-only. |
 | FR-66 | P1 | Ukuran teks. | Settings menawarkan 90%, 100% (default), 110%, 125%, 150%. Pilihan langsung berlaku di semua layar desktop sebagai zoom webview, jadi teks, tombol, dan spasi membesar bersama dan layout mengikuti breakpoint yang ada. Tersimpan di Settings dan diterapkan lagi saat aplikasi dibuka. Halaman HP tidak terpengaruh dan mengikuti ukuran teks HP. |
 
@@ -219,7 +219,7 @@ Kolom tetap: **Pending** (belum siap: ide, pertanyaan terbuka, pekerjaan terblok
 ## 10. Arsitektur
 
 ```
-┌──────────────────────────── AI Remote (satu proses Tauri) ────────────────────────────┐
+┌────────────────────────── OpenCompanion (satu proses Tauri) ──────────────────────────┐
 │  Webview: Svelte 5 SPA (SvelteKit adapter-static)                                     │
 │    Overview · Chat · Session (xterm.js) · CLI Manager · Settings                       │
 │        │  invoke / events (Tauri IPC)                                                  │
@@ -251,8 +251,8 @@ Cara kerja orchestrator chat:
 
 ## 11. Keamanan dan privasi
 
-- Tidak ada telemetri dan tidak ada panggilan jaringan dari AI Remote sendiri, kecuali server companion saat Anda nyalakan.
-- AI Remote tidak menyimpan kredensial CLI. Login tetap diurus oleh masing-masing CLI.
+- Tidak ada telemetri dan tidak ada panggilan jaringan dari OpenCompanion sendiri, kecuali server companion saat Anda nyalakan.
+- OpenCompanion tidak menyimpan kredensial CLI. Login tetap diurus oleh masing-masing CLI.
 - Server companion: mati default, hanya menerima perangkat yang dipasangkan, token disimpan dalam bentuk hash, kode pairing sekali pakai dengan masa berlaku singkat, batas percobaan pairing.
 - HTTP di LAN tidak terenkripsi. Settings menampilkan peringatan ini dan merekomendasikan VPN dengan HTTPS (misalnya Tailscale) untuk penggunaan di luar jaringan tepercaya.
 - Dispatch dan Approve/Deny dari HP tercatat di riwayat dengan nama perangkatnya.
@@ -286,19 +286,19 @@ Angka di bawah adalah target desain, belum diukur.
 | Folder kerja proses eksternal tidak selalu bisa dibaca di Windows. | Sesi eksternal tampil tanpa folder. | Tampilkan "Folder unknown", cocokkan dengan transcript bila memungkinkan. |
 | PWA dan Web Push butuh HTTPS; LAN biasa hanya HTTP. | Tidak bisa install PWA / push di LAN. | MVP companion berjalan sebagai halaman web biasa; HTTPS lewat VPN (misalnya Tailscale) sebagai jalur PWA. Diputuskan di M2. |
 | Chat headless memakai kuota langganan CLI. | Biaya/kuota habis lebih cepat. | Pilihan CLI chat bisa diganti; konteks yang dikirim dibatasi. |
-| Ketentuan penggunaan tiap CLI untuk otomatisasi. | Pola pemakaian tertentu mungkin tidak diizinkan provider. | Tinjau ketentuan tiap CLI sebelum M1; AI Remote hanya menjalankan CLI resmi dengan akun pengguna sendiri. |
+| Ketentuan penggunaan tiap CLI untuk otomatisasi. | Pola pemakaian tertentu mungkin tidak diizinkan provider. | Tinjau ketentuan tiap CLI sebelum M1; OpenCompanion hanya menjalankan CLI resmi dengan akun pengguna sendiri. |
 
 ## 15. Pertanyaan terbuka
 
 1. Apakah Gemini CLI termasuk MVP, atau cukup Claude Code, Codex, OpenCode?
 2. Apakah HP boleh mengirim teks bebas ke sesi (bukan hanya Approve/Deny/Stop) di M2?
 3. Apakah perlu mode "worktree per dispatch" agar dua CLI tidak mengubah folder yang sama bersamaan?
-4. Nama dan logo final (saat ini "AI Remote" dengan wordmark teks).
+4. Logo final (nama sudah OpenCompanion; saat ini wordmark teks).
 
 ## 16. Istilah
 
 - **Sesi**: satu proses CLI yang berjalan untuk satu folder.
 - **Dispatch**: usulan dari chat untuk memulai sesi atau mengirim tugas ke sesi.
 - **Headless**: CLI berjalan tanpa TUI, menerima prompt dan mengeluarkan event.
-- **Sesi eksternal**: proses CLI yang tidak dijalankan oleh AI Remote.
+- **Sesi eksternal**: proses CLI yang tidak dijalankan oleh OpenCompanion.
 - **Companion**: web app di HP yang terhubung ke desktop lewat jaringan lokal.

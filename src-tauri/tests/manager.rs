@@ -7,10 +7,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use ai_remote_lib::cli::CliKind;
-use ai_remote_lib::db::{Db, EventRow, Mode, SessionInfo, Settings, Status, Task};
-use ai_remote_lib::events::SessionEvent;
-use ai_remote_lib::session::{Emit, Manager, StartRequest};
+use opencompanion_lib::cli::CliKind;
+use opencompanion_lib::db::{Db, EventRow, Mode, SessionInfo, Settings, Status, Task};
+use opencompanion_lib::events::SessionEvent;
+use opencompanion_lib::session::{Emit, Manager, StartRequest};
 
 #[derive(Default)]
 struct Recorder {

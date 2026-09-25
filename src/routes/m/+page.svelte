@@ -32,9 +32,9 @@
   }
 </script>
 
-<svelte:head><title>Sessions · AI Remote</title></svelte:head>
+<svelte:head><title>Sessions · OpenCompanion</title></svelte:head>
 
-<header class="bar"><span class="brand grow">AI Remote <Cloud size={20} aria-hidden="true" /></span></header>
+<header class="bar"><span class="brand grow">OpenCompanion <Cloud size={20} aria-hidden="true" /></span></header>
 <main class="content" id="phone-sessions">
   <h1 class="m-h1">Sessions</h1>
   <p class="conn">{phone.connection === "online" ? "Connected to your desktop" : "Connecting…"}</p>
@@ -44,7 +44,7 @@
   {#if !phone.loaded}
     <p class="m-p" role="status">Loading sessions…</p>
   {:else if phone.sessions.length === 0}
-    <p class="m-p">Nothing has run in AI Remote yet. Start a session on your computer and it shows up here.</p>
+    <p class="m-p">Nothing has run in OpenCompanion yet. Start a session on your computer and it shows up here.</p>
   {/if}
 
   {#each waiting as s (s.id)}

@@ -14,7 +14,7 @@ pub enum RunMode {
     Server,
 }
 
-/// A CLI process that AI Remote did not start. Read-only by design (PRD FR-31).
+/// A CLI process that OpenCompanion did not start. Read-only by design (PRD FR-31).
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalSession {
@@ -93,7 +93,7 @@ impl Monitor {
         Self { sys: System::new() }
     }
 
-    /// Lists CLI processes that are not descendants of `own_pids` (sessions AI Remote started).
+    /// Lists CLI processes that are not descendants of `own_pids` (sessions OpenCompanion started).
     /// CPU usage needs two scans; the first scan reports 0.
     pub fn scan(&mut self, own_pids: &HashSet<u32>) -> Vec<ExternalSession> {
         self.sys.refresh_processes_specifics(
@@ -113,7 +113,7 @@ impl Monitor {
             let Some(kind) = kind_of(p) else { continue };
 
             // Walk up once: skip children of the same CLI (OpenCode's wrapper exe starts the
-            // platform exe) and anything AI Remote spawned.
+            // platform exe) and anything OpenCompanion spawned.
             let mut same_cli_parent = false;
             let mut ours = own_pids.contains(&pid.as_u32());
             let mut cursor = p.parent();

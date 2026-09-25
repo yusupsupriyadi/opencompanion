@@ -46,7 +46,7 @@ pub fn schema() -> Value {
     })
 }
 
-const SYSTEM: &str = "You are the planner inside AI Remote, a desktop app that starts AI coding CLIs \
+const SYSTEM: &str = "You are the planner inside OpenCompanion, a desktop app that starts AI coding CLIs \
 (Claude Code, Codex CLI, OpenCode, Gemini CLI) on the user's own computer. You never run commands or \
 change files. Your whole answer is one JSON object: `reply` is a short message to the user in the \
 language they wrote in, and `dispatches` lists the CLI sessions you propose. The user presses Run on \
@@ -116,7 +116,7 @@ pub fn prompt_text(input: &PlanInput) -> String {
         let kind = if f.markers.is_empty() { String::new() } else { format!(" ({})", f.markers.join(", ")) };
         out.push_str(&format!("- {}: {}{kind}\n", f.name, f.path));
     }
-    out.push_str("\n## Sessions in AI Remote (newest first)\n");
+    out.push_str("\n## Sessions in OpenCompanion (newest first)\n");
     if input.sessions.is_empty() {
         out.push_str("- none\n");
     }
@@ -132,7 +132,7 @@ pub fn prompt_text(input: &PlanInput) -> String {
         ));
     }
     if !input.outside.is_empty() {
-        out.push_str("\n## CLIs open in other terminals (read-only for AI Remote)\n");
+        out.push_str("\n## CLIs open in other terminals (read-only for OpenCompanion)\n");
         for o in input.outside {
             out.push_str(&format!(
                 "- {} ({:?}) in {}\n",

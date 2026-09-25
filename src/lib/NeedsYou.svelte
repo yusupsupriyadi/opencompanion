@@ -50,7 +50,7 @@
       <button class="btn accent" type="button" disabled={busy} onclick={() => answer(true)}><Check size={16} aria-hidden="true" />Approve</button>
       <button class="btn secondary" type="button" disabled={busy} onclick={() => answer(false)}><X size={16} aria-hidden="true" />Deny</button>
     {:else}
-      <span class="meta">Answer this in the session's terminal. AI Remote does not pick an option for you here.</span>
+      <span class="meta">Answer this in the session's terminal. OpenCompanion does not pick an option for you here.</span>
     {/if}
     <span class="spacer"></span>
     {#if showOpen}

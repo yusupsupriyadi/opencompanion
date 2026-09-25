@@ -1,5 +1,5 @@
 //! User skill folders of the supported CLIs, compared by content for the Skills screen.
-//! Read-only: the screen offers copy commands, AI Remote never writes to these folders.
+//! Read-only: the screen offers copy commands, OpenCompanion never writes to these folders.
 
 use crate::cli::CliKind;
 use serde::Serialize;

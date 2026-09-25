@@ -32,15 +32,15 @@
   }
 </script>
 
-<svelte:head><title>Welcome · AI Remote</title></svelte:head>
+<svelte:head><title>Welcome · OpenCompanion</title></svelte:head>
 
 <main class="scene" id="onboarding">
   <img class="scene-art" src={meadow} alt="" aria-hidden="true" />
   <section class="panel" aria-labelledby="ob-title">
-    <div class="brand"><span>AI Remote</span><Cloud size={20} aria-hidden="true" /></div>
+    <div class="brand"><span>OpenCompanion</span><Cloud size={20} aria-hidden="true" /></div>
     <div>
       <h1 id="ob-title">{app.clisState === "ready" && planners.length === 0 ? "No coding CLI was found yet" : "These coding CLIs are on your computer"}</h1>
-      <p class="lead">AI Remote looked through your PATH and common install folders. Nothing was installed or changed.</p>
+      <p class="lead">OpenCompanion looked through your PATH and common install folders. Nothing was installed or changed.</p>
     </div>
 
     {#if app.clisState === "error"}

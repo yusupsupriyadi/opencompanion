@@ -13,7 +13,7 @@
     oninput,
   }: { value?: string; error?: string; id: string; label?: string; oninput?: () => void } = $props();
 
-  // Folders used in AI Remote first; on a fresh install, the projects found on disk.
+  // Folders used in OpenCompanion first; on a fresh install, the projects found on disk.
   let suggestions = $state<string[]>([]);
   let suggestionLabel = $state("Recent:");
 

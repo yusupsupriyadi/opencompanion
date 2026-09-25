@@ -4,7 +4,7 @@ Approved in chat on 2026-09-25.
 
 ## Goal
 
-Compare the skills installed for each coding CLI, so the owner can see which skill is missing from a CLI or has different content, and get a command to copy it. AI Remote reads the folders and never writes to them.
+Compare the skills installed for each coding CLI, so the owner can see which skill is missing from a CLI or has different content, and get a command to copy it. OpenCompanion reads the folders and never writes to them.
 
 ## Scope
 

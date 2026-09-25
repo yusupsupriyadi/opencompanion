@@ -1,4 +1,4 @@
-/* AI Remote. Tokens mirror DESIGN.md section 2; component rules mirror section 8. */
+/* OpenCompanion. Tokens mirror DESIGN.md section 2; component rules mirror section 8. */
 :root {
   --bg: #FBF3CF; --surface: #FFFAE6; --surface-2: #F4E7B0; --line: #E4D69E; --line-strong: #8C8A5E;
   --ink: #33361F; --ink-2: #5B5D3E; --forest: #2F5A36; --on-forest: #FBF3CF; --accent: #2C5A8C; --on-accent: #FFF8E1;
@@ -57,7 +57,7 @@ svg { flex: none; }
 /* Text straight on the painting uses ink only: ink-2 fails AA over the darkest pixels even with the haze. */
 .page-head, .section-head, .hint, .col-head, .board-main > .meta, .planner, .activity, .detail-side, .note, .not-found, .phones figcaption { --ink-2: var(--ink); }
 .sidebar { display: flex; flex-direction: column; gap: 22px; padding: 22px 16px; overflow-y: auto; }
-.brand { display: flex; align-items: center; gap: 8px; padding: 0 10px; font-size: 20px; font-weight: 800; }
+.brand { display: flex; align-items: center; gap: 8px; padding: 0 10px; font-size: 18px; font-weight: 800; }
 .brand svg { color: var(--ink-2); }
 .nav { display: flex; flex-direction: column; gap: 2px; }
 .nav a { display: flex; align-items: center; gap: 10px; padding: 9px 12px; min-height: 40px; border-radius: var(--r-btn); color: var(--ink-2); font-weight: 600; transition: background-color .12s ease-out; }

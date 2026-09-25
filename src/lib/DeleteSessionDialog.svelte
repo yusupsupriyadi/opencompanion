@@ -39,7 +39,7 @@
     <div class="d-body" id="delete-session-dialog">
       <h2 id="del-title">Delete this session?</h2>
       <p class="meta" style="margin:0;font-size:14px">
-        AI Remote removes "{s.title}", its timeline and its terminal log. Files that {CLI_LABEL[s.cli]} changed in {folderName(s.cwd)} stay as they are. This can't be undone.
+        OpenCompanion removes "{s.title}", its timeline and its terminal log. Files that {CLI_LABEL[s.cli]} changed in {folderName(s.cwd)} stay as they are. This can't be undone.
       </p>
       {#if error}<p class="err-text" role="alert" style="margin:0">{error}</p>{/if}
       <div class="d-foot">

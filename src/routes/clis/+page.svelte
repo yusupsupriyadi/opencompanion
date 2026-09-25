@@ -17,7 +17,7 @@
     opencode: "opencode run --format json --dir <folder>",
     gemini: "Not supported yet",
   };
-  // Official npm packages. AI Remote never runs these itself (PRD FR-03).
+  // Official npm packages. OpenCompanion never runs these itself (PRD FR-03).
   const INSTALL: Record<CliKind, string> = {
     claude: "npm install -g @anthropic-ai/claude-code",
     codex: "npm install -g @openai/codex",
@@ -107,7 +107,7 @@
   }
 </script>
 
-<svelte:head><title>CLIs · AI Remote</title></svelte:head>
+<svelte:head><title>CLIs · OpenCompanion</title></svelte:head>
 
 <main class="main" id="clis-main">
   <header class="page-head">
@@ -198,7 +198,7 @@
         </tbody>
       </table>
     </div>
-    <p class="note">AI Remote never installs a CLI for you. Copy the command, run it in your own terminal, then press Rescan. Aider, Qwen Code and other CLIs are planned after the first release.</p>
+    <p class="note">OpenCompanion never installs a CLI for you. Copy the command, run it in your own terminal, then press Rescan. Aider, Qwen Code and other CLIs are planned after the first release.</p>
   {/if}
 </main>
 
@@ -215,12 +215,12 @@
           <input class="input mono grow" id="cfg-path" bind:value={pathValue} oninput={() => (configError = "")} placeholder="Empty: use the one found on PATH" spellcheck="false" aria-describedby="cfg-path-help" />
           <button class="btn secondary" type="button" onclick={pickFile}>Browse</button>
         </div>
-        <p class="help" id="cfg-path-help">AI Remote runs it once with --version to read the version. Nothing else is executed until you start a session.</p>
+        <p class="help" id="cfg-path-help">OpenCompanion runs it once with --version to read the version. Nothing else is executed until you start a session.</p>
       </div>
       <div class="field">
         <label class="label" for="cfg-args">Extra arguments</label>
         <input class="input mono" id="cfg-args" bind:value={argsValue} placeholder="For example --pure" spellcheck="false" aria-describedby="cfg-args-help" />
-        <p class="help" id="cfg-args-help">Added to every session this CLI runs in AI Remote, separated by spaces. Quotes are not supported.</p>
+        <p class="help" id="cfg-args-help">Added to every session this CLI runs in OpenCompanion, separated by spaces. Quotes are not supported.</p>
       </div>
       {#if configError}<p class="err-text" role="alert" style="margin:0">{configError}</p>{/if}
       <div class="d-foot">

@@ -19,7 +19,7 @@ test("first run explains what to do and offers both ways in", async () => {
   const user = userEvent.setup();
   render(Overview);
   render(NewSessionDialog);
-  expect(screen.getByRole("heading", { name: "Nothing has run in AI Remote yet" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Nothing has run in OpenCompanion yet" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Describe a task in Chat" })).toHaveAttribute("href", "/chat");
   await user.click(screen.getAllByRole("button", { name: "New session" })[0]);
   expect(screen.getByRole("heading", { name: "New session" })).toBeInTheDocument();

@@ -6,9 +6,9 @@ use std::net::TcpStream;
 use std::sync::Arc;
 use std::time::Duration;
 
-use ai_remote_lib::companion::{hash_token, AssetLookup, Companion};
-use ai_remote_lib::db::{Db, EventRow, SessionInfo};
-use ai_remote_lib::session::{Emit, Manager};
+use opencompanion_lib::companion::{hash_token, AssetLookup, Companion};
+use opencompanion_lib::db::{Db, EventRow, SessionInfo};
+use opencompanion_lib::session::{Emit, Manager};
 use serde_json::Value;
 
 struct Quiet;

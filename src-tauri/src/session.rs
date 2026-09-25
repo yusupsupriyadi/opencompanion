@@ -881,7 +881,7 @@ impl Manager {
             .map_err(|e| e.to_string())?
             .get(id)
             .cloned()
-            .ok_or_else(|| "This session is not running in AI Remote.".into())
+            .ok_or_else(|| "This session is not running in OpenCompanion.".into())
     }
 
     /// Approve or Deny (PRD FR-17). Headless Claude gets a control response; interactive
@@ -917,7 +917,7 @@ impl Manager {
         }
         let verdict = if allow { "Approved" } else { "Denied" };
         let tool = waiting.tool.clone().unwrap_or_else(|| "the request".into());
-        let place = device.map(|d| format!("on {d}")).unwrap_or_else(|| "in AI Remote".into());
+        let place = device.map(|d| format!("on {d}")).unwrap_or_else(|| "in OpenCompanion".into());
         self.record(
             &live,
             SessionEvent::Message {
@@ -1105,7 +1105,7 @@ impl Manager {
                     Runner::None => continue,
                 }
             }
-            self.finish(&live, Status::Stopped, None, Some("AI Remote was closed".into()));
+            self.finish(&live, Status::Stopped, None, Some("OpenCompanion was closed".into()));
         }
     }
 
@@ -1194,8 +1194,8 @@ mod tests {
         // Sequences as Claude Code printed them in a real session log.
         let chunk = "\x1b]0;C:\\Users\\me\\.local\\bin\\claude.exe\x07\x1b]0;claude\x07\x1b]0;◐ Claude Code\x07";
         assert_eq!(terminal_task_name(chunk), None);
-        let chunk = "x\x1b]0;◐ AI Remote custom title bar\x07y\x1b]0;✳ AI Remote custom title bar\x07";
-        assert_eq!(terminal_task_name(chunk).as_deref(), Some("AI Remote custom title bar"));
+        let chunk = "x\x1b]0;◐ OpenCompanion custom title bar\x07y\x1b]0;✳ OpenCompanion custom title bar\x07";
+        assert_eq!(terminal_task_name(chunk).as_deref(), Some("OpenCompanion custom title bar"));
         assert_eq!(terminal_task_name("\x1b]2;⠂ Fix tests\x1b\\").as_deref(), Some("Fix tests"));
         assert_eq!(terminal_task_name("\x1b]0;✳ Cut off"), None);
         assert_eq!(terminal_task_name("\x1b[31mred\x1b[0m"), None);

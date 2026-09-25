@@ -177,7 +177,7 @@
   }
 </script>
 
-<svelte:head><title>Board · AI Remote</title></svelte:head>
+<svelte:head><title>Board · OpenCompanion</title></svelte:head>
 
 <main class="main board-main" id="board-main">
   <header class="page-head">

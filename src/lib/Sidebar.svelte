@@ -108,8 +108,8 @@
   const phoneOn = $derived(app.companion?.running ?? false);
 </script>
 
-<aside class="sidebar" aria-label="AI Remote">
-  <a class="brand" href="/" aria-label="AI Remote, Overview"><span class="lbl">AI Remote</span><Cloud size={20} aria-hidden="true" /></a>
+<aside class="sidebar" aria-label="OpenCompanion">
+  <a class="brand" href="/" aria-label="OpenCompanion, Overview"><span class="lbl">OpenCompanion</span><Cloud size={20} aria-hidden="true" /></a>
   <nav class="nav" aria-label="Main">
     {#each NAV as n (n.href)}
       <a href={n.href} aria-current={active(n.href) ? "page" : undefined} title={n.label}>

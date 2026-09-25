@@ -112,7 +112,7 @@
   const dock = $derived(Boolean(s && (s.status === "waiting" ? s.waiting?.canAnswer : isLive(s))));
 </script>
 
-<svelte:head><title>{s ? `${s.title} · AI Remote` : "Session · AI Remote"}</title></svelte:head>
+<svelte:head><title>{s ? `${s.title} · OpenCompanion` : "Session · OpenCompanion"}</title></svelte:head>
 
 <header class="bar">
   <a class="back" href="/m"><CaretLeft size={20} aria-hidden="true" />Sessions</a>
@@ -171,7 +171,7 @@
   {#if s}
     <div class="d-body" style="gap:14px">
       <h2 id="stop-sheet-title" style="font-size:20px">Stop this session?</h2>
-      <p class="m-p">AI Remote sends {CLI_LABEL[s.cli]} in {folderName(s.cwd)} an interrupt first, then stops it by force after 3 seconds.</p>
+      <p class="m-p">OpenCompanion sends {CLI_LABEL[s.cli]} in {folderName(s.cwd)} an interrupt first, then stops it by force after 3 seconds.</p>
       <div class="d-foot sheet-foot">
         <button class="btn danger" type="button" onclick={stop}><Stop size={16} aria-hidden="true" />Stop session</button>
         <button class="btn secondary" type="button" onclick={() => (stopOpen = false)}>Keep running</button>

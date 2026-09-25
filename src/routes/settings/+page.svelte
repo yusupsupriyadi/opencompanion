@@ -220,7 +220,7 @@
   }
 </script>
 
-<svelte:head><title>Settings · AI Remote</title></svelte:head>
+<svelte:head><title>Settings · OpenCompanion</title></svelte:head>
 
 <main class="main" id="settings-main">
   <header class="page-head"><h1 class="grow">Settings</h1></header>
@@ -307,7 +307,7 @@
     <section class="card" id="permissions" aria-labelledby="perm-title">
       <div>
         <h2 id="perm-title">Permission mode</h2>
-        <p class="desc">How much the CLIs may do on their own in sessions AI Remote starts. New session and Board runs can pick another mode for a single session. Chat's planner is not affected: it stays read-only.</p>
+        <p class="desc">How much the CLIs may do on their own in sessions OpenCompanion starts. New session and Board runs can pick another mode for a single session. Chat's planner is not affected: it stays read-only.</p>
       </div>
       <fieldset class="bare">
         <legend class="sr-only">Default permission mode</legend>
@@ -415,7 +415,7 @@
                 />
                 <button class="btn secondary" type="button" aria-pressed={showKey} onclick={() => (showKey = !showKey)}>{showKey ? "Hide" : "Show"}</button>
               </div>
-              <p class="help" id="provider-key-help">Kept in AI Remote's database on this computer and sent only to the base URL above.</p>
+              <p class="help" id="provider-key-help">Kept in OpenCompanion's database on this computer and sent only to the base URL above.</p>
             </div>
             <button class="btn primary" type="submit" id="btn-save-provider">Save provider</button>
           </form>
@@ -433,7 +433,7 @@
       <section class="card" id="projects" aria-labelledby="projects-title">
         <h2 id="projects-title">Project folders</h2>
         <p class="meta" style="margin:0">
-          Where your projects live. AI Remote lists the folders inside them, plus folders you used before, for Chat and New session.
+          Where your projects live. OpenCompanion lists the folders inside them, plus folders you used before, for Chat and New session.
           {#if projectCount !== null}{projectCount} projects found.{/if}
         </p>
         <ul class="roots">
@@ -480,7 +480,7 @@
 
       <section class="card" aria-labelledby="scan-title">
         <h2 id="scan-title">Outside sessions</h2>
-        <label class="meta" for="scan-select">How often AI Remote looks for CLIs running in other terminals. The scan reads the process list only.</label>
+        <label class="meta" for="scan-select">How often OpenCompanion looks for CLIs running in other terminals. The scan reads the process list only.</label>
         <select class="select" id="scan-select" value={String(settings.scanSeconds)} onchange={(e) => save({ scanSeconds: Number((e.currentTarget as HTMLSelectElement).value) }, "Scan interval saved.")}>
           <option value="5">Every 5 seconds</option>
           <option value="10">Every 10 seconds</option>
@@ -500,7 +500,7 @@
         </button>
       </section>
     </div>
-    {#if info}<p class="meta note" style="margin:0">AI Remote {info.version}</p>{/if}
+    {#if info}<p class="meta note" style="margin:0">OpenCompanion {info.version}</p>{/if}
   {/if}
 </main>
 

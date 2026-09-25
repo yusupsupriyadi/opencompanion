@@ -19,14 +19,14 @@
   const liveCount = $derived(waiting.length + running.length);
 
   const summary = $derived.by(() => {
-    const parts = [`${liveCount} running in AI Remote`];
+    const parts = [`${liveCount} running in OpenCompanion`];
     if (today.length) parts.push(`${today.length} finished today`);
     if (app.outsideState === "ready") parts.push(`${app.outside.length} opened outside`);
     return parts.join(", ");
   });
 </script>
 
-<svelte:head><title>Overview · AI Remote</title></svelte:head>
+<svelte:head><title>Overview · OpenCompanion</title></svelte:head>
 
 <main class="main" id="overview-main">
   <header class="page-head">
@@ -54,7 +54,7 @@
 
     {#if app.sessions.length === 0}
       <div class="state-box" id="overview-empty">
-        <h2>Nothing has run in AI Remote yet</h2>
+        <h2>Nothing has run in OpenCompanion yet</h2>
         <p>Start a CLI in one of your project folders, or describe a task in Chat and let the planner suggest where to run it. Sessions you open in other terminals show up below either way.</p>
         <div class="row">
           <button class="btn primary" type="button" onclick={() => askNewSession()}><Plus size={16} aria-hidden="true" />New session</button>
@@ -64,7 +64,7 @@
     {:else}
       <section class="section" aria-labelledby="running-title">
         <div class="section-head">
-          <h2 id="running-title">Running in AI Remote</h2>
+          <h2 id="running-title">Running in OpenCompanion</h2>
           <span class="meta">{running.length} running, {today.length} finished today</span>
         </div>
         {#each running as s (s.id)}
@@ -82,7 +82,7 @@
 
   <section class="section" aria-labelledby="outside-title">
     <div class="section-head">
-      <h2 id="outside-title">Opened outside AI Remote</h2>
+      <h2 id="outside-title">Opened outside OpenCompanion</h2>
       <span class="meta">{app.outsideState === "ready" ? `${app.outside.length} detected` : "Scanning…"}</span>
     </div>
     {#if app.outsideState === "error"}

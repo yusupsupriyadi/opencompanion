@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "ai-remote",
+      "name": "opencompanion",
       "dependencies": {
         "@fontsource/ibm-plex-mono": "^5.3.0",
         "@fontsource/nunito": "^5.3.0",

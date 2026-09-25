@@ -18,32 +18,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ai-remote"
-version = "0.1.0"
-dependencies = [
- "axum",
- "local-ip-address",
- "portable-pty",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2 0.11.0",
- "sysinfo",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-notification",
- "tauri-plugin-opener",
- "tauri-plugin-single-instance",
- "tauri-plugin-window-state",
- "tokio",
- "ureq",
- "uuid",
- "vt100",
- "which",
-]
-
-[[package]]
 name = "alloc-no-stdlib"
 version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2803,6 +2777,32 @@ dependencies = [
  "dunce",
  "is-wsl",
  "libc",
+]
+
+[[package]]
+name = "opencompanion"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "local-ip-address",
+ "portable-pty",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "sysinfo",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-notification",
+ "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
+ "tauri-plugin-window-state",
+ "tokio",
+ "ureq",
+ "uuid",
+ "vt100",
+ "which",
 ]
 
 [[package]]

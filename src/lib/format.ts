@@ -98,7 +98,7 @@ export function waitingTitle(s: SessionInfo): string {
 }
 
 /**
- * Permission modes for sessions AI Remote starts. `flags` mirrors `headless::mode_flags` in
+ * Permission modes for sessions OpenCompanion starts. `flags` mirrors `headless::mode_flags` in
  * src-tauri, which was checked against each CLI's --help.
  */
 export const MODES: {

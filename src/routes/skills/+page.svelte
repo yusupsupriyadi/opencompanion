@@ -95,7 +95,7 @@
   }
 </script>
 
-<svelte:head><title>Skills · AI Remote</title></svelte:head>
+<svelte:head><title>Skills · OpenCompanion</title></svelte:head>
 
 {#snippet cellView(c: Cell)}
   {#if c.kind === "missing"}
@@ -116,7 +116,7 @@
   <header class="page-head">
     <div class="grow">
       <h1>Skills</h1>
-      <p class="sub">Skill folders in your home directory, compared by content. AI Remote reads these folders and never changes them.</p>
+      <p class="sub">Skill folders in your home directory, compared by content. OpenCompanion reads these folders and never changes them.</p>
     </div>
     <button class="btn secondary" type="button" id="btn-rescan-skills" disabled={scanning} onclick={load}>
       <ArrowClockwise size={16} aria-hidden="true" /><span>{scanning ? "Reading…" : "Rescan"}</span>
@@ -194,7 +194,7 @@
         </table>
       </div>
     {/if}
-    <p class="note">AI Remote never copies skills for you. Open a skill to get the command, run it in your own terminal, then press Rescan.</p>
+    <p class="note">OpenCompanion never copies skills for you. Open a skill to get the command, run it in your own terminal, then press Rescan.</p>
   {/if}
 </main>
 

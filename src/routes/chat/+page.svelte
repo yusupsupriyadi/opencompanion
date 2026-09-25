@@ -188,7 +188,7 @@
   }
 </script>
 
-<svelte:head><title>{current ? `${current.title} · ` : ""}Chat · AI Remote</title></svelte:head>
+<svelte:head><title>{current ? `${current.title} · ` : ""}Chat · OpenCompanion</title></svelte:head>
 
 <div class="chat-wrap">
   <nav class="history" class:open={listOpen} id="chat-history" aria-labelledby="history-title">

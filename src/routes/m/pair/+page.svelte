@@ -72,16 +72,16 @@
   }
 </script>
 
-<svelte:head><title>Pair this phone · AI Remote</title></svelte:head>
+<svelte:head><title>Pair this phone · OpenCompanion</title></svelte:head>
 
-<header class="bar"><span class="brand grow">AI Remote <Cloud size={20} aria-hidden="true" /></span></header>
+<header class="bar"><span class="brand grow">OpenCompanion <Cloud size={20} aria-hidden="true" /></span></header>
 <main class="content" id="phone-pair">
   <img class="art" src="/meadow-day.webp" alt="" aria-hidden="true" />
   <h1 class="m-h1">Pair this phone</h1>
   {#if fromQr.length === 6}
     <p class="m-p">The code from your computer is filled in. Check the name, then press Pair.</p>
   {:else}
-    <p class="m-p">On your computer, open AI Remote, go to Settings, turn on Phone access and scan the code there with your camera app. Or type the 6-digit code below.</p>
+    <p class="m-p">On your computer, open OpenCompanion, go to Settings, turn on Phone access and scan the code there with your camera app. Or type the 6-digit code below.</p>
   {/if}
 
   <form onsubmit={pair} novalidate style="display:flex;flex-direction:column;gap:14px">
@@ -106,7 +106,7 @@
     <div class="field">
       <label class="label" for="device-name">Name for this phone</label>
       <input class="input" id="device-name" bind:value={name} maxlength="60" autocomplete="off" />
-      <p class="help">Shown in AI Remote Settings, where you can remove this phone later.</p>
+      <p class="help">Shown in OpenCompanion Settings, where you can remove this phone later.</p>
     </div>
     {#if failure}<p class="error" role="alert" style="margin:0">{failure}</p>{/if}
     <button class="btn primary block" type="submit" disabled={busy}>{busy ? "Pairing…" : "Pair"}</button>

@@ -35,7 +35,7 @@ Kriteria selesai M0 di PRD: tiga CLI bisa dijalankan interaktif dan headless dar
 - Output pertama sekitar 270 ms setelah spawn. Resize dan Ctrl+C berfungsi: Claude Code keluar dengan kode 1, Codex dan OpenCode dengan kode 0.
 - Layar pertama tiap CLI bisa berupa dialog yang menunggu pengguna:
   - Claude Code: dialog kepercayaan folder baru. Pilihan default adalah "No, exit".
-  - Codex: tawaran update. Pilihan default adalah "Update now", yang menjalankan skrip instal. **AI Remote tidak boleh mengirim Enter ke layar ini secara otomatis.**
+  - Codex: tawaran update. Pilihan default adalah "Update now", yang menjalankan skrip instal. **OpenCompanion tidak boleh mengirim Enter ke layar ini secara otomatis.**
 - OpenCode tanpa `--pure` keluar dalam 4 detik dengan "Unexpected server error". Log OpenCode mencatat `plugin config hook failed` lalu `n.provider` null; error yang sama sudah muncul sejak 2026-09-10, jadi ini masalah plugin di konfigurasi pengguna, bukan PTY.
 - `vt100` `contents()` menyambung baris yang ber-flag wrap. Teks layar kini dibaca per baris.
 
@@ -58,12 +58,12 @@ Kriteria selesai M0 di PRD: tiga CLI bisa dijalankan interaktif dan headless dar
 
 - `sysinfo` 0.39 membaca nama, argumen, folder kerja, waktu mulai, CPU, dan memori. Scan pertama 32 sampai 53 ms, berikutnya 13 sampai 25 ms.
 - Uji dengan tiga CLI terbuka sekaligus (Claude Code, Codex, OpenCode, masing-masing di terminal terpisah): ketiganya muncul tepat satu kali dengan folder kerja yang benar.
-- Nama proses di mesin ini: `claude.exe`, `codex.exe`, `opencode.exe`. Helper seperti `codex-windows-sandbox-service.exe` dan `codex-code-mode-host.exe` tidak dihitung sebagai sesi. Anak dari CLI yang sama (exe pembungkus OpenCode) dan proses turunan AI Remote dilewati.
+- Nama proses di mesin ini: `claude.exe`, `codex.exe`, `opencode.exe`. Helper seperti `codex-windows-sandbox-service.exe` dan `codex-code-mode-host.exe` tidak dihitung sebagai sesi. Anak dari CLI yang sama (exe pembungkus OpenCode) dan proses turunan OpenCompanion dilewati.
 - Mode dibaca dari flag (`-p`, `exec`, `run`, `serve`), tanpa menyimpan command line lengkap karena bisa berisi prompt atau token.
 
 ### Environment
 
-- Sesi Claude Code mewariskan 10 variabel penanda (termasuk `CLAUDE_CODE_MESSAGING_TOKEN`) ke proses anak. Akibatnya CLI yang dijalankan dari dalamnya mematikan penyimpanan transcript. AI Remote kini membuang variabel ini dari setiap CLI yang dijalankan (`proc::INHERITED_SESSION_VARS`); peringatan "Transcript saving is off" hilang setelahnya.
+- Sesi Claude Code mewariskan 10 variabel penanda (termasuk `CLAUDE_CODE_MESSAGING_TOKEN`) ke proses anak. Akibatnya CLI yang dijalankan dari dalamnya mematikan penyimpanan transcript. OpenCompanion kini membuang variabel ini dari setiap CLI yang dijalankan (`proc::INHERITED_SESSION_VARS`); peringatan "Transcript saving is off" hilang setelahnya.
 
 ## Keputusan untuk M1
 

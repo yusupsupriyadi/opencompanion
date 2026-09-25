@@ -6,7 +6,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 /// Markers a running Claude Code session sets for its own children. Inherited by a CLI that
-/// AI Remote starts (for example when AI Remote itself was launched from a Claude Code
+/// OpenCompanion starts (for example when OpenCompanion itself was launched from a Claude Code
 /// terminal), they turn off transcript saving and leak the parent's messaging token.
 /// User configuration such as `CLAUDE_CODE_USE_BEDROCK` is deliberately not listed.
 pub const INHERITED_SESSION_VARS: &[&str] = &[

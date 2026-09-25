@@ -26,7 +26,7 @@ pub struct Invocation {
     pub keep_stdin: bool,
 }
 
-/// Permission mode for sessions AI Remote starts (Settings, New session).
+/// Permission mode for sessions OpenCompanion starts (Settings, New session).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PermMode {
     /// Every permission prompt comes to you ("Waiting for you").
@@ -166,7 +166,7 @@ pub fn claude_permission_answer(request_id: &str, allow: bool, input: &serde_jso
     let response = if allow {
         serde_json::json!({ "behavior": "allow", "updatedInput": input })
     } else {
-        serde_json::json!({ "behavior": "deny", "message": "Denied in AI Remote" })
+        serde_json::json!({ "behavior": "deny", "message": "Denied in OpenCompanion" })
     };
     serde_json::json!({
         "type": "control_response",

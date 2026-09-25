@@ -25,7 +25,7 @@ test("Approve and Deny answer the waiting session", async () => {
   expect(screen.getByRole("link", { name: "Open session" })).toHaveAttribute("href", "/session?id=s1");
 });
 
-test("prompts AI Remote cannot answer point to the terminal instead", () => {
+test("prompts OpenCompanion cannot answer point to the terminal instead", () => {
   backend({});
   render(NeedsYou, { s: waiting(false) });
   expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();

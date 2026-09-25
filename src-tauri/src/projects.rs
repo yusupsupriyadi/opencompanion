@@ -1,5 +1,5 @@
 //! Finds the user's project folders so the chat planner can match "ai-remote" to a real path
-//! without asking (PRD FR-24). Sources, strongest first: folders used in AI Remote, folders of
+//! without asking (PRD FR-24). Sources, strongest first: folders used in OpenCompanion, folders of
 //! CLIs running right now, Claude Code's own project history, and the children of common
 //! project roots such as `~/Project`.
 

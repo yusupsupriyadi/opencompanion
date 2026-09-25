@@ -19,12 +19,12 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use ai_remote_lib::cli::{self, CliKind};
-use ai_remote_lib::events;
-use ai_remote_lib::headless::{self, HeadlessRun, Stream};
-use ai_remote_lib::monitor::Monitor;
-use ai_remote_lib::pty::{PtySession, PtySpec};
-use ai_remote_lib::waiting;
+use opencompanion_lib::cli::{self, CliKind};
+use opencompanion_lib::events;
+use opencompanion_lib::headless::{self, HeadlessRun, Stream};
+use opencompanion_lib::monitor::Monitor;
+use opencompanion_lib::pty::{PtySession, PtySpec};
+use opencompanion_lib::waiting;
 
 struct Opts {
     positional: Vec<String>,
@@ -327,14 +327,14 @@ fn main() {
             let clis = cli::detect_all();
             let kind = CliKind::from_bin(opts.get("cli").unwrap_or("claude")).unwrap_or(CliKind::Claude);
             let exe = cli::resolve(kind).unwrap_or_else(|| die("planner cli not found"));
-            let db = ai_remote_lib::db::Db::open_in_memory().unwrap_or_else(|e| die(&e));
+            let db = opencompanion_lib::db::Db::open_in_memory().unwrap_or_else(|e| die(&e));
             let outside = Monitor::new().scan(&HashSet::from([std::process::id()]));
-            let ctx = ai_remote_lib::orchestrator::gather(&db, &outside).unwrap_or_else(|e| die(&e));
-            let history: Vec<ai_remote_lib::db::ChatMessage> = opts
+            let ctx = opencompanion_lib::orchestrator::gather(&db, &outside).unwrap_or_else(|e| die(&e));
+            let history: Vec<opencompanion_lib::db::ChatMessage> = opts
                 .all("said")
                 .iter()
                 .enumerate()
-                .map(|(i, t)| ai_remote_lib::db::ChatMessage {
+                .map(|(i, t)| opencompanion_lib::db::ChatMessage {
                     id: i.to_string(),
                     thread_id: "spike".into(),
                     role: if i % 2 == 0 { "user".into() } else { "planner".into() },
@@ -350,7 +350,7 @@ fn main() {
                 }
                 return;
             }
-            let input = ai_remote_lib::orchestrator::PlanInput {
+            let input = opencompanion_lib::orchestrator::PlanInput {
                 message: &message,
                 history: &history,
                 clis: &clis,
@@ -361,7 +361,7 @@ fn main() {
             };
             let work = std::env::temp_dir().join("air-spike-planner");
             let t = Instant::now();
-            match ai_remote_lib::orchestrator::run(kind, &exe, &work, &[], &input) {
+            match opencompanion_lib::orchestrator::run(kind, &exe, &work, &[], &input) {
                 Ok(plan) => {
                     println!("reply: {}", plan.reply);
                     for c in plan.cards {

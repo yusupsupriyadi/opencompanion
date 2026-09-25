@@ -745,7 +745,7 @@ pub fn run() {
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
-            let db = Arc::new(Db::open(&data_dir.join("ai-remote.db"))?);
+            let db = Arc::new(Db::open(&data_dir.join("opencompanion.db"))?);
             db.close_orphans()?;
             let emit = Arc::new(TauriEmit {
                 app: app.handle().clone(),

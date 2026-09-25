@@ -296,7 +296,7 @@ fn authed(ctx: &Ctx, headers: &HeaderMap) -> Result<Device, Response> {
 }
 
 async fn hello() -> Json<Value> {
-    Json(json!({ "app": "AI Remote" }))
+    Json(json!({ "app": "OpenCompanion" }))
 }
 
 #[derive(Deserialize)]

@@ -138,7 +138,7 @@
   }
 </script>
 
-<svelte:head><title>{s ? `${s.title} · AI Remote` : "Session · AI Remote"}</title></svelte:head>
+<svelte:head><title>{s ? `${s.title} · OpenCompanion` : "Session · OpenCompanion"}</title></svelte:head>
 
 <main class="main detail" id="session-main">
   {#if loadState === "loading"}
@@ -255,7 +255,7 @@
     <h2 id="stop-title">Stop this session?</h2>
     {#if s}
       <p class="meta" style="margin:0;font-size:14px">
-        AI Remote sends {CLI_LABEL[s.cli]} in {folderName(s.cwd)} an interrupt first. If it has not exited after 3 seconds, it is stopped by force.
+        OpenCompanion sends {CLI_LABEL[s.cli]} in {folderName(s.cwd)} an interrupt first. If it has not exited after 3 seconds, it is stopped by force.
       </p>
     {/if}
     <div class="d-foot">

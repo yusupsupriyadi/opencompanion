@@ -1,4 +1,4 @@
-# AI Remote
+# OpenCompanion
 
 A local desktop app (Tauri 2 + Svelte 5) that starts, watches and answers AI coding CLIs: Claude Code, Codex CLI and OpenCode, with Gemini CLI detected but not yet driven headless. A phone on the same network can watch sessions and approve permission prompts. Everything stays on your computer.
 
@@ -14,7 +14,7 @@ bun run tauri dev      # desktop app with hot reload
 bun run tauri build    # installer in src-tauri/target/release/bundle
 ```
 
-Data (SQLite, terminal logs, hook files) lives in the app data folder, `%APPDATA%\dev.airemote.app` on Windows. Settings shows the exact path.
+Data (SQLite, terminal logs, hook files) lives in the app data folder, `%APPDATA%\dev.opencompanion.app` on Windows. Settings shows the exact path.
 
 ## Checks
 
@@ -50,5 +50,5 @@ Known limits:
 - Approve/Deny works for Claude Code (headless through its stdio control protocol, interactive through hooks). Codex and OpenCode prompts are answered in their own terminal; OpenCode's headless `run` refuses prompts by itself.
 - Codex success-path events are parsed from its documentation; on the development machine Codex could not authenticate, so only its failure path was observed.
 - Clicking a desktop notification does not open the session yet (part of FR-40): the Tauri notification plugin has no click action on desktop.
-- Not built yet: sending a task to a running session from Chat (FR-25), CPU for app sessions (FR-34), per-CLI or per-project notification choices (FR-41), automatic retention (FR-62 has manual delete only), UI language switch (FR-63), transcripts of sessions opened outside AI Remote (FR-32), tray mode (FR-18), Web Push to the phone (FR-42) and the Board on the phone (FR-77).
+- Not built yet: sending a task to a running session from Chat (FR-25), CPU for app sessions (FR-34), per-CLI or per-project notification choices (FR-41), automatic retention (FR-62 has manual delete only), UI language switch (FR-63), transcripts of sessions opened outside OpenCompanion (FR-32), tray mode (FR-18), Web Push to the phone (FR-42) and the Board on the phone (FR-77).
 - Windows 11 is the tested platform. macOS and Linux build from the same code but are untested.
