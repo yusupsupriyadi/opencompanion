@@ -126,7 +126,7 @@
     gap: 22px;
     padding: 32px;
     border-radius: var(--r-lg);
-    background: var(--over-art);
+    background: var(--surface);
     border: 1px solid var(--line);
   }
   .panel .brand {

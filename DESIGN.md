@@ -53,18 +53,26 @@ Terminal (panel gelap di kedua tema, "teduh di bawah pohon"):
 | `term-red` | `#E88B6B` | `#E88B6B` |
 | `rainbow` (daftar warna gradasi, hanya judul sesi Running di sidebar) | `#A3262A` `#8C4300` `#276127` `#2C5A8C` `#6D3FA8` | `#F4A3A3` `#F2BE7E` `#E8DA7A` `#A8D66E` `#8FBCEB` `#C9AEF5` |
 
-Scrim modal: `#33361F73` (ink 45%). Panel di atas ilustrasi: `#FFFAE6F2` (surface 95%), selalu solid agar teks tidak jatuh langsung di atas lukisan.
+Scrim modal: `#33361F73` (ink 45%). Panel di atas ilustrasi memakai glass (di bawah).
 
 Latar aplikasi: `meadow-day` (`static/meadow-day.png`, 1672 × 941) penuh di belakang aplikasi (fixed, cover, posisi 70% bawah), terlihat langsung di area kerja. Di Siang lukisan tampil utuh tanpa lapisan warna (keputusan pemilik produk, 26 September 2026); di Senja ada `haze`:
 
 | Token | Siang | Senja |
 |---|---|---|
 | `haze` | tidak ada | `bg` 38% rata (`#1B1F1A61`), dan seluruh lapisan diberi `filter: brightness(.58)` |
-| `glass` | `#FBF3CFE0` (bg 88%) + blur 14px, hanya untuk sidebar | `#1B1F1AA6` (bg 65%) + blur 14px |
+| `glass` (tint `surface`) | `#FFFAE6D1` (82%) | `#242A2273` (45%) |
+| `glass-2` (tint `surface-2`) | `#F4E7B0E6` (90%) | `#2E35298C` (55%) |
+| `glass-bg` (tint `bg`) | `#FBF3CFD9` (85%) | `#1B1F1A66` (40%) |
+| `glass-pop` (dialog dan pop-up) | `#FFFAE6E0` (88%) | `#242A22A6` (65%) |
+| `glass-toast` | `#33361FD9` (ink 85%) | `#F3EBC8D9` (ink 85%) |
+| `glass-blur` | `blur(24px) saturate(1.4)` | sama |
+| `glass-rim` (kilap tepi) | `inset 0 1px 0 #FFFFFFB3, inset 0 0 0 1px #FFFFFF4D` | `inset 0 1px 0 #FFFFFF2E, inset 0 0 0 1px #FFFFFF14` |
+| `solid` (alas teks error) | `#FFFAE6` | `#242A22` |
 
-- Tanpa haze, teks `ink` di atas pohon, batang kayu, dan rumput gelap turun sampai sekitar 1:1. Karena itu setiap blok teks di atas lukisan duduk di **alas** `over-art` radius 10: kepala halaman, toolbar Skills, balasan Planner, panel samping sesi, dan "Session not found" dengan padding 12/16; kepala section, kepala kolom Board, baris Activity, teks bantu, dan catatan dengan padding 8/12. Kepala halaman, kepala kolom, baris Activity, dan panel selebar barisnya; kepala section, teks bantu, catatan, dan balasan Planner memeluk teksnya.
+- Tanpa haze, teks `ink` di atas pohon, batang kayu, dan rumput gelap turun sampai sekitar 1:1. Karena itu setiap blok teks di atas lukisan duduk di **alas** glass radius 10: kepala halaman, toolbar Skills, balasan Planner, panel samping sesi, dan "Session not found" dengan padding 12/16; kepala section, kepala kolom Board, baris Activity, teks bantu, dan catatan dengan padding 8/12. Kepala halaman, kepala kolom, baris Activity, dan panel selebar barisnya; kepala section, teks bantu, catatan, dan balasan Planner memeluk teksnya.
 - Teks di alas tetap memakai `ink` untuk teks sekunder juga, jadi hierarki dibawa ukuran dan ketebalan.
-- Glass Siang 88% karena di bawahnya lukisan tanpa haze dengan langit biru pekat: di bawah itu `ink-2` sidebar gagal AA.
+- **Liquid glass** (keputusan pemilik produk, 26 September 2026, menggantikan aturan glass hanya di sidebar dan batas antislop R-10 satu sampai dua elemen): sidebar, tombol jendela, semua alas teks, kartu, dan panel (baris sesi, Needs you, state box, riwayat chat, composer, live rail, gelembung pesan, badan kolom Board, kartu Settings, tabel, panel Onboarding, dialog, toast) memakai `glass-blur` dan `glass-rim`. Di dalamnya `surface`, `surface-2`, dan `bg` diganti `glass`, `glass-2`, dan `glass-bg`, jadi tombol secondary, input, select, segmented, opsi, dan baris ikut transparan; input dan tombol secondary juga diberi `glass-rim`. Tombol primary, chip status, dan terminal tetap solid.
+- Tiap tint adalah yang paling tipis yang masih menjaga `ink-2` 4.5:1 di atas lukisan yang diburamkan. Pop-up (dialog, live rail versi pop-up, daftar folder @) mengambang di luar glass induknya sehingga tidak ada yang diburamkan di belakangnya, jadi memakai `glass-pop` yang lulus tanpa blur. Merah `st-err` butuh 89% di belakangnya, jadi teks error (`.err-text`, pesan field, tombol Delete kartu) memakai alas kecil `solid`.
 - Senja: brightness .58 dengan haze 38% menjaga `ink` di 5.07:1 bahkan langsung di atas lukisan, jadi warna lukisan terlihat tanpa melepas cadangan kontras itu.
 - Kartu, chip, terminal, tabel, dan badan kolom Board tetap solid.
 
@@ -88,10 +96,11 @@ Dicek dengan `contrast-check.py` (WCAG AA, 4.5:1 teks normal, 3:1 teks besar dan
 | `forest` (focus ring) di `bg` | 7.14 | 8.32 |
 | `line-strong` di `bg` (non-teks) | 3.18 | 3.60 |
 | `term-text` di `term-bg` | 11.77 | 14.46 |
-| `ink` di `glass` sidebar di atas lukisan (titik terburuk) | 8.77 | 10.57 |
-| `ink-2` di `glass` sidebar di atas lukisan (titik terburuk) | 4.80 | 6.31 |
-| `ink` / `ink-2` di alas `over-art` di atas lukisan (titik terburuk, 1100 sampai 2560 lebar) | 5.82 | 7.03 |
-| ikon `ink` tombol jendela di alas `over-art` Title bar (titik terburuk) | 11.04 | 11.79 |
+| `ink-2` di `glass` kartu dan alas di atas lukisan yang diburamkan (titik terburuk, 1100 sampai 2560 lebar) | 4.67 | 4.66 |
+| `ink-2` di `glass` sidebar (titik terburuk) | 4.69 | 4.81 |
+| `ink-2` di `glass-2` (badan kolom Board, gelembung pesan) | 4.63 | 4.63 |
+| `ink-2` di `glass-bg` (baris CLI di luar OpenCompanion) | 4.67 | 4.76 |
+| `ink-2` di `glass-pop` tanpa blur (pop-up) | 4.94 | 5.45 |
 | `ink` langsung di atas lukisan + `haze` Senja (titik terburuk) | tidak dipakai | 5.07 |
 | `term-dim` / `term-green` / `term-yellow` / `term-red` di `term-bg` (Siang) | 6.71 / 8.27 / 8.79 / 5.87 | |
 | `st-err` sebagai teks di `surface` (pesan error di baris CLI) | 5.57 | 5.49 |
@@ -130,14 +139,14 @@ Tidak ada label uppercase dengan tracking lebar. Line height paragraf 1.4 sampai
 
 - Skala spasi: 2, 4, 6, 8, 10, 12, 14, 16, 20, 22, 24, 28, 32, 40.
 - Jendela desktop acuan 1440 × 900. Minimum yang harus tetap rapi: 1100 × 700 (kolom kanan Session detail dan Live rail di Chat disembunyikan di bawah 1280, bisa dibuka lewat tombol).
-- Kerangka: jendela tanpa frame native; baris atas setinggi 36 adalah Title bar (bagian 8), lalu padding 12 di kiri, kanan, bawah dan gap 12. Sidebar adalah panel `glass` radius 14; area kerja tidak berpanel sehingga lukisan terlihat, dan isinya berupa kartu solid atau teks di alas `over-art` (bagian 2). Live rail di Chat adalah panel solid tersendiri.
+- Kerangka: jendela tanpa frame native; baris atas setinggi 36 adalah Title bar (bagian 8), lalu padding 12 di kiri, kanan, bawah dan gap 12. Sidebar adalah panel glass radius 14; area kerja tidak berpanel sehingga lukisan terlihat, dan isinya berupa kartu glass atau teks di alas glass (bagian 2). Live rail di Chat adalah panel glass tersendiri.
 - Sidebar 240 lebar, padding 22/16, gap antar blok 22.
 - Area utama: padding 28 atas-bawah, 40 kiri-kanan, gap antar blok 24 sampai 28.
 - Mobile acuan 390 × 844. Padding sisi 16, gap 12 sampai 16, target sentuh minimal 44 × 44, tombol aksi utama tinggi 48.
 - Radius: `r-sm` 6 (chip, input, kotak kode), `r-btn` 8 (tombol, item nav, option card), `r-md` 10 (kartu, tabel, terminal), `r-lg` 14 (panel Needs you, modal, panel onboarding). Hanya switch yang berbentuk pill.
 - Border: 1px `line` untuk panel; 1px `line-strong` untuk input dan tombol sekunder; 1.5px `accent` hanya untuk panel Needs you; 2px `forest` untuk option card terpilih.
 - Shadow hanya pada modal: offset 0/12, blur 40, `#33361F40`. Elemen lain datar.
-- Blur (glass) hanya pada sidebar, agar navigasi tetap terbaca di atas lukisan. Tidak ada glass di kartu, modal, atau chip. Tidak ada glow, gradient dekoratif, atau background grid.
+- Glass memakai liquid glass di semua kartu, panel, dialog, dan toast (bagian 2). Chip dan terminal tidak. Tidak ada glow, gradient dekoratif, atau background grid.
 
 ## 5. Ikon
 
@@ -164,7 +173,7 @@ Track aktivitas sesi, diambil dari garis tanah pixel di referensi.
 
 ## 7. Ilustrasi
 
-Aturan: tampil penuh di momen tanpa data (onboarding, empty state, offline mobile), dan sebagai latar aplikasi desktop (utuh di Siang, di bawah `haze` di Senja; bagian 2). Teks tidak pernah jatuh langsung di atas lukisan: teks berada di alas `over-art`, kartu solid, atau panel `glass`.
+Aturan: tampil penuh di momen tanpa data (onboarding, empty state, offline mobile), dan sebagai latar aplikasi desktop (utuh di Siang, di bawah `haze` di Senja; bagian 2). Teks tidak pernah jatuh langsung di atas lukisan: teks berada di alas glass, kartu glass, atau panel glass.
 
 | File | Status | Dipakai di | Prompt |
 |---|---|---|---|
@@ -179,7 +188,7 @@ Semua ukuran dalam px. State umum: hover = isi `surface-2`; focus = ring 2px `fo
 
 | Komponen | Spesifikasi |
 |---|---|
-| **Title bar** | pengganti frame native (`decorations: false`), fixed di atas selebar jendela, tinggi 36, tanpa isi sehingga langit lukisan terlihat. Seluruh baris adalah area drag; klik ganda memaksimalkan. Tidak ada wordmark karena brand sudah di Sidebar. Kanan: tiga tombol 46 × 36 yang menempel ke tepi jendela (Close tepat di sudut), di satu alas `over-art` dengan radius 10 di sudut kiri bawah (tanpa alas, langit Siang menurunkan ikon ke 1.9:1), ikon 16 `ink` (`square` 14): Minimize, Maximize/Restore (ikon `browsers` saat maximized), Close. Isi hover berupa kotak dalam 34 × 28 radius 8: `surface-2`, dan untuk Close `st-err` dengan ikon `st-err-ink` (Day 5.48:1, Dusk 6.24:1). Focus ring di kotak dalam. Di DOM ditaruh paling akhir agar Tab mencapai isi halaman dulu. Tampil juga di Onboarding. |
+| **Title bar** | pengganti frame native (`decorations: false`), fixed di atas selebar jendela, tinggi 36, tanpa isi sehingga langit lukisan terlihat. Seluruh baris adalah area drag; klik ganda memaksimalkan. Tidak ada wordmark karena brand sudah di Sidebar. Kanan: tiga tombol 46 × 36 yang menempel ke tepi jendela (Close tepat di sudut), di satu alas glass dengan radius 10 di sudut kiri bawah (tanpa alas, langit Siang menurunkan ikon ke 1.9:1), ikon 16 `ink` (`square` 14): Minimize, Maximize/Restore (ikon `browsers` saat maximized), Close. Isi hover berupa kotak dalam 34 × 28 radius 8: `surface-2`, dan untuk Close `st-err` dengan ikon `st-err-ink` (Day 5.48:1, Dusk 6.24:1). Focus ring di kotak dalam. Di DOM ditaruh paling akhir agar Tab mencapai isi halaman dulu. Tampil juga di Onboarding. |
 | **NavItem** | lebar 208, padding 9/12, gap 10, radius 8. Ikon 18 `ink-2` + label 14/600 `ink-2`. Aktif: isi `surface-2`, ikon `forest`, label `ink` 700. |
 | **Sidebar** | 240 × tinggi penuh, border kanan 1px `line`. Urutan: Brand (wordmark "OpenCompanion" 18/800 + ikon `cloud` 20), Nav (Overview, Board, Chat, CLIs, Skills, Settings), grup "Sessions" (baris label 12/700 `ink-2` + tombol ikon `plus` 28 × 28 "New session" di kanan, selalu tampil, juga saat belum ada sesi; lalu sesi yang di-pin ditambah enam sesi lain paling mendesak, dikelompokkan per folder. Folder yang di-pin paling atas (urutan pin, tetap tampil walau kosong dengan teks "No recent sessions" 12 `ink-2`), lalu folder lain menurut sesinya yang paling mendesak; di dalam folder, sesi yang di-pin paling atas. Pin disimpan di aplikasi desktop dan diingat antar restart. Kepala folder adalah tombol lipat (tinggi 30, padding 4/12/4/8, hover atau fokus `surface-2` untuk seluruh baris). Tombol baris 26 × 26 ikon 14 (`plus` "New session in {folder}", `push-pin` "Pin folder"; di item sesi: `trash` untuk sesi selesai, `push-pin` "Pin session") muncul saat hover atau fokus keyboard, menimpa ujung baris dengan latar memudar ke warna baris. Pin yang aktif (`push-pin` terisi, `aria-pressed`) selalu terlihat di kanan dan baris itu memberi ruang kanan 36: `caret-down` 12 `ink-2` (berputar ke kanan saat terlipat) + `folder-simple` 16 `ink-2` + nama folder mono 12/600 `ink`, path lengkap di tooltip. Saat terlipat, kanan kepala menampilkan `hand-palm` `accent` bila ada sesi Waiting for you, lalu jumlah sesi 12 `ink-2`; kepala diberi isi `surface` bila sesi yang dibuka ada di dalamnya. Folder yang dilipat diingat antar restart. Item mini satu baris, menjorok 12 sehingga logo sejajar ikon folder dan judul sejajar nama folder: CliMark `bare` 16 (logo tanpa kotak, `OC` untuk OpenCode) + judul tugas 13/700, padding 7/12, tooltip "judul · CLI · status"; jarak antar folder 6, antar item 2), spacer, Footer: baris Phone access (ikon, label, chip On/Off) dan segmented tema Day/Dusk. Item mini sesi yang sedang dibuka diberi isi `surface`. Judul sesi Running memakai gradasi `--rainbow` yang bergeser (lihat MOTION 1); tiap titik gradasi minimal sekontras `ink-2` terhadap latar (Day ≥ 6.38:1, Dusk ≥ 8.38:1), jadi tetap lulus di atas `glass`. |
 | **StatusChip** | padding 3/8, radius 6, label Pixelify 12. Varian dari tabel status di bagian 2. |
@@ -279,7 +288,7 @@ Satu frame berisi tiga contoh berdampingan:
 ### D11 Skills ✗ (hanya di Svelte)
 - Tujuan: tahu skill mana yang hilang atau berbeda isi antar-CLI. Fokus: matriks.
 - Header: H1 "Skills", sub "Skill folders in your home directory, compared by content. OpenCompanion reads these folders and never changes them.", tombol "Rescan".
-- Toolbar langsung di atas lukisan (teks `ink`): ringkasan yang dihitung dari hasil pindaian (bentuknya, angka contoh: "95 skills in 5 folders · 3 differ · 13 have a problem"), segmented All / Different / Problems dengan jumlah, input cari dengan ikon `magnifying-glass`.
+- Toolbar di alas glass (teks `ink`): ringkasan yang dihitung dari hasil pindaian (bentuknya, angka contoh: "95 skills in 5 folders · 3 differ · 13 have a problem"), segmented All / Different / Problems dengan jumlah, input cari dengan ikon `magnifying-glass`.
 - Matriks memakai Table (CLIs), lebar minimal 900 dan bergeser horizontal di kontainernya sendiri. Kolom pertama: nama skill 14/700 sebagai tombol yang membuka dialog, deskripsi satu baris 12 `ink-2`, "2 versions" bila isinya berbeda. Satu kolom per folder: CliMark 24 (Shared memakai `folder-simple` di kotak CliMark) + label, path lengkap hanya di tooltip; folder yang tidak ada diberi chip idle "Folder not found".
 - Sel: `check-circle` `forest` + "Same" (atau "Installed" bila hanya satu salinan), chip Read-only "Version A" + "3 h ago" 12 `ink-2` bila isinya berbeda (A selalu yang terbaru), "Missing" 13 `ink-2`, atau chip Error ("No SKILL.md", "Broken link", "Unreadable", "Too large").
 - Dialog lebar 720: nama skill, deskripsi, daftar folder dengan status, select "Copy from", lalu satu langkah per folder: "Add to Codex CLI" atau "Replace in Shared" (dengan peringatan file yang hanya ada di salinan itu terhapus) berisi blok `.cmd` berlabel "PowerShell" + "Copy command"; folder berupa link hanya mendapat "This folder links to … Update it there." tanpa perintah, dan folder yang berisi link di dalamnya mendapat penjelasan untuk mengganti secara manual, juga tanpa perintah (Remove-Item di PowerShell 5.1 mengikuti junction).

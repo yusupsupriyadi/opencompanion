@@ -195,6 +195,7 @@
     border: 0;
     border-radius: var(--r-sm);
     background: transparent;
+    box-shadow: none;
     color: inherit;
     font-size: 13px;
     font-weight: 600;

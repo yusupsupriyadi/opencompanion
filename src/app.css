@@ -5,7 +5,9 @@
   --st-run: #B5D07A; --st-run-ink: #33361F; --st-wait: #F2C94C; --st-wait-ink: #33361F;
   --st-err: #A8472E; --st-err-ink: #FFF8E1; --st-idle: #EFE3AE; --st-idle-ink: #5B5D3E;
   --term-bg: #1E2B1F; --term-text: #EDE6C4; --term-dim: #A9B38F; --term-green: #A6CF6A; --term-yellow: #F0C23A; --term-red: #E88B6B;
-  --scrim: #33361F73; --over-art: #FFFAE6F2; --glass: #FBF3CFE0; --art-filter: none; --haze: none; --shadow-modal: 0 12px 40px #33361F40;
+  --scrim: #33361F73; --glass: #FFFAE6D1; --glass-2: #F4E7B0E6; --glass-bg: #FBF3CFD9; --glass-pop: #FFFAE6E0; --glass-toast: #33361FD9; --solid: #FFFAE6;
+  --glass-rim: inset 0 1px 0 #FFFFFFB3, inset 0 0 0 1px #FFFFFF4D; --glass-blur: blur(24px) saturate(1.4);
+  --art-filter: none; --haze: none; --shadow-modal: 0 12px 40px #33361F40;
   --font-ui: "Nunito", system-ui, sans-serif; --font-mono: "IBM Plex Mono", ui-monospace, monospace; --font-pixel: "Pixelify Sans", "Nunito", sans-serif;
   --r-sm: 6px; --r-btn: 8px; --r-md: 10px; --r-lg: 14px;
   --titlebar: 36px;
@@ -17,7 +19,7 @@
   --ink: #F3EBC8; --ink-2: #BDB895; --forest: #9CC45A; --on-forest: #1B1F1A; --accent: #7FAEDD; --on-accent: #1B1F1A;
   --st-run: #9CC45A; --st-run-ink: #1B1F1A; --st-wait: #E9B92E; --st-wait-ink: #1B1F1A;
   --st-err: #E0876A; --st-err-ink: #1B1F1A; --st-idle: #2E3529; --st-idle-ink: #BDB895;
-  --term-bg: #121710; --scrim: #000000A6; --over-art: #242A22F2; --glass: #1B1F1AA6; --art-filter: brightness(.58); --haze: linear-gradient(#1B1F1A61, #1B1F1A61); --shadow-modal: 0 12px 40px #00000080;
+  --term-bg: #121710; --scrim: #000000A6; --glass: #242A2273; --glass-2: #2E35298C; --glass-bg: #1B1F1A66; --glass-pop: #242A22A6; --glass-toast: #F3EBC8D9; --solid: #242A22; --glass-rim: inset 0 1px 0 #FFFFFF2E, inset 0 0 0 1px #FFFFFF14; --art-filter: brightness(.58); --haze: linear-gradient(#1B1F1A61, #1B1F1A61); --shadow-modal: 0 12px 40px #00000080;
   --rainbow: #F4A3A3, #F2BE7E, #E8DA7A, #A8D66E, #8FBCEB, #C9AEF5, #F4A3A3;
   color-scheme: dark;
 }
@@ -27,7 +29,7 @@
     --ink: #F3EBC8; --ink-2: #BDB895; --forest: #9CC45A; --on-forest: #1B1F1A; --accent: #7FAEDD; --on-accent: #1B1F1A;
     --st-run: #9CC45A; --st-run-ink: #1B1F1A; --st-wait: #E9B92E; --st-wait-ink: #1B1F1A;
     --st-err: #E0876A; --st-err-ink: #1B1F1A; --st-idle: #2E3529; --st-idle-ink: #BDB895;
-    --term-bg: #121710; --scrim: #000000A6; --over-art: #242A22F2; --glass: #1B1F1AA6; --art-filter: brightness(.58); --haze: linear-gradient(#1B1F1A61, #1B1F1A61); --shadow-modal: 0 12px 40px #00000080;
+    --term-bg: #121710; --scrim: #000000A6; --glass: #242A2273; --glass-2: #2E35298C; --glass-bg: #1B1F1A66; --glass-pop: #242A22A6; --glass-toast: #F3EBC8D9; --solid: #242A22; --glass-rim: inset 0 1px 0 #FFFFFF2E, inset 0 0 0 1px #FFFFFF14; --art-filter: brightness(.58); --haze: linear-gradient(#1B1F1A61, #1B1F1A61); --shadow-modal: 0 12px 40px #00000080;
     --rainbow: #F4A3A3, #F2BE7E, #E8DA7A, #A8D66E, #8FBCEB, #C9AEF5, #F4A3A3;
     color-scheme: dark;
   }
@@ -71,18 +73,31 @@ svg { flex: none; }
 
 /* App shell */
 /* The painting sits behind the whole app. Day shows it untouched, at the owner's request; Dusk dims it to 58% under
-   a 38% haze. The sidebar is glass with blur 14px: Day needs 88% for ink-2 to keep 4.5:1 over the bare painting, Dusk 65%. */
+   a 38% haze. */
 /* The shell never scrolls: only the sidebar and the page inside it do, so the sidebar stays put over the painting. */
 .app { display: grid; grid-template-columns: 240px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 12px; padding: var(--titlebar) 12px 12px; height: 100vh; min-height: 620px; position: relative; isolation: isolate; overflow: hidden; }
 .app::before { content: ""; position: fixed; inset: 0; z-index: -1; background-color: var(--bg); background-image: var(--haze), url(/meadow-day.png); background-position: 0 0, 70% 100%; background-size: 100% 100%, cover; background-repeat: no-repeat; filter: var(--art-filter); }
-.app > .sidebar { background: var(--glass); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border: 1px solid var(--line); border-radius: var(--r-lg); }
+.app > .sidebar { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); }
 /* Text over the painting uses ink only, so hierarchy comes from size and weight. */
 .page-head, .section-head, .hint, .col-head, .board-main > .meta, .planner, .activity, .detail-side, .note, .not-found, .phones figcaption { --ink-2: var(--ink); }
 /* With no haze in Day, the painting drops to about 1:1 behind ink in the trees and grass, so every block of text over it
    sits on a plate. Headers and panels span their row; single lines and paragraphs hug their text. */
-.page-head, .section-head, .hint, .col-head, .planner, .activity, .detail-side, .note, .not-found, .toolbar { background: var(--over-art); border-radius: var(--r-md); padding: 12px 16px; }
+.page-head, .section-head, .hint, .col-head, .planner, .activity, .detail-side, .note, .not-found, .toolbar { background: var(--surface); border-radius: var(--r-md); padding: 12px 16px; }
 .section-head, .hint, .col-head, .activity, .note { padding: 8px 12px; }
 .section-head, .hint, .note, .planner { width: fit-content; }
+/* Liquid glass, the owner's choice over one glass panel: every card, panel and plate over the painting blurs and
+   saturates it, and swaps the fills inside for translucent ones, so buttons, inputs and rows turn to glass as well.
+   Each tint is the thinnest at which ink-2 keeps 4.5:1 over the blurred painting: surface 82%, surface-2 90%, bg 85% in Day. */
+.app > .sidebar, .tb-controls, .page-head, .section-head, .hint, .col-head, .planner, .activity, .detail-side, .note, .not-found, .toolbar,
+.srow, .needs, .resolved, .state-box, .history, .composer, .rail, .me, .col-body, .card, .table-wrap, .panel, dialog {
+  --surface: var(--glass); --surface-2: var(--glass-2); --bg: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-rim);
+}
+/* Pop-ups float outside the glass that holds them, so nothing blurs behind them: they take the tint that passes unblurred. */
+dialog, .rail.pop, .mention { --surface: var(--glass-pop); }
+.btn.secondary, .input, .select, .textarea, .input-wrap, .seg, .opt { box-shadow: var(--glass-rim); }
+/* Error red needs 89% behind it, so error text keeps a small solid plate inside the glass. */
+.err-text, .field .error { width: fit-content; padding: 2px 6px; border-radius: var(--r-sm); background: var(--solid); }
 .sidebar { display: flex; flex-direction: column; gap: 22px; padding: 22px 16px; overflow-y: auto; }
 .brand { display: flex; align-items: center; gap: 8px; padding: 0 10px; font-size: 18px; font-weight: 800; }
 .brand svg { color: var(--ink-2); }
@@ -250,7 +265,7 @@ a.srow:hover { background: var(--surface-2); }
 .switch[aria-checked="true"]::after { background: var(--on-forest); transform: translateX(18px); }
 
 /* Dialog */
-dialog { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 28px; width: min(580px, calc(100vw - 32px)); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-modal); }
+dialog { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 28px; width: min(580px, calc(100vw - 32px)); background: var(--surface); color: var(--ink); box-shadow: var(--glass-rim), var(--shadow-modal); }
 dialog::backdrop { background: var(--scrim); }
 dialog .d-body { display: flex; flex-direction: column; gap: 20px; }
 dialog h2 { margin: 0; font-size: 22px; font-weight: 800; }
@@ -259,14 +274,14 @@ dialog[open] { animation: rise .18s ease-out; }
 @keyframes rise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* Toast */
-.toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 12px); max-width: min(520px, calc(100vw - 32px)); padding: 12px 16px; border-radius: var(--r-md); background: var(--ink); color: var(--bg); font-weight: 700; font-size: 14px; box-shadow: var(--shadow-modal); opacity: 0; pointer-events: none; transition: opacity .15s ease-out, transform .15s ease-out; z-index: 50; }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 12px); max-width: min(520px, calc(100vw - 32px)); padding: 12px 16px; border-radius: var(--r-md); background: var(--glass-toast); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); color: var(--bg); font-weight: 700; font-size: 14px; box-shadow: var(--glass-rim), var(--shadow-modal); opacity: 0; pointer-events: none; transition: opacity .15s ease-out, transform .15s ease-out; z-index: 50; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 /* Title bar: the native frame is off, so this strip over the painting's sky is the drag handle and the window buttons.
    Each button's hit area runs to the window edge (Close sits in the corner); the hover fill is the inset span. */
 .titlebar { position: fixed; top: 0; left: 0; right: 0; z-index: 40; height: var(--titlebar); display: flex; justify-content: flex-end; -webkit-app-region: drag; app-region: drag; }
-/* The window buttons sit on a plate: the Day sky behind them drops ink icons to 1.9:1. */
-.tb-controls { display: flex; background: var(--over-art); border-bottom-left-radius: var(--r-md); -webkit-app-region: no-drag; app-region: no-drag; }
+/* The window buttons sit on glass: the Day sky behind them drops ink icons to 1.9:1. */
+.tb-controls { display: flex; background: var(--surface); border-bottom-left-radius: var(--r-md); -webkit-app-region: no-drag; app-region: no-drag; }
 .tb-btn { display: grid; place-items: center; width: 46px; height: 100%; padding: 0; border: 0; background: none; color: var(--ink); cursor: pointer; }
 .tb-btn span { display: grid; place-items: center; width: 34px; height: 28px; border-radius: var(--r-btn); transition: background-color .12s ease-out, color .12s ease-out; }
 .tb-btn:hover span { background: var(--surface-2); }

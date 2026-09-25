@@ -505,6 +505,7 @@
   }
   .danger-text {
     color: var(--st-err);
+    background: var(--solid);
   }
   @media (max-width: 1100px) {
     .board {
