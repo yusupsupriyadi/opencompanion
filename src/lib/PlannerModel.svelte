@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Brain from "phosphor-svelte/lib/Brain";
+  import CaretDown from "phosphor-svelte/lib/CaretDown";
   import { api, errorText, type ChatModel, type CliInstall, type ModelList, type ModelOption } from "./api";
   import { effortLabel } from "./format";
   import { app, forgetModelLists, plannerModels, showToast } from "./store.svelte";
@@ -73,6 +75,12 @@
     return !effort || listed.includes(effort) ? listed : [...listed, effort];
   });
 
+  // The labels are hidden, so the tooltip names the picker and shows a label the width cut off.
+  const modelTitle = $derived(`Model: ${models.find((m) => m.id === model)?.label ?? "CLI default"}`);
+  const effortTitle = $derived(
+    efforts.length === 0 ? `${cli.label} offers no thinking levels for this model` : `Thinking: ${effort ? effortLabel(effort) : "CLI default"}`,
+  );
+
   async function save() {
     const turn = ++saves;
     try {
@@ -101,8 +109,15 @@
 
 <div class="pickers" id="planner-model">
   <div class="pick">
-    <label for="planner-model-select">Model</label>
-    <select class="select" id="planner-model-select" bind:value={model} onchange={pickModel} aria-busy={listState === "loading"}>
+    <label class="sr-only" for="planner-model-select">Model</label>
+    <select
+      class="select"
+      id="planner-model-select"
+      bind:value={model}
+      onchange={pickModel}
+      aria-busy={listState === "loading"}
+      title={modelTitle}
+    >
       <option value="">CLI default</option>
       {#each groups as g}
         {#if g.name}
@@ -114,20 +129,23 @@
         {/if}
       {/each}
     </select>
+    <CaretDown class="caret" size={12} weight="bold" aria-hidden="true" />
   </div>
-  <div class="pick">
-    <label for="planner-effort-select">Thinking</label>
+  <div class="pick lead">
+    <Brain class="lead-icon" size={14} aria-hidden="true" />
+    <label class="sr-only" for="planner-effort-select">Thinking</label>
     <select
       class="select"
       id="planner-effort-select"
       bind:value={effort}
       onchange={pickEffort}
       disabled={efforts.length === 0}
-      title={efforts.length === 0 ? `${cli.label} offers no thinking levels for this model` : undefined}
+      title={effortTitle}
     >
       <option value="">CLI default</option>
       {#each efforts as e (e)}<option value={e}>{effortLabel(e)}</option>{/each}
     </select>
+    <CaretDown class="caret" size={12} weight="bold" aria-hidden="true" />
   </div>
   {#if listState === "loading"}
     <span class="meta" role="status">Listing {cli.label} models…</span>
@@ -142,33 +160,67 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px 14px;
+    gap: 4px 6px;
     min-width: 0;
   }
+  /* Text and a caret, no box: the pickers sit inside the composer and should not compete with Send. */
   .pick {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 6px;
     min-width: 0;
-  }
-  .pick label {
-    font-size: 12px;
-    font-weight: 700;
     color: var(--ink-2);
   }
+  .pick:hover {
+    color: var(--ink);
+  }
+  .pick :global(svg) {
+    position: absolute;
+    pointer-events: none;
+  }
+  .pick :global(.caret) {
+    right: 8px;
+  }
+  .pick :global(.lead-icon) {
+    left: 8px;
+  }
   .pick .select {
+    appearance: none;
+    field-sizing: content;
     width: auto;
     min-width: 0;
-    max-width: 220px;
-    min-height: 32px;
-    padding: 5px 8px;
+    max-width: 240px;
+    min-height: 28px;
+    padding: 4px 24px 4px 8px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: inherit;
     font-size: 13px;
+    font-weight: 600;
+    text-overflow: ellipsis;
     cursor: pointer;
+    transition: background-color 0.12s ease-out;
+  }
+  .pick.lead .select {
+    padding-left: 28px;
+  }
+  .pick .select:hover:enabled {
+    background: var(--surface-2);
+  }
+  .pick .select option,
+  .pick .select optgroup {
+    background: var(--surface);
+    color: var(--ink);
   }
   .pick .select:disabled {
     cursor: not-allowed;
-    background: var(--bg);
+  }
+  .pick:has(.select:disabled) {
     color: var(--ink-2);
+  }
+  .pick:has(.select:disabled) :global(.caret) {
+    display: none;
   }
   .pickers > .meta,
   .pickers > .err-text {
@@ -178,6 +230,7 @@
   @media (max-width: 720px) {
     .pick .select {
       min-height: 44px;
+      max-width: min(240px, 70vw);
     }
     .pickers > .btn.sm {
       min-height: 44px;

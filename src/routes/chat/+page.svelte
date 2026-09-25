@@ -310,14 +310,20 @@
       {#if sendError}<p class="err-text" role="alert" style="margin:0">{sendError}</p>{/if}
       <div class="composer-bar">
         {#if planner && app.settings?.plannerSource !== "api"}<PlannerModel cli={planner} />{/if}
-        <button class="btn primary" type="submit" id="btn-send" disabled={pending !== null || !draft.trim() || !canPlan || missing}>
-          <PaperPlaneTilt size={16} aria-hidden="true" />Send
+        <button
+          class="btn primary send"
+          type="submit"
+          id="btn-send"
+          aria-label="Send"
+          title="Send. Shift+Enter adds a line."
+          disabled={pending !== null || !draft.trim() || !canPlan || missing}
+        >
+          <PaperPlaneTilt size={16} weight="fill" aria-hidden="true" />
         </button>
       </div>
-      <p class="meta composer-hint">
-        {#if pending && !thinkingHere}The planner is still answering in another chat. Send works again when it is done.
-        {:else}Nothing starts until you press Run on a card. Shift+Enter adds a line.{/if}
-      </p>
+      {#if pending && !thinkingHere}
+        <p class="meta composer-hint" role="status">The planner is still answering in another chat. Send works again when it is done.</p>
+      {/if}
     </form>
   </main>
 
@@ -499,6 +505,11 @@
   .composer-bar > .btn {
     margin-left: auto;
   }
+  .composer-bar > .send {
+    width: 36px;
+    min-height: 36px;
+    padding: 0;
+  }
   .composer-hint {
     margin: 0;
     font-size: 12px;
@@ -582,6 +593,10 @@
       display: none;
     }
     .history-head .btn.sm {
+      min-height: 44px;
+    }
+    .composer-bar > .send {
+      width: 44px;
       min-height: 44px;
     }
     .chat-col {
