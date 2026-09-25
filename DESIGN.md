@@ -55,7 +55,7 @@ Terminal (panel gelap di kedua tema, "teduh di bawah pohon"):
 
 Scrim modal: `#33361F73` (ink 45%). Panel di atas ilustrasi memakai glass (di bawah).
 
-Latar aplikasi: `meadow-day` (`static/meadow-day.png`, 1672 × 941) penuh di belakang aplikasi (fixed, cover, posisi 70% bawah), terlihat langsung di area kerja. Di Siang lukisan tampil utuh tanpa lapisan warna (keputusan pemilik produk, 26 September 2026); di Senja ada `haze`:
+Latar aplikasi: `meadow-day` (`static/meadow-day.png`, 1672 × 941) di belakang aplikasi (fixed, fit: utuh tanpa terpotong atau ditarik, posisi 70% bawah; pita sisa di tepi jendela diisi salinan lukisan yang sama versi cover dengan blur 32px), terlihat langsung di area kerja. Di Siang lukisan tampil utuh tanpa lapisan warna (keputusan pemilik produk, 26 September 2026); di Senja ada `haze`:
 
 | Token | Siang | Senja |
 |---|---|---|

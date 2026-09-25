@@ -7,7 +7,7 @@
   --term-bg: #1E2B1F; --term-text: #EDE6C4; --term-dim: #A9B38F; --term-green: #A6CF6A; --term-yellow: #F0C23A; --term-red: #E88B6B;
   --scrim: #33361F73; --glass: #FFFAE6D1; --glass-2: #F4E7B0E6; --glass-bg: #FBF3CFD9; --glass-pop: #FFFAE6E0; --glass-toast: #33361FD9; --solid: #FFFAE6;
   --glass-rim: inset 0 1px 0 #FFFFFFB3, inset 0 0 0 1px #FFFFFF4D; --glass-blur: blur(24px) saturate(1.4);
-  --art-filter: none; --haze: none; --shadow-modal: 0 12px 40px #33361F40;
+  --art-filter: brightness(1); --haze: none; --shadow-modal: 0 12px 40px #33361F40;
   --font-ui: "Nunito", system-ui, sans-serif; --font-mono: "IBM Plex Mono", ui-monospace, monospace; --font-pixel: "Pixelify Sans", "Nunito", sans-serif;
   --r-sm: 6px; --r-btn: 8px; --r-md: 10px; --r-lg: 14px;
   --titlebar: 36px;
@@ -76,7 +76,11 @@ svg { flex: none; }
    a 38% haze. */
 /* The shell never scrolls: only the sidebar and the page inside it do, so the sidebar stays put over the painting. */
 .app { display: grid; grid-template-columns: 240px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 12px; padding: var(--titlebar) 12px 12px; height: 100vh; min-height: 620px; position: relative; isolation: isolate; overflow: hidden; }
-.app::before { content: ""; position: fixed; inset: 0; z-index: -1; background-color: var(--bg); background-image: var(--haze), url(/meadow-day.png); background-position: 0 0, 70% 100%; background-size: 100% 100%, cover; background-repeat: no-repeat; filter: var(--art-filter); }
+/* The painting fits the window whole (contain), never cropped or stretched. The band left at the window's edges is the
+   same painting, cover-scaled and blurred, so no flat bar shows. */
+.app::before, .app::after { content: ""; position: fixed; z-index: -1; background-repeat: no-repeat; }
+.app::before { inset: -48px; background-color: var(--bg); background-image: url(/meadow-day.png); background-position: 70% 100%; background-size: cover; filter: blur(32px) var(--art-filter); }
+.app::after { inset: 0; background-image: var(--haze), url(/meadow-day.png); background-position: 0 0, 70% 100%; background-size: 100% 100%, contain; filter: var(--art-filter); }
 .app > .sidebar { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); }
 /* Text over the painting uses ink only, so hierarchy comes from size and weight. */
 .page-head, .section-head, .hint, .col-head, .board-main > .meta, .planner, .activity, .detail-side, .note, .not-found, .phones figcaption { --ink-2: var(--ink); }
