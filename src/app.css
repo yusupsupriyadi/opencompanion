@@ -5,7 +5,7 @@
   --st-run: #B5D07A; --st-run-ink: #33361F; --st-wait: #F2C94C; --st-wait-ink: #33361F;
   --st-err: #A8472E; --st-err-ink: #FFF8E1; --st-idle: #EFE3AE; --st-idle-ink: #5B5D3E;
   --term-bg: #1E2B1F; --term-text: #EDE6C4; --term-dim: #A9B38F; --term-green: #A6CF6A; --term-yellow: #F0C23A; --term-red: #E88B6B;
-  --scrim: #33361F73; --over-art: #FFFAE6F2; --glass: #FBF3CFD6; --art-filter: none; --haze: linear-gradient(to bottom, #FBF3CF1A 0%, #FBF3CF1A 30%, #FBF3CFA8 40%, #FBF3CFA8 100%); --shadow-modal: 0 12px 40px #33361F40;
+  --scrim: #33361F73; --over-art: #FFFAE6F2; --glass: #FBF3CFD6; --art-filter: none; --haze: none; --shadow-modal: 0 12px 40px #33361F40;
   --font-ui: "Nunito", system-ui, sans-serif; --font-mono: "IBM Plex Mono", ui-monospace, monospace; --font-pixel: "Pixelify Sans", "Nunito", sans-serif;
   --r-sm: 6px; --r-btn: 8px; --r-md: 10px; --r-lg: 14px;
   --titlebar: 36px;
@@ -17,7 +17,7 @@
   --ink: #F3EBC8; --ink-2: #BDB895; --forest: #9CC45A; --on-forest: #1B1F1A; --accent: #7FAEDD; --on-accent: #1B1F1A;
   --st-run: #9CC45A; --st-run-ink: #1B1F1A; --st-wait: #E9B92E; --st-wait-ink: #1B1F1A;
   --st-err: #E0876A; --st-err-ink: #1B1F1A; --st-idle: #2E3529; --st-idle-ink: #BDB895;
-  --term-bg: #121710; --scrim: #000000A6; --over-art: #242A22F2; --glass: #1B1F1AD6; --art-filter: brightness(.42) saturate(.85); --haze: linear-gradient(#1B1F1A80, #1B1F1A80); --shadow-modal: 0 12px 40px #00000080;
+  --term-bg: #121710; --scrim: #000000A6; --over-art: #242A22F2; --glass: #1B1F1AA6; --art-filter: brightness(.58); --haze: linear-gradient(#1B1F1A61, #1B1F1A61); --shadow-modal: 0 12px 40px #00000080;
   --rainbow: #F4A3A3, #F2BE7E, #E8DA7A, #A8D66E, #8FBCEB, #C9AEF5, #F4A3A3;
   color-scheme: dark;
 }
@@ -27,7 +27,7 @@
     --ink: #F3EBC8; --ink-2: #BDB895; --forest: #9CC45A; --on-forest: #1B1F1A; --accent: #7FAEDD; --on-accent: #1B1F1A;
     --st-run: #9CC45A; --st-run-ink: #1B1F1A; --st-wait: #E9B92E; --st-wait-ink: #1B1F1A;
     --st-err: #E0876A; --st-err-ink: #1B1F1A; --st-idle: #2E3529; --st-idle-ink: #BDB895;
-    --term-bg: #121710; --scrim: #000000A6; --over-art: #242A22F2; --glass: #1B1F1AD6; --art-filter: brightness(.42) saturate(.85); --haze: linear-gradient(#1B1F1A80, #1B1F1A80); --shadow-modal: 0 12px 40px #00000080;
+    --term-bg: #121710; --scrim: #000000A6; --over-art: #242A22F2; --glass: #1B1F1AA6; --art-filter: brightness(.58); --haze: linear-gradient(#1B1F1A61, #1B1F1A61); --shadow-modal: 0 12px 40px #00000080;
     --rainbow: #F4A3A3, #F2BE7E, #E8DA7A, #A8D66E, #8FBCEB, #C9AEF5, #F4A3A3;
     color-scheme: dark;
   }
@@ -70,14 +70,19 @@ svg { flex: none; }
 }
 
 /* App shell */
-/* The painting sits behind the whole app under a haze that is thin over the sky (top 30%) and 66% from 40% down,
-   the level at which ink text passes 4.5:1 over the darkest pixel. Only the sidebar is a panel (84% + blur 14px). */
+/* The painting sits behind the whole app. Day shows it untouched, at the owner's request; Dusk dims it to 58% under
+   a 38% haze. The sidebar is glass with blur 14px: Day needs 84% for ink-2 to keep 4.5:1 over the bare painting, Dusk 65%. */
 /* The shell never scrolls: only the sidebar and the page inside it do, so the sidebar stays put over the painting. */
 .app { display: grid; grid-template-columns: 240px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 12px; padding: var(--titlebar) 12px 12px; height: 100vh; min-height: 620px; position: relative; isolation: isolate; overflow: hidden; }
 .app::before { content: ""; position: fixed; inset: 0; z-index: -1; background-color: var(--bg); background-image: var(--haze), url(/meadow-day.webp); background-position: 0 0, 70% 100%; background-size: 100% 100%, cover; background-repeat: no-repeat; filter: var(--art-filter); }
 .app > .sidebar { background: var(--glass); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border: 1px solid var(--line); border-radius: var(--r-lg); }
-/* Text straight on the painting uses ink only: ink-2 fails AA over the darkest pixels even with the haze. */
+/* Text over the painting uses ink only, so hierarchy comes from size and weight. */
 .page-head, .section-head, .hint, .col-head, .board-main > .meta, .planner, .activity, .detail-side, .note, .not-found, .phones figcaption { --ink-2: var(--ink); }
+/* With no haze in Day, the painting drops to about 1:1 behind ink in the trees and grass, so every block of text over it
+   sits on a plate. Headers and panels span their row; single lines and paragraphs hug their text. */
+.page-head, .section-head, .hint, .col-head, .planner, .activity, .detail-side, .note, .not-found, .toolbar { background: var(--over-art); border-radius: var(--r-md); padding: 12px 16px; }
+.section-head, .hint, .col-head, .activity, .note { padding: 8px 12px; }
+.section-head, .hint, .note, .planner { width: fit-content; }
 .sidebar { display: flex; flex-direction: column; gap: 22px; padding: 22px 16px; overflow-y: auto; }
 .brand { display: flex; align-items: center; gap: 8px; padding: 0 10px; font-size: 18px; font-weight: 800; }
 .brand svg { color: var(--ink-2); }

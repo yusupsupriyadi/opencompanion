@@ -377,7 +377,7 @@
     display: flex;
     align-items: baseline;
     gap: 8px;
-    padding: 0 4px;
+    padding: 8px 12px;
   }
   .col-head h2 {
     margin: 0;

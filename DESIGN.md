@@ -55,15 +55,17 @@ Terminal (panel gelap di kedua tema, "teduh di bawah pohon"):
 
 Scrim modal: `#33361F73` (ink 45%). Panel di atas ilustrasi: `#FFFAE6F2` (surface 95%), selalu solid agar teks tidak jatuh langsung di atas lukisan.
 
-Latar aplikasi: `meadow-day` penuh di belakang aplikasi (fixed, cover, posisi 70% bawah), terlihat langsung di area kerja. Di atasnya ada `haze`:
+Latar aplikasi: `meadow-day` penuh di belakang aplikasi (fixed, cover, posisi 70% bawah), terlihat langsung di area kerja. Di Siang lukisan tampil utuh tanpa lapisan warna (keputusan pemilik produk, 26 September 2026); di Senja ada `haze`:
 
 | Token | Siang | Senja |
 |---|---|---|
-| `haze` | gradien `bg` 10% di 0 sampai 30% tinggi layar (langit), naik ke 66% di 40% dan seterusnya (pohon dan padang) | `bg` 50% rata, dan seluruh lapisan diberi `filter: brightness(.42) saturate(.85)` |
-| `glass` | `#FBF3CFD6` (bg 84%) + blur 14px, hanya untuk sidebar | `#1B1F1AD6` + blur 14px |
+| `haze` | tidak ada | `bg` 38% rata (`#1B1F1A61`), dan seluruh lapisan diberi `filter: brightness(.58)` |
+| `glass` | `#FBF3CFD6` (bg 84%) + blur 14px, hanya untuk sidebar | `#1B1F1AA6` (bg 65%) + blur 14px |
 
-- Titik stop haze diambil dari hitungan per pita tinggi layar: di langit teks `ink` sudah aman tanpa haze, di area pohon dibutuhkan sekitar 64%.
-- Teks yang langsung berada di atas lukisan (judul halaman, subjudul, kepala section dan kolom, hitungan, teks bantu, panel samping sesi) selalu memakai `ink`. Hierarki dibawa ukuran dan ketebalan, karena `ink-2` gagal AA di titik tergelap kecuali haze 87%, yang menutup lukisan.
+- Tanpa haze, teks `ink` di atas pohon, batang kayu, dan rumput gelap turun sampai sekitar 1:1. Karena itu setiap blok teks di atas lukisan duduk di **alas** `over-art` radius 10: kepala halaman, toolbar Skills, balasan Planner, panel samping sesi, dan "Session not found" dengan padding 12/16; kepala section, kepala kolom Board, baris Activity, teks bantu, dan catatan dengan padding 8/12. Kepala halaman, kepala kolom, baris Activity, dan panel selebar barisnya; kepala section, teks bantu, catatan, dan balasan Planner memeluk teksnya.
+- Teks di alas tetap memakai `ink` untuk teks sekunder juga, jadi hierarki dibawa ukuran dan ketebalan.
+- Glass Siang tetap 84% karena di bawahnya lukisan tanpa haze: di bawah itu `ink-2` sidebar gagal AA.
+- Senja: brightness .58 dengan haze 38% menjaga `ink` di 5.14:1 bahkan langsung di atas lukisan, jadi warna lukisan terlihat tanpa melepas cadangan kontras itu.
 - Kartu, chip, terminal, tabel, dan badan kolom Board tetap solid.
 
 ### Kontras yang sudah dicek
@@ -86,10 +88,10 @@ Dicek dengan `contrast-check.py` (WCAG AA, 4.5:1 teks normal, 3:1 teks besar dan
 | `forest` (focus ring) di `bg` | 7.14 | 8.32 |
 | `line-strong` di `bg` (non-teks) | 3.18 | 3.60 |
 | `term-text` di `term-bg` | 11.77 | 14.46 |
-| `ink` di `glass` sidebar di atas lukisan (titik terburuk) | 8.46 | di atas 11 |
-| `ink-2` di `glass` sidebar di atas lukisan (titik terburuk) | 4.64 | di atas 6.9 |
-| `ink` langsung di atas lukisan + `haze` (titik terburuk, 1100 sampai 1920 lebar) | 4.92 | 9.29 |
-| `ink-2` langsung di atas lukisan + `haze` Senja | tidak dipakai | 5.54 |
+| `ink` di `glass` sidebar di atas lukisan (titik terburuk) | 8.46 | 10.28 |
+| `ink-2` di `glass` sidebar di atas lukisan (titik terburuk) | 4.64 | 6.13 |
+| `ink` / `ink-2` di alas `over-art` di atas lukisan (titik terburuk, 1100 sampai 2560 lebar) | 5.85 | 7.03 |
+| `ink` langsung di atas lukisan + `haze` Senja (titik terburuk) | tidak dipakai | 5.14 |
 | `term-dim` / `term-green` / `term-yellow` / `term-red` di `term-bg` (Siang) | 6.71 / 8.27 / 8.79 / 5.87 | |
 | `st-err` sebagai teks di `surface` (pesan error di baris CLI) | 5.57 | 5.49 |
 | `st-err` sebagai teks di `surface-2` (tombol Delete, pesan error di kolom) | 4.69 | 4.73 |
@@ -127,7 +129,7 @@ Tidak ada label uppercase dengan tracking lebar. Line height paragraf 1.4 sampai
 
 - Skala spasi: 2, 4, 6, 8, 10, 12, 14, 16, 20, 22, 24, 28, 32, 40.
 - Jendela desktop acuan 1440 × 900. Minimum yang harus tetap rapi: 1100 × 700 (kolom kanan Session detail dan Live rail di Chat disembunyikan di bawah 1280, bisa dibuka lewat tombol).
-- Kerangka: jendela tanpa frame native; baris atas setinggi 36 adalah Title bar (bagian 8), lalu padding 12 di kiri, kanan, bawah dan gap 12. Sidebar adalah panel `glass` radius 14; area kerja tidak berpanel sehingga lukisan terlihat, dan isinya berupa kartu solid. Live rail di Chat adalah panel solid tersendiri.
+- Kerangka: jendela tanpa frame native; baris atas setinggi 36 adalah Title bar (bagian 8), lalu padding 12 di kiri, kanan, bawah dan gap 12. Sidebar adalah panel `glass` radius 14; area kerja tidak berpanel sehingga lukisan terlihat, dan isinya berupa kartu solid atau teks di alas `over-art` (bagian 2). Live rail di Chat adalah panel solid tersendiri.
 - Sidebar 240 lebar, padding 22/16, gap antar blok 22.
 - Area utama: padding 28 atas-bawah, 40 kiri-kanan, gap antar blok 24 sampai 28.
 - Mobile acuan 390 × 844. Padding sisi 16, gap 12 sampai 16, target sentuh minimal 44 × 44, tombol aksi utama tinggi 48.
@@ -161,7 +163,7 @@ Track aktivitas sesi, diambil dari garis tanah pixel di referensi.
 
 ## 7. Ilustrasi
 
-Aturan: tampil penuh di momen tanpa data (onboarding, empty state, offline mobile), dan sebagai latar aplikasi desktop di bawah `haze` (bagian 2). Teks di atas lukisan hanya memakai `ink` dan hanya di posisi yang kontrasnya sudah dihitung; teks lain berada di kartu solid atau panel `glass`.
+Aturan: tampil penuh di momen tanpa data (onboarding, empty state, offline mobile), dan sebagai latar aplikasi desktop (utuh di Siang, di bawah `haze` di Senja; bagian 2). Teks tidak pernah jatuh langsung di atas lukisan: teks berada di alas `over-art`, kartu solid, atau panel `glass`.
 
 | File | Status | Dipakai di | Prompt |
 |---|---|---|---|
