@@ -1,0 +1,38 @@
+/* Phone companion (DESIGN.md section 10). Ported from the phone prototype. */
+.phone { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
+.bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; min-height: 56px; border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; z-index: 2; }
+.bar .brand { padding: 0; font-size: 18px; }
+.back { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 8px 0 0; border: 0; background: transparent; font-weight: 700; cursor: pointer; color: var(--ink); }
+.content { flex: 1; display: flex; flex-direction: column; gap: 16px; padding: 16px 16px 24px; }
+.content.has-dock { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+.conn { font-size: 12px; color: var(--ink-2); margin-top: -8px; }
+.m-needs { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: var(--r-lg); background: var(--surface); border: 1.5px solid var(--accent); }
+.m-needs h2 { margin: 0; font-size: 16px; font-weight: 800; line-height: 1.3; }
+.pair-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pair-btns .btn { min-height: 48px; }
+.m-sec { display: flex; flex-direction: column; gap: 10px; }
+.m-sec h2 { margin: 0; font-size: 15px; font-weight: 800; }
+.m-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); }
+.m-card:active { background: var(--surface-2); }
+.m-card .task { font-size: 15px; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.m-card .row { align-items: flex-start; }
+.m-title { margin: 0; font-size: 20px; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
+.tail { margin: 0; padding: 14px; border-radius: var(--r-md); background: var(--term-bg); color: var(--term-text); font: 12px/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.dock { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; background: var(--bg); border-top: 1px solid var(--line); padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); z-index: 3; }
+.dock > div { width: 100%; max-width: 448px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dock > div.one { grid-template-columns: 1fr; }
+.dock .btn { min-height: 48px; }
+.art { width: calc(100% + 32px); margin: -16px -16px 4px; height: 280px; object-fit: cover; object-position: 85% 72%; border-radius: 0 0 var(--r-lg) var(--r-lg); display: block; }
+:root[data-theme="dark"] .art { filter: brightness(.42) saturate(.85); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .art { filter: brightness(.42) saturate(.85); } }
+.m-h1 { margin: 0; font-size: 22px; font-weight: 800; line-height: 1.25; }
+.m-p { margin: 0; font-size: 15px; color: var(--ink-2); line-height: 1.5; }
+.try { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; }
+.codes { display: flex; gap: 8px; }
+.codes input { width: 44px; height: 52px; text-align: center; font: 600 20px var(--font-mono); border-radius: var(--r-sm); border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); }
+.codes input[aria-invalid="true"] { border: 2px solid var(--st-err); }
+.small { font-size: 12px; color: var(--ink-2); }
+dialog.sheet { margin: auto auto 0; width: 100%; max-width: 480px; border-radius: var(--r-lg) var(--r-lg) 0 0; padding: 22px 16px calc(22px + env(safe-area-inset-bottom)); }
+dialog.sheet .d-foot { flex-direction: column; align-items: stretch; }
+dialog.sheet .btn { min-height: 48px; }
+.phone .btn { min-height: 44px; }
