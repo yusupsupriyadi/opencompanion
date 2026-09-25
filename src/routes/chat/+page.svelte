@@ -230,13 +230,12 @@
 
   <main class="chat-col" id="chat-main">
     <header class="page-head">
-      <div class="grow"><h1 class="sr-only">Chat</h1></div>
+      <h1 class="sr-only">Chat</h1>
       {#if current}
         <button class="btn ghost" type="button" id="btn-delete-chat" onclick={deleteChat} disabled={thinkingHere}>
           <Trash size={16} aria-hidden="true" />{confirmDelete ? "Press again to delete" : "Delete chat"}
         </button>
       {/if}
-      <a class="btn secondary" href="/settings#chat">Change planner</a>
     </header>
 
     <div class="thread" bind:this={thread} aria-live="polite">
@@ -521,6 +520,26 @@
     margin: 0;
     font-size: 14px;
     font-weight: 800;
+  }
+  /* No plate behind the header, at the owner's request. Each control carries its own glass instead, since ink over the
+     bare Day sky drops to about 1.9:1. */
+  .page-head {
+    width: fit-content;
+    align-self: flex-end;
+    padding: 0;
+    background: none;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .page-head > .btn {
+    background: var(--surface);
+    box-shadow: var(--glass-rim);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
+  .page-head > .btn:hover {
+    background: var(--surface-2);
   }
   .live {
     display: flex;
