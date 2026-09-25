@@ -5,7 +5,7 @@
   --st-run: #B5D07A; --st-run-ink: #33361F; --st-wait: #F2C94C; --st-wait-ink: #33361F;
   --st-err: #A8472E; --st-err-ink: #FFF8E1; --st-idle: #EFE3AE; --st-idle-ink: #5B5D3E;
   --term-bg: #1E2B1F; --term-text: #EDE6C4; --term-dim: #A9B38F; --term-green: #A6CF6A; --term-yellow: #F0C23A; --term-red: #E88B6B;
-  --scrim: #33361F73; --over-art: #FFFAE6F2; --glass: #FBF3CFD6; --art-filter: none; --haze: none; --shadow-modal: 0 12px 40px #33361F40;
+  --scrim: #33361F73; --over-art: #FFFAE6F2; --glass: #FBF3CFE0; --art-filter: none; --haze: none; --shadow-modal: 0 12px 40px #33361F40;
   --font-ui: "Nunito", system-ui, sans-serif; --font-mono: "IBM Plex Mono", ui-monospace, monospace; --font-pixel: "Pixelify Sans", "Nunito", sans-serif;
   --r-sm: 6px; --r-btn: 8px; --r-md: 10px; --r-lg: 14px;
   --titlebar: 36px;
@@ -71,10 +71,10 @@ svg { flex: none; }
 
 /* App shell */
 /* The painting sits behind the whole app. Day shows it untouched, at the owner's request; Dusk dims it to 58% under
-   a 38% haze. The sidebar is glass with blur 14px: Day needs 84% for ink-2 to keep 4.5:1 over the bare painting, Dusk 65%. */
+   a 38% haze. The sidebar is glass with blur 14px: Day needs 88% for ink-2 to keep 4.5:1 over the bare painting, Dusk 65%. */
 /* The shell never scrolls: only the sidebar and the page inside it do, so the sidebar stays put over the painting. */
 .app { display: grid; grid-template-columns: 240px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 12px; padding: var(--titlebar) 12px 12px; height: 100vh; min-height: 620px; position: relative; isolation: isolate; overflow: hidden; }
-.app::before { content: ""; position: fixed; inset: 0; z-index: -1; background-color: var(--bg); background-image: var(--haze), url(/meadow-day.webp); background-position: 0 0, 70% 100%; background-size: 100% 100%, cover; background-repeat: no-repeat; filter: var(--art-filter); }
+.app::before { content: ""; position: fixed; inset: 0; z-index: -1; background-color: var(--bg); background-image: var(--haze), url(/meadow-day.png); background-position: 0 0, 70% 100%; background-size: 100% 100%, cover; background-repeat: no-repeat; filter: var(--art-filter); }
 .app > .sidebar { background: var(--glass); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border: 1px solid var(--line); border-radius: var(--r-lg); }
 /* Text over the painting uses ink only, so hierarchy comes from size and weight. */
 .page-head, .section-head, .hint, .col-head, .board-main > .meta, .planner, .activity, .detail-side, .note, .not-found, .phones figcaption { --ink-2: var(--ink); }
@@ -265,7 +265,8 @@ dialog[open] { animation: rise .18s ease-out; }
 /* Title bar: the native frame is off, so this strip over the painting's sky is the drag handle and the window buttons.
    Each button's hit area runs to the window edge (Close sits in the corner); the hover fill is the inset span. */
 .titlebar { position: fixed; top: 0; left: 0; right: 0; z-index: 40; height: var(--titlebar); display: flex; justify-content: flex-end; -webkit-app-region: drag; app-region: drag; }
-.tb-controls { display: flex; -webkit-app-region: no-drag; app-region: no-drag; }
+/* The window buttons sit on a plate: the Day sky behind them drops ink icons to 1.9:1. */
+.tb-controls { display: flex; background: var(--over-art); border-bottom-left-radius: var(--r-md); -webkit-app-region: no-drag; app-region: no-drag; }
 .tb-btn { display: grid; place-items: center; width: 46px; height: 100%; padding: 0; border: 0; background: none; color: var(--ink); cursor: pointer; }
 .tb-btn span { display: grid; place-items: center; width: 34px; height: 28px; border-radius: var(--r-btn); transition: background-color .12s ease-out, color .12s ease-out; }
 .tb-btn:hover span { background: var(--surface-2); }

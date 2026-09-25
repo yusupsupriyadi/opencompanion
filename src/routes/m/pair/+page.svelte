@@ -76,7 +76,7 @@
 
 <header class="bar"><span class="brand grow">OpenCompanion <Cloud size={20} aria-hidden="true" /></span></header>
 <main class="content" id="phone-pair">
-  <img class="art" src="/meadow-day.webp" alt="" aria-hidden="true" />
+  <img class="art" src="/meadow-day.png" alt="" aria-hidden="true" />
   <h1 class="m-h1">Pair this phone</h1>
   {#if fromQr.length === 6}
     <p class="m-p">The code from your computer is filled in. Check the name, then press Pair.</p>

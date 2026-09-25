@@ -7,7 +7,7 @@
   import CliMark from "$lib/CliMark.svelte";
   import { shortPath } from "$lib/format";
   import { app, loadSettings, refreshClis, saveSettings } from "$lib/store.svelte";
-  const meadow = "/meadow-day.webp";
+  const meadow = "/meadow-day.png";
 
   let chosen = $state<CliKind | "">("");
   let failure = $state("");

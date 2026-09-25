@@ -43,7 +43,7 @@
   {#if phone.connection === "offline" && !onPair}
     <header class="bar"><span class="brand grow">OpenCompanion <Cloud size={20} aria-hidden="true" /></span></header>
     <main class="content" id="phone-offline">
-      <img class="art" src="/meadow-day.webp" alt="" aria-hidden="true" />
+      <img class="art" src="/meadow-day.png" alt="" aria-hidden="true" />
       <h1 class="m-h1">Can't reach your desktop</h1>
       <p class="m-p">This phone is paired, but your computer did not answer. Things to check:</p>
       <ol class="try">

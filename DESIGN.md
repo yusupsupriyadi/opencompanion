@@ -55,17 +55,17 @@ Terminal (panel gelap di kedua tema, "teduh di bawah pohon"):
 
 Scrim modal: `#33361F73` (ink 45%). Panel di atas ilustrasi: `#FFFAE6F2` (surface 95%), selalu solid agar teks tidak jatuh langsung di atas lukisan.
 
-Latar aplikasi: `meadow-day` penuh di belakang aplikasi (fixed, cover, posisi 70% bawah), terlihat langsung di area kerja. Di Siang lukisan tampil utuh tanpa lapisan warna (keputusan pemilik produk, 26 September 2026); di Senja ada `haze`:
+Latar aplikasi: `meadow-day` (`static/meadow-day.png`, 1672 × 941) penuh di belakang aplikasi (fixed, cover, posisi 70% bawah), terlihat langsung di area kerja. Di Siang lukisan tampil utuh tanpa lapisan warna (keputusan pemilik produk, 26 September 2026); di Senja ada `haze`:
 
 | Token | Siang | Senja |
 |---|---|---|
 | `haze` | tidak ada | `bg` 38% rata (`#1B1F1A61`), dan seluruh lapisan diberi `filter: brightness(.58)` |
-| `glass` | `#FBF3CFD6` (bg 84%) + blur 14px, hanya untuk sidebar | `#1B1F1AA6` (bg 65%) + blur 14px |
+| `glass` | `#FBF3CFE0` (bg 88%) + blur 14px, hanya untuk sidebar | `#1B1F1AA6` (bg 65%) + blur 14px |
 
 - Tanpa haze, teks `ink` di atas pohon, batang kayu, dan rumput gelap turun sampai sekitar 1:1. Karena itu setiap blok teks di atas lukisan duduk di **alas** `over-art` radius 10: kepala halaman, toolbar Skills, balasan Planner, panel samping sesi, dan "Session not found" dengan padding 12/16; kepala section, kepala kolom Board, baris Activity, teks bantu, dan catatan dengan padding 8/12. Kepala halaman, kepala kolom, baris Activity, dan panel selebar barisnya; kepala section, teks bantu, catatan, dan balasan Planner memeluk teksnya.
 - Teks di alas tetap memakai `ink` untuk teks sekunder juga, jadi hierarki dibawa ukuran dan ketebalan.
-- Glass Siang tetap 84% karena di bawahnya lukisan tanpa haze: di bawah itu `ink-2` sidebar gagal AA.
-- Senja: brightness .58 dengan haze 38% menjaga `ink` di 5.14:1 bahkan langsung di atas lukisan, jadi warna lukisan terlihat tanpa melepas cadangan kontras itu.
+- Glass Siang 88% karena di bawahnya lukisan tanpa haze dengan langit biru pekat: di bawah itu `ink-2` sidebar gagal AA.
+- Senja: brightness .58 dengan haze 38% menjaga `ink` di 5.07:1 bahkan langsung di atas lukisan, jadi warna lukisan terlihat tanpa melepas cadangan kontras itu.
 - Kartu, chip, terminal, tabel, dan badan kolom Board tetap solid.
 
 ### Kontras yang sudah dicek
@@ -88,10 +88,11 @@ Dicek dengan `contrast-check.py` (WCAG AA, 4.5:1 teks normal, 3:1 teks besar dan
 | `forest` (focus ring) di `bg` | 7.14 | 8.32 |
 | `line-strong` di `bg` (non-teks) | 3.18 | 3.60 |
 | `term-text` di `term-bg` | 11.77 | 14.46 |
-| `ink` di `glass` sidebar di atas lukisan (titik terburuk) | 8.46 | 10.28 |
-| `ink-2` di `glass` sidebar di atas lukisan (titik terburuk) | 4.64 | 6.13 |
-| `ink` / `ink-2` di alas `over-art` di atas lukisan (titik terburuk, 1100 sampai 2560 lebar) | 5.85 | 7.03 |
-| `ink` langsung di atas lukisan + `haze` Senja (titik terburuk) | tidak dipakai | 5.14 |
+| `ink` di `glass` sidebar di atas lukisan (titik terburuk) | 8.77 | 10.57 |
+| `ink-2` di `glass` sidebar di atas lukisan (titik terburuk) | 4.80 | 6.31 |
+| `ink` / `ink-2` di alas `over-art` di atas lukisan (titik terburuk, 1100 sampai 2560 lebar) | 5.82 | 7.03 |
+| ikon `ink` tombol jendela di alas `over-art` Title bar (titik terburuk) | 11.04 | 11.79 |
+| `ink` langsung di atas lukisan + `haze` Senja (titik terburuk) | tidak dipakai | 5.07 |
 | `term-dim` / `term-green` / `term-yellow` / `term-red` di `term-bg` (Siang) | 6.71 / 8.27 / 8.79 / 5.87 | |
 | `st-err` sebagai teks di `surface` (pesan error di baris CLI) | 5.57 | 5.49 |
 | `st-err` sebagai teks di `surface-2` (tombol Delete, pesan error di kolom) | 4.69 | 4.73 |
@@ -168,6 +169,7 @@ Aturan: tampil penuh di momen tanpa data (onboarding, empty state, offline mobil
 | File | Status | Dipakai di | Prompt |
 |---|---|---|---|
 | `design/meadow-day.png` (1408 × 768) | sudah dibuat | D1 Onboarding, D8 empty state | "Soft painterly anime-inspired landscape painting, gouache and watercolor texture, warm late-afternoon light. Pale butter-yellow sky (#FBF3CF) with large soft cream and pale teal clouds filling the upper 60 percent of the image, calm and mostly empty so text can sit on it. A rolling green meadow hill across the lower third, sloping gently from left to right, a dark green pine forest along the ridge, tiny yellow wildflowers in the foreground grass. A tiny distant figure in a blue jacket sits on a fallen log in the lower right, seen from behind. No text, no animals, no buildings." |
+| `static/meadow-day.png` (1672 × 941) | dipakai aplikasi | latar desktop, D1 Onboarding, header ponsel | versi baru dari pemilik produk: langit biru pekat dengan awan sore, padang dan tokoh yang sama; prompt tidak tercatat |
 | `design/meadow-portrait.png` | belum | M1 Pair device, M4 offline | "Same painterly gouache and watercolor style and palette as a warm late-afternoon meadow painting. Tall vertical composition. Upper half: pale butter-yellow sky (#FBF3CF) with soft cream clouds, calm and empty. Lower half: a green meadow slope with a dark pine ridge, small yellow wildflowers in the foreground, a tiny figure in a blue jacket sitting on a fallen log, seen from behind. No text, no animals, no buildings." |
 | `design/meadow-dusk.png` | belum | D8 empty state versi Senja, M4 versi Senja | "The same meadow painting at dusk, gouache and watercolor texture. Deep blue-green night sky (#1B1F1A to #2E3529) with a few first stars and a thin band of warm light on the horizon. The meadow and pine ridge in deep greens, a tiny figure in a blue jacket on a fallen log with a small warm lantern beside them. Upper 60 percent calm and mostly empty. No text, no animals, no buildings." |
 
@@ -177,7 +179,7 @@ Semua ukuran dalam px. State umum: hover = isi `surface-2`; focus = ring 2px `fo
 
 | Komponen | Spesifikasi |
 |---|---|
-| **Title bar** | pengganti frame native (`decorations: false`), fixed di atas selebar jendela, tinggi 36, tanpa isi sehingga langit lukisan terlihat. Seluruh baris adalah area drag; klik ganda memaksimalkan. Tidak ada wordmark karena brand sudah di Sidebar. Kanan: tiga tombol 46 × 36 yang menempel ke tepi jendela (Close tepat di sudut), ikon 16 `ink` (`square` 14): Minimize, Maximize/Restore (ikon `browsers` saat maximized), Close. Isi hover berupa kotak dalam 34 × 28 radius 8: `surface-2`, dan untuk Close `st-err` dengan ikon `st-err-ink` (Day 5.48:1, Dusk 6.24:1). Focus ring di kotak dalam. Di DOM ditaruh paling akhir agar Tab mencapai isi halaman dulu. Tampil juga di Onboarding. |
+| **Title bar** | pengganti frame native (`decorations: false`), fixed di atas selebar jendela, tinggi 36, tanpa isi sehingga langit lukisan terlihat. Seluruh baris adalah area drag; klik ganda memaksimalkan. Tidak ada wordmark karena brand sudah di Sidebar. Kanan: tiga tombol 46 × 36 yang menempel ke tepi jendela (Close tepat di sudut), di satu alas `over-art` dengan radius 10 di sudut kiri bawah (tanpa alas, langit Siang menurunkan ikon ke 1.9:1), ikon 16 `ink` (`square` 14): Minimize, Maximize/Restore (ikon `browsers` saat maximized), Close. Isi hover berupa kotak dalam 34 × 28 radius 8: `surface-2`, dan untuk Close `st-err` dengan ikon `st-err-ink` (Day 5.48:1, Dusk 6.24:1). Focus ring di kotak dalam. Di DOM ditaruh paling akhir agar Tab mencapai isi halaman dulu. Tampil juga di Onboarding. |
 | **NavItem** | lebar 208, padding 9/12, gap 10, radius 8. Ikon 18 `ink-2` + label 14/600 `ink-2`. Aktif: isi `surface-2`, ikon `forest`, label `ink` 700. |
 | **Sidebar** | 240 × tinggi penuh, border kanan 1px `line`. Urutan: Brand (wordmark "OpenCompanion" 18/800 + ikon `cloud` 20), Nav (Overview, Board, Chat, CLIs, Skills, Settings), grup "Sessions" (baris label 12/700 `ink-2` + tombol ikon `plus` 28 × 28 "New session" di kanan, selalu tampil, juga saat belum ada sesi; lalu sesi yang di-pin ditambah enam sesi lain paling mendesak, dikelompokkan per folder. Folder yang di-pin paling atas (urutan pin, tetap tampil walau kosong dengan teks "No recent sessions" 12 `ink-2`), lalu folder lain menurut sesinya yang paling mendesak; di dalam folder, sesi yang di-pin paling atas. Pin disimpan di aplikasi desktop dan diingat antar restart. Kepala folder adalah tombol lipat (tinggi 30, padding 4/12/4/8, hover atau fokus `surface-2` untuk seluruh baris). Tombol baris 26 × 26 ikon 14 (`plus` "New session in {folder}", `push-pin` "Pin folder"; di item sesi: `trash` untuk sesi selesai, `push-pin` "Pin session") muncul saat hover atau fokus keyboard, menimpa ujung baris dengan latar memudar ke warna baris. Pin yang aktif (`push-pin` terisi, `aria-pressed`) selalu terlihat di kanan dan baris itu memberi ruang kanan 36: `caret-down` 12 `ink-2` (berputar ke kanan saat terlipat) + `folder-simple` 16 `ink-2` + nama folder mono 12/600 `ink`, path lengkap di tooltip. Saat terlipat, kanan kepala menampilkan `hand-palm` `accent` bila ada sesi Waiting for you, lalu jumlah sesi 12 `ink-2`; kepala diberi isi `surface` bila sesi yang dibuka ada di dalamnya. Folder yang dilipat diingat antar restart. Item mini satu baris, menjorok 12 sehingga logo sejajar ikon folder dan judul sejajar nama folder: CliMark `bare` 16 (logo tanpa kotak, `OC` untuk OpenCode) + judul tugas 13/700, padding 7/12, tooltip "judul · CLI · status"; jarak antar folder 6, antar item 2), spacer, Footer: baris Phone access (ikon, label, chip On/Off) dan segmented tema Day/Dusk. Item mini sesi yang sedang dibuka diberi isi `surface`. Judul sesi Running memakai gradasi `--rainbow` yang bergeser (lihat MOTION 1); tiap titik gradasi minimal sekontras `ink-2` terhadap latar (Day ≥ 6.38:1, Dusk ≥ 8.38:1), jadi tetap lulus di atas `glass`. |
 | **StatusChip** | padding 3/8, radius 6, label Pixelify 12. Varian dari tabel status di bagian 2. |
