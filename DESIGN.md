@@ -61,6 +61,7 @@ Latar aplikasi: `meadow-day` (`static/meadow-day.png`, 1672 × 941) di belakang 
 |---|---|---|
 | `haze` | tidak ada | `bg` 38% rata (`#1B1F1A61`), dan seluruh lapisan diberi `filter: brightness(.58)` |
 | `glass` (tint `surface`) | `#FFFAE6D1` (82%) | `#242A2273` (45%) |
+| `glass-thin` (riwayat chat dan live rail di Chat) | `#FFFAE68F` (56%) | `#242A224D` (30%) |
 | `glass-2` (tint `surface-2`) | `#F4E7B0E6` (90%) | `#2E35298C` (55%) |
 | `glass-bg` (tint `bg`) | `#FBF3CFD9` (85%) | `#1B1F1A66` (40%) |
 | `glass-pop` (dialog dan pop-up) | `#FFFAE6E0` (88%) | `#242A22A6` (65%) |
@@ -73,6 +74,7 @@ Latar aplikasi: `meadow-day` (`static/meadow-day.png`, 1672 × 941) di belakang 
 - Teks di alas tetap memakai `ink` untuk teks sekunder juga, jadi hierarki dibawa ukuran dan ketebalan.
 - **Liquid glass** (keputusan pemilik produk, 26 September 2026, menggantikan aturan glass hanya di sidebar dan batas antislop R-10 satu sampai dua elemen): sidebar, tombol jendela, semua alas teks, kartu, dan panel (baris sesi, Needs you, state box, riwayat chat, composer, live rail, gelembung pesan, badan kolom Board, kartu Settings, tabel, panel Onboarding, dialog, toast) memakai `glass-blur` dan `glass-rim`. Di dalamnya `surface`, `surface-2`, dan `bg` diganti `glass`, `glass-2`, dan `glass-bg`, jadi tombol secondary, input, select, segmented, opsi, dan baris ikut transparan; input dan tombol secondary juga diberi `glass-rim`. Tombol primary, chip status, dan terminal tetap solid.
 - Tiap tint adalah yang paling tipis yang masih menjaga `ink-2` 4.5:1 di atas lukisan yang diburamkan. Pop-up (dialog, live rail versi pop-up, daftar folder @) mengambang di luar glass induknya sehingga tidak ada yang diburamkan di belakangnya, jadi memakai `glass-pop` yang lulus tanpa blur. Merah `st-err` butuh 89% di belakangnya, jadi teks error (`.err-text`, pesan field, tombol Delete kartu) memakai alas kecil `solid`.
+- Riwayat chat dan live rail yang menempel di Chat setinggi sidebar, jadi keduanya memakai `glass-thin` agar tidak terbaca sebagai sidebar kedua (permintaan pemilik produk, 26 September 2026). Tint setipis ini hanya lulus dengan `ink`, jadi teks sekunder di dalamnya juga `ink` dan hierarkinya dibawa ukuran dan ketebalan.
 - Senja: brightness .58 dengan haze 38% menjaga `ink` di 5.07:1 bahkan langsung di atas lukisan, jadi warna lukisan terlihat tanpa melepas cadangan kontras itu.
 - Kartu, chip, terminal, tabel, dan badan kolom Board tetap solid.
 
@@ -101,6 +103,8 @@ Dicek dengan `contrast-check.py` (WCAG AA, 4.5:1 teks normal, 3:1 teks besar dan
 | `ink-2` di `glass-2` (badan kolom Board, gelembung pesan) | 4.63 | 4.63 |
 | `ink-2` di `glass-bg` (baris CLI di luar OpenCompanion) | 4.67 | 4.76 |
 | `ink-2` di `glass-pop` tanpa blur (pop-up) | 4.94 | 5.45 |
+| `ink` di `glass-thin` (riwayat chat dan live rail, titik terburuk, 360 sampai 2560 lebar) | 4.98 | 6.86 |
+| `forest` (focus ring) di `glass-thin` (titik terburuk) | 3.19 | 4.09 |
 | `ink` langsung di atas lukisan + `haze` Senja (titik terburuk) | tidak dipakai | 5.07 |
 | `term-dim` / `term-green` / `term-yellow` / `term-red` di `term-bg` (Siang) | 6.71 / 8.27 / 8.79 / 5.87 | |
 | `st-err` sebagai teks di `surface` (pesan error di baris CLI) | 5.57 | 5.49 |

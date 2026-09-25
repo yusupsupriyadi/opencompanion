@@ -361,6 +361,13 @@
     min-height: 0;
     overflow-y: auto;
   }
+  /* The tall columns beside the sidebar take the thin glass, so they read as part of the page rather than more
+     sidebars. Thin glass only passes with ink, so secondary text inside them uses ink as well. */
+  .history,
+  .rail:not(.pop) {
+    --surface: var(--glass-thin);
+    --ink-2: var(--ink);
+  }
   .history-head {
     display: flex;
     align-items: center;
