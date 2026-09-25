@@ -1,3 +1,4 @@
+pub mod actions;
 pub mod cli;
 pub mod companion;
 pub mod db;
@@ -22,9 +23,10 @@ use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager as _, RunEvent, State};
 use tauri_plugin_notification::NotificationExt;
 
+use crate::actions::{cli_args, detect_with_settings, ChatTurn, RunTaskInput};
 use crate::cli::{CliInstall, CliKind};
 use crate::companion::{Companion, CompanionStatus, Pairing};
-use crate::db::{ChatMessage, ChatModel, ChatThread, Db, DispatchCard, EventRow, Mode, PlannerSource, Project, SessionInfo, Settings, Task};
+use crate::db::{ChatMessage, ChatModel, ChatThread, Db, DispatchCard, EventRow, Mode, Project, SessionInfo, Settings, Task};
 use crate::session::{Emit, StartRequest};
 
 struct AppState {
@@ -59,6 +61,15 @@ impl Emit for TauriEmit {
     }
     fn tasks_changed(&self) {
         let _ = self.app.emit("tasks-changed", ());
+        if let Some(c) = self.companion.get() {
+            c.broadcast(json!({ "type": "tasks" }));
+        }
+    }
+    fn chat_changed(&self, thread_id: &str) {
+        let _ = self.app.emit("chat-changed", thread_id);
+        if let Some(c) = self.companion.get() {
+            c.broadcast(json!({ "type": "chat", "threadId": thread_id }));
+        }
     }
     fn notify(&self, title: &str, body: &str, session_id: &str) {
         let _ = self
@@ -83,24 +94,6 @@ async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Res<T> + Send + 'static
 }
 
 // CLIs and monitoring
-
-fn detect_with_settings(db: &Db) -> Vec<CliInstall> {
-    let settings = db.settings().unwrap_or_default();
-    let mut found = cli::detect_all();
-    for install in &mut found {
-        if let Some(custom) = settings.cli_paths.get(install.kind.bin()).filter(|p| !p.trim().is_empty()) {
-            let path = PathBuf::from(custom);
-            *install = if path.is_file() {
-                cli::detect_at(install.kind, Some(path))
-            } else {
-                let mut missing = cli::detect_at(install.kind, None);
-                missing.error = Some(format!("The custom path does not exist: {custom}"));
-                missing
-            };
-        }
-    }
-    found
-}
 
 #[tauri::command]
 async fn detect_clis(state: State<'_, AppState>) -> Res<Vec<CliInstall>> {
@@ -213,7 +206,7 @@ fn delete_history(state: State<'_, AppState>) -> Res<()> {
 fn delete_session(app: AppHandle, state: State<'_, AppState>, id: String) -> Res<()> {
     state.manager.delete(&id)?;
     let _ = app.emit("session-deleted", &id);
-    let _ = app.emit("tasks-changed", ());
+    state.manager.tasks_changed();
     state.companion.broadcast(json!({ "type": "resync" }));
     Ok(())
 }
@@ -258,124 +251,15 @@ fn chat_history(state: State<'_, AppState>, thread_id: String) -> Res<Vec<ChatMe
     state.db.chat(&thread_id, 200)
 }
 
-#[derive(Serialize)]
-struct ChatTurn {
-    thread: ChatThread,
-    user: ChatMessage,
-    reply: ChatMessage,
-}
-
 /// Without `thread_id` the message starts a new thread, named after the message.
 #[tauri::command]
 async fn chat_send(state: State<'_, AppState>, thread_id: Option<String>, message: String) -> Res<ChatTurn> {
-    let text = message.trim().to_string();
-    if text.is_empty() {
-        return Err("Write a message first.".into());
-    }
     let db = Arc::clone(&state.db);
     let data_dir = state.data_dir.clone();
     let own: HashSet<u32> = state.manager.own_pids().into_iter().collect();
-    blocking(move || {
-        let mut thread = match thread_id {
-            Some(id) => db.thread(&id)?.ok_or("This chat was deleted. Start a new chat.")?,
-            None => db.create_thread(&db::thread_title(&text))?,
-        };
-        let history = db.chat(&thread.id, 40)?;
-        let msg = |role: &str, text: String, cards: Vec<DispatchCard>| ChatMessage {
-            id: db::new_id(),
-            thread_id: thread.id.clone(),
-            role: role.into(),
-            text,
-            cards,
-            created_at: db::now_ms(),
-        };
-        let user = msg("user", text.clone(), vec![]);
-        db.add_chat(&user)?;
-
-        let clis = detect_with_settings(&db);
-        let settings = db.settings()?;
-        let chat_cli = settings
-            .chat_cli
-            .filter(|k| clis.iter().any(|c| c.kind == *k && c.path.is_some()))
-            .or_else(|| clis.iter().find(|c| c.path.is_some() && c.kind != CliKind::Gemini).map(|c| c.kind));
-        let reply = match chat_cli {
-            // A custom provider plans without any CLI, and without file access.
-            _ if settings.planner_source == PlannerSource::Api => {
-                let api = &settings.planner_api;
-                let outside = monitor::Monitor::new().scan(&own);
-                let ctx = orchestrator::gather(&db, &outside)?;
-                let input = orchestrator::PlanInput {
-                    message: &text,
-                    history: &history,
-                    clis: &clis,
-                    folders: &ctx.folders,
-                    sessions: &ctx.sessions,
-                    outside: &outside,
-                    read_dirs: &[],
-                };
-                match orchestrator::run_api(api, &input) {
-                    Ok(plan) => msg("planner", plan.reply, plan.cards),
-                    Err(e) => {
-                        let who = if api.model.trim().is_empty() { "The custom provider" } else { api.model.trim() };
-                        msg("error", format!("{who} could not answer: {e}"), vec![])
-                    }
-                }
-            }
-            None => msg(
-                "error",
-                "No CLI is installed that can plan tasks. Install Claude Code, Codex CLI or OpenCode, then rescan on the CLIs screen.".into(),
-                vec![],
-            ),
-            Some(kind) => {
-                let exe = clis
-                    .iter()
-                    .find(|c| c.kind == kind)
-                    .and_then(|c| c.path.clone())
-                    .ok_or("The chat CLI is not installed.")?;
-                let outside = monitor::Monitor::new().scan(&own);
-                let mut ctx = orchestrator::gather(&db, &outside)?;
-                // A folder the owner @-mentioned is readable too, wherever it lives.
-                if settings.planner_can_read {
-                    for dir in orchestrator::mentioned_dirs(&text) {
-                        if !ctx.read_dirs.iter().any(|r| dir.starts_with(r)) {
-                            ctx.read_dirs.push(dir);
-                        }
-                    }
-                }
-                let mut extra = cli_args(&settings, kind);
-                if let Some(choice) = settings.chat_models.get(kind.bin()) {
-                    extra.extend(models::args(kind, &choice.model, &choice.effort));
-                }
-                let input = orchestrator::PlanInput {
-                    message: &text,
-                    history: &history,
-                    clis: &clis,
-                    folders: &ctx.folders,
-                    sessions: &ctx.sessions,
-                    outside: &outside,
-                    read_dirs: &ctx.read_dirs,
-                };
-                match orchestrator::run(kind, &exe, &data_dir.join("planner"), &extra, &input) {
-                    Ok(plan) => msg("planner", plan.reply, plan.cards),
-                    Err(e) => msg("error", format!("{} could not answer: {e}", kind.label()), vec![]),
-                }
-            }
-        };
-        db.add_chat(&reply)?;
-        thread.updated_at = reply.created_at;
-        db.touch_thread(&thread.id, thread.updated_at)?;
-        Ok(ChatTurn { thread, user, reply })
-    })
-    .await
-}
-
-/// The extra arguments Settings keeps for `kind`.
-fn cli_args(settings: &Settings, kind: CliKind) -> Vec<String> {
-    settings
-        .cli_args
-        .get(kind.bin())
-        .map(|a| a.split_whitespace().map(str::to_owned).collect())
-        .unwrap_or_default()
+    let turn = blocking(move || actions::chat_send(&db, &data_dir, &own, thread_id, &message)).await?;
+    state.companion.broadcast(json!({ "type": "chat", "threadId": turn.thread.id }));
+    Ok(turn)
 }
 
 /// Models and thinking levels the chat planner can use with `cli`.
@@ -410,20 +294,12 @@ fn chat_set_model(state: State<'_, AppState>, cli: CliKind, model: String, effor
     Ok(settings)
 }
 
-fn with_card(db: &Db, message_id: &str, card_id: &str, f: impl FnOnce(&mut DispatchCard) -> Res<()>) -> Res<ChatMessage> {
-    let mut msg = db.chat_message(message_id)?.ok_or("Message not found.")?;
-    let card = msg.cards.iter_mut().find(|c| c.id == card_id).ok_or("Card not found.")?;
-    f(card)?;
-    db.add_chat(&msg)?;
-    Ok(msg)
-}
-
 #[tauri::command]
 async fn chat_update_card(state: State<'_, AppState>, message_id: String, card: DispatchCard) -> Res<ChatMessage> {
     let db = Arc::clone(&state.db);
     blocking(move || {
         let clis = detect_with_settings(&db);
-        with_card(&db, &message_id, &card.id.clone(), |c| {
+        actions::with_card(&db, &message_id, &card.id.clone(), |c| {
             if c.state != "proposed" {
                 return Err("This card already ran or was discarded.".into());
             }
@@ -437,78 +313,32 @@ async fn chat_update_card(state: State<'_, AppState>, message_id: String, card: 
         })
     })
     .await
+    .inspect(|m| chat_changed(&state, m))
+}
+
+/// The phone shows the same chats, so it hears about every change made here.
+fn chat_changed(state: &AppState, message: &ChatMessage) {
+    state.companion.broadcast(json!({ "type": "chat", "threadId": message.thread_id }));
 }
 
 #[tauri::command]
 fn chat_discard_card(state: State<'_, AppState>, message_id: String, card_id: String, undo: Option<bool>) -> Res<ChatMessage> {
-    let restore = undo.unwrap_or(false);
-    with_card(&state.db, &message_id, &card_id, |c| {
-        c.state = if restore { "proposed".into() } else { "discarded".into() };
-        Ok(())
-    })
+    actions::discard_card(&state.db, &message_id, &card_id, undo.unwrap_or(false)).inspect(|m| chat_changed(&state, m))
 }
 
 #[tauri::command]
 async fn chat_run_card(state: State<'_, AppState>, message_id: String, card_id: String) -> Res<ChatMessage> {
     let db = Arc::clone(&state.db);
     let manager = Arc::clone(&state.manager);
-    blocking(move || {
-        let clis = detect_with_settings(&db);
-        let msg = db.chat_message(&message_id)?.ok_or("Message not found.")?;
-        let mut card = msg.cards.iter().find(|c| c.id == card_id).cloned().ok_or("Card not found.")?;
-        orchestrator::validate(&mut card, &clis);
-        if let Some(problem) = card.problem {
-            return Err(problem);
-        }
-        if card.state != "proposed" {
-            return Err("This card already ran or was discarded.".into());
-        }
-        let session = manager.start(StartRequest {
-            cli: card.cli,
-            cwd: card.folder.clone(),
-            mode: card.mode,
-            prompt: card.prompt.clone(),
-            title: Some(card.title.clone()),
-            permission_mode: None,
-            source: Some("chat".into()),
-            task_id: None,
-            cols: None,
-            rows: None,
-        })?;
-        with_card(&db, &message_id, &card_id, |c| {
-            c.state = "started".into();
-            c.session_id = Some(session.id.clone());
-            Ok(())
-        })
-    })
-    .await
+    blocking(move || actions::run_card(&db, &manager, &message_id, &card_id))
+        .await
+        .inspect(|m| chat_changed(&state, m))
 }
 
 #[tauri::command]
-fn chat_card_to_board(app: AppHandle, state: State<'_, AppState>, message_id: String, card_id: String) -> Res<Task> {
-    let msg = state.db.chat_message(&message_id)?.ok_or("Message not found.")?;
-    let card = msg.cards.iter().find(|c| c.id == card_id).ok_or("Card not found.")?;
-    let now = db::now_ms();
-    let task = Task {
-        id: db::new_id(),
-        title: Some(card.title.trim())
-            .filter(|t| !t.is_empty())
-            .or_else(|| card.prompt.lines().next())
-            .unwrap_or("Task from chat")
-            .chars()
-            .take(120)
-            .collect(),
-        notes: card.prompt.clone(),
-        project: card.folder.clone(),
-        cli: Some(card.cli),
-        column: "todo".into(),
-        position: state.db.next_position("todo")?,
-        session_id: None,
-        created_at: now,
-        updated_at: now,
-    };
-    state.db.save_task(&task)?;
-    let _ = app.emit("tasks-changed", ());
+fn chat_card_to_board(state: State<'_, AppState>, message_id: String, card_id: String) -> Res<Task> {
+    let task = actions::card_to_board(&state.db, &message_id, &card_id)?;
+    state.manager.tasks_changed();
     Ok(task)
 }
 
@@ -535,15 +365,13 @@ struct TaskInput {
     column: String,
 }
 
-const COLUMNS: [&str; 4] = ["pending", "todo", "progress", "done"];
-
 #[tauri::command]
-fn save_task(app: AppHandle, state: State<'_, AppState>, task: TaskInput) -> Res<Task> {
+fn save_task(state: State<'_, AppState>, task: TaskInput) -> Res<Task> {
     let title = task.title.trim();
     if title.is_empty() {
         return Err("Give the card a title.".into());
     }
-    if !COLUMNS.contains(&task.column.as_str()) {
+    if !actions::COLUMNS.contains(&task.column.as_str()) {
         return Err("Unknown column.".into());
     }
     let now = db::now_ms();
@@ -568,83 +396,31 @@ fn save_task(app: AppHandle, state: State<'_, AppState>, task: TaskInput) -> Res
         updated_at: now,
     };
     state.db.save_task(&saved)?;
-    let _ = app.emit("tasks-changed", ());
+    state.manager.tasks_changed();
     Ok(saved)
 }
 
 #[tauri::command]
-fn move_task(app: AppHandle, state: State<'_, AppState>, id: String, column: String, before: Option<String>) -> Res<Task> {
-    if !COLUMNS.contains(&column.as_str()) {
-        return Err("Unknown column.".into());
-    }
-    let mut task = state.db.task(&id)?.ok_or("Card not found.")?;
-    task.position = match before.and_then(|b| state.db.task(&b).ok().flatten()) {
-        Some(b) if b.column == column => {
-            let prev = state
-                .db
-                .tasks()?
-                .into_iter()
-                .filter(|t| t.column == column && t.position < b.position && t.id != task.id)
-                .map(|t| t.position)
-                .fold(b.position - 1.0, f64::max);
-            (prev + b.position) / 2.0
-        }
-        _ => state.db.next_position(&column)?,
-    };
-    task.column = column;
-    task.updated_at = db::now_ms();
-    state.db.save_task(&task)?;
-    let _ = app.emit("tasks-changed", ());
+fn move_task(state: State<'_, AppState>, id: String, column: String, before: Option<String>) -> Res<Task> {
+    let task = actions::move_task(&state.db, &id, &column, before)?;
+    state.manager.tasks_changed();
     Ok(task)
 }
 
 #[tauri::command]
-fn delete_task(app: AppHandle, state: State<'_, AppState>, id: String) -> Res<()> {
+fn delete_task(state: State<'_, AppState>, id: String) -> Res<()> {
     state.db.delete_task(&id)?;
-    let _ = app.emit("tasks-changed", ());
+    state.manager.tasks_changed();
     Ok(())
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RunTaskInput {
-    id: String,
-    cli: CliKind,
-    cwd: String,
-    mode: Mode,
-    prompt: String,
-    permission_mode: Option<String>,
-}
-
 #[tauri::command]
-async fn run_task(app: AppHandle, state: State<'_, AppState>, input: RunTaskInput) -> Res<SessionInfo> {
+async fn run_task(state: State<'_, AppState>, input: RunTaskInput) -> Res<SessionInfo> {
     let db = Arc::clone(&state.db);
     let manager = Arc::clone(&state.manager);
-    blocking(move || {
-        let mut task = db.task(&input.id)?.ok_or("Card not found.")?;
-        let session = manager.start(StartRequest {
-            cli: input.cli,
-            cwd: input.cwd.clone(),
-            mode: input.mode,
-            prompt: input.prompt.clone(),
-            title: Some(task.title.clone()),
-            permission_mode: input.permission_mode.clone(),
-            source: Some("board".into()),
-            task_id: Some(task.id.clone()),
-            cols: None,
-            rows: None,
-        })?;
-        task.session_id = Some(session.id.clone());
-        task.cli = Some(input.cli);
-        task.project = input.cwd.trim().to_string();
-        task.column = "progress".into();
-        task.position = db.next_position("progress")?;
-        task.updated_at = db::now_ms();
-        db.save_task(&task)?;
-        let _ = app.emit("tasks-changed", ());
-        Ok(session)
-    })
-    .await
+    let session = blocking(move || actions::run_task(&db, &manager, input)).await?;
+    state.manager.tasks_changed();
+    Ok(session)
 }
 
 // Settings and phone access

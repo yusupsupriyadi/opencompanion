@@ -2,13 +2,26 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import ArrowClockwise from "phosphor-svelte/lib/ArrowClockwise";
+  import ChatsCircle from "phosphor-svelte/lib/ChatsCircle";
   import Cloud from "phosphor-svelte/lib/Cloud";
+  import House from "phosphor-svelte/lib/House";
+  import Kanban from "phosphor-svelte/lib/Kanban";
   import { onMount } from "svelte";
   import "$lib/phone.css";
   import { connect, getToken, loadSessions, phone, reconnectNow } from "$lib/phone.svelte";
 
   let { children } = $props();
   const onPair = $derived(page.url.pathname.startsWith("/m/pair"));
+
+  // The three top-level screens get the tab bar; detail screens and forms own the bottom edge instead.
+  const TABS = [
+    { href: "/m", label: "Sessions", icon: House },
+    { href: "/m/chat", label: "Chat", icon: ChatsCircle },
+    { href: "/m/board", label: "Board", icon: Kanban },
+  ];
+  const path = $derived(page.url.pathname.replace(/\/$/, "") || "/m");
+  const tabbed = $derived(TABS.some((t) => t.href === path));
+  const waiting = $derived(phone.sessions.filter((s) => s.status === "waiting").length);
 
   onMount(() => {
     if (!getToken()) {
@@ -26,7 +39,7 @@
 
 <svelte:head><meta name="theme-color" content="#FBF3CF" /></svelte:head>
 
-<div class="phone">
+<div class="phone" class:has-tabs={tabbed && phone.connection !== "offline"}>
   {#if phone.connection === "offline" && !onPair}
     <header class="bar"><span class="brand grow">OpenCompanion <Cloud size={20} aria-hidden="true" /></span></header>
     <main class="content" id="phone-offline">
@@ -43,6 +56,19 @@
     </main>
   {:else}
     {@render children()}
+    {#if tabbed}
+      <nav class="tabs" id="phone-tabs" aria-label="Phone sections">
+        <div>
+          {#each TABS as t (t.href)}
+            <a href={t.href} aria-current={path === t.href ? "page" : undefined}>
+              <t.icon size={22} weight={path === t.href ? "fill" : "regular"} aria-hidden="true" />
+              {t.label}
+              {#if t.href === "/m" && waiting > 0}<span class="tab-count">{waiting}<span class="sr-only"> waiting for you</span></span>{/if}
+            </a>
+          {/each}
+        </div>
+      </nav>
+    {/if}
   {/if}
 </div>
 {#if phone.notice}<div class="toast show" role="status" aria-live="polite">{phone.notice}</div>{/if}

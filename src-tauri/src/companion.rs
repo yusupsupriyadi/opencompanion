@@ -2,8 +2,10 @@
 //! Only paired devices get in: a one-time 6-digit code that expires, a limit on attempts,
 //! and device tokens stored as SHA-256 hashes (PRD section 11).
 
+use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path as UrlPath, Query, State};
@@ -16,8 +18,11 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tokio::sync::{broadcast, oneshot};
 
+use crate::actions::{self, RunTaskInput};
+use crate::cli::CliKind;
 use crate::db::{self, Db, Device, Mode};
-use crate::session::Manager;
+use crate::session::{Manager, StartRequest};
+use crate::{monitor, orchestrator};
 
 const PAIR_TTL_MS: i64 = 120_000;
 const PAIR_ATTEMPTS: u32 = 5;
@@ -265,10 +270,21 @@ fn router(ctx: Ctx) -> Router {
     Router::new()
         .route("/api/hello", get(hello))
         .route("/api/pair", post(pair))
-        .route("/api/sessions", get(list_sessions))
+        .route("/api/options", get(options))
+        .route("/api/sessions", get(list_sessions).post(start_session))
         .route("/api/sessions/{id}", get(one_session))
         .route("/api/sessions/{id}/answer", post(answer))
         .route("/api/sessions/{id}/stop", post(stop))
+        .route("/api/sessions/{id}/input", post(input))
+        .route("/api/sessions/{id}/resume", post(resume))
+        .route("/api/chat", get(chat_list).post(chat_send))
+        .route("/api/chat/{id}", get(chat_thread))
+        .route("/api/chat/cards/run", post(card_run))
+        .route("/api/chat/cards/discard", post(card_discard))
+        .route("/api/chat/cards/board", post(card_board))
+        .route("/api/tasks", get(list_tasks))
+        .route("/api/tasks/{id}/move", post(move_task))
+        .route("/api/tasks/{id}/run", post(run_task))
         .route("/api/ws", get(ws))
         .fallback(get(static_file))
         .with_state(ctx)
@@ -375,6 +391,272 @@ async fn stop(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<S
         Ok(()) => Json(json!({ "ok": true })).into_response(),
         Err(e) => fail(StatusCode::CONFLICT, e),
     }
+}
+
+/// Runs blocking work off the async runtime. An error is the desktop's own message for the phone.
+async fn off_thread<T: Serialize + Send + 'static>(f: impl FnOnce() -> Result<T, String> + Send + 'static) -> Response {
+    match tokio::task::spawn_blocking(f).await {
+        Ok(Ok(v)) => Json(v).into_response(),
+        Ok(Err(e)) => fail(StatusCode::CONFLICT, e),
+        Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    }
+}
+
+/// What the New session and Run forms offer: installed CLIs, project folders and the default mode.
+async fn options(State(ctx): State<Ctx>, headers: HeaderMap) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    let db = Arc::clone(&ctx.db);
+    let own: HashSet<u32> = ctx.manager.own_pids().into_iter().collect();
+    off_thread(move || {
+        let clis = actions::detect_with_settings(&db);
+        let outside = monitor::Monitor::new().scan(&own);
+        let folders = orchestrator::gather(&db, &outside)?.folders;
+        Ok(json!({ "clis": clis, "folders": folders, "permissionMode": db.settings()?.permission_mode }))
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionBody {
+    cli: CliKind,
+    cwd: String,
+    mode: Mode,
+    #[serde(default)]
+    prompt: String,
+    permission_mode: Option<String>,
+}
+
+async fn start_session(State(ctx): State<Ctx>, headers: HeaderMap, Json(body): Json<SessionBody>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    let manager = Arc::clone(&ctx.manager);
+    off_thread(move || {
+        let session = manager.start(StartRequest {
+            cli: body.cli,
+            cwd: body.cwd,
+            mode: body.mode,
+            prompt: body.prompt,
+            title: None,
+            permission_mode: body.permission_mode,
+            source: None,
+            task_id: None,
+            cols: None,
+            rows: None,
+        })?;
+        Ok(json!({ "session": session }))
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+struct InputBody {
+    #[serde(default)]
+    text: String,
+    key: Option<String>,
+}
+
+/// The keys the phone can press in an interactive terminal.
+fn key_bytes(key: &str) -> Option<&'static str> {
+    Some(match key {
+        "enter" => "\r",
+        "esc" => "\x1b",
+        "up" => "\x1b[A",
+        "down" => "\x1b[B",
+        "tab" => "\t",
+        "ctrl_c" => "\x03",
+        _ => return None,
+    })
+}
+
+/// A message for the session (PRD FR-12 from the phone): typed and entered in a terminal, a
+/// follow-up turn for a headless session.
+async fn input(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<String>, Json(body): Json<InputBody>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    let Ok(Some(session)) = ctx.db.session(&id) else {
+        return fail(StatusCode::NOT_FOUND, "Session not found.");
+    };
+    let manager = Arc::clone(&ctx.manager);
+    off_thread(move || {
+        let text = body.text.trim();
+        let info = match (session.mode, body.key.as_deref()) {
+            (Mode::Interactive, Some(key)) => manager.send_input(&id, key_bytes(key).ok_or("Unknown key.")?)?,
+            (Mode::Headless, Some(_)) => return Err("Keys only work in an interactive terminal.".into()),
+            (_, None) if text.is_empty() => return Err("Write a message first.".into()),
+            (Mode::Interactive, None) => {
+                // A terminal UI can read text and Enter that arrive together as a paste, so Enter follows on its own.
+                manager.send_input(&id, &text.replace(['\r', '\n'], " "))?;
+                std::thread::sleep(Duration::from_millis(150));
+                manager.send_input(&id, "\r")?
+            }
+            (Mode::Headless, None) => manager.send_input(&id, text)?,
+        };
+        Ok(json!({ "session": info }))
+    })
+    .await
+}
+
+async fn resume(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<String>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    let manager = Arc::clone(&ctx.manager);
+    off_thread(move || Ok(json!({ "session": manager.resume(&id, None, None)? }))).await
+}
+
+// Chat (PRD FR-57): the same threads and cards as the desktop.
+
+async fn chat_list(State(ctx): State<Ctx>, headers: HeaderMap) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    let db = Arc::clone(&ctx.db);
+    off_thread(move || {
+        let clis = actions::detect_with_settings(&db);
+        Ok(json!({ "threads": db.threads()?, "planner": actions::planner_name(&db, &clis)? }))
+    })
+    .await
+}
+
+async fn chat_thread(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<String>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    let Ok(Some(thread)) = ctx.db.thread(&id) else {
+        return fail(StatusCode::NOT_FOUND, "This chat was deleted.");
+    };
+    match ctx.db.chat(&id, 200) {
+        Ok(messages) => Json(json!({ "thread": thread, "messages": messages })).into_response(),
+        Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e),
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ChatBody {
+    thread_id: Option<String>,
+    message: String,
+}
+
+async fn chat_send(State(ctx): State<Ctx>, headers: HeaderMap, Json(body): Json<ChatBody>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    let db = Arc::clone(&ctx.db);
+    let manager = Arc::clone(&ctx.manager);
+    off_thread(move || {
+        let own: HashSet<u32> = manager.own_pids().into_iter().collect();
+        let turn = actions::chat_send(&db, manager.data_dir(), &own, body.thread_id, &body.message)?;
+        manager.chat_changed(&turn.thread.id);
+        Ok(turn)
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CardBody {
+    message_id: String,
+    card_id: String,
+    #[serde(default)]
+    undo: bool,
+}
+
+async fn card_run(State(ctx): State<Ctx>, headers: HeaderMap, Json(body): Json<CardBody>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    let db = Arc::clone(&ctx.db);
+    let manager = Arc::clone(&ctx.manager);
+    off_thread(move || {
+        let message = actions::run_card(&db, &manager, &body.message_id, &body.card_id)?;
+        manager.chat_changed(&message.thread_id);
+        Ok(json!({ "message": message }))
+    })
+    .await
+}
+
+async fn card_discard(State(ctx): State<Ctx>, headers: HeaderMap, Json(body): Json<CardBody>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    match actions::discard_card(&ctx.db, &body.message_id, &body.card_id, body.undo) {
+        Ok(message) => {
+            ctx.manager.chat_changed(&message.thread_id);
+            Json(json!({ "message": message })).into_response()
+        }
+        Err(e) => fail(StatusCode::CONFLICT, e),
+    }
+}
+
+async fn card_board(State(ctx): State<Ctx>, headers: HeaderMap, Json(body): Json<CardBody>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    match actions::card_to_board(&ctx.db, &body.message_id, &body.card_id) {
+        Ok(task) => {
+            ctx.manager.tasks_changed();
+            Json(json!({ "task": task })).into_response()
+        }
+        Err(e) => fail(StatusCode::CONFLICT, e),
+    }
+}
+
+// Board (PRD FR-77)
+
+async fn list_tasks(State(ctx): State<Ctx>, headers: HeaderMap) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    match ctx.db.tasks() {
+        Ok(tasks) => Json(json!({ "tasks": tasks })).into_response(),
+        Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e),
+    }
+}
+
+#[derive(Deserialize)]
+struct MoveBody {
+    column: String,
+}
+
+async fn move_task(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<String>, Json(body): Json<MoveBody>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    match actions::move_task(&ctx.db, &id, &body.column, None) {
+        Ok(task) => {
+            ctx.manager.tasks_changed();
+            Json(json!({ "task": task })).into_response()
+        }
+        Err(e) => fail(StatusCode::CONFLICT, e),
+    }
+}
+
+async fn run_task(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<String>, Json(body): Json<SessionBody>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    let db = Arc::clone(&ctx.db);
+    let manager = Arc::clone(&ctx.manager);
+    off_thread(move || {
+        let input = RunTaskInput {
+            id,
+            cli: body.cli,
+            cwd: body.cwd,
+            mode: body.mode,
+            prompt: body.prompt,
+            permission_mode: body.permission_mode,
+        };
+        let session = actions::run_task(&db, &manager, input)?;
+        manager.tasks_changed();
+        Ok(json!({ "session": session }))
+    })
+    .await
 }
 
 #[derive(Deserialize)]

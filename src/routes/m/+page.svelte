@@ -1,11 +1,12 @@
 <script lang="ts">
   import Check from "phosphor-svelte/lib/Check";
   import Cloud from "phosphor-svelte/lib/Cloud";
+  import Plus from "phosphor-svelte/lib/Plus";
   import X from "phosphor-svelte/lib/X";
   import CliMark from "$lib/CliMark.svelte";
   import StatusChip from "$lib/StatusChip.svelte";
   import { CLI_LABEL, ago, folderName, isLive, isToday, trackLine, waitingTitle } from "$lib/format";
-  import { call, phone } from "$lib/phone.svelte";
+  import { answer as sendAnswer, phone } from "$lib/phone.svelte";
 
   let busy = $state<string | null>(null);
   let failure = $state("");
@@ -23,7 +24,7 @@
     busy = id;
     failure = "";
     try {
-      await call(`/api/sessions/${id}/answer`, { method: "POST", body: JSON.stringify({ allow }) });
+      await sendAnswer(id, allow);
     } catch (e) {
       failure = e instanceof Error ? e.message : String(e);
     } finally {
@@ -36,7 +37,10 @@
 
 <header class="bar"><span class="brand grow">OpenCompanion <Cloud size={20} aria-hidden="true" /></span></header>
 <main class="content" id="phone-sessions">
-  <h1 class="m-h1">Sessions</h1>
+  <div class="head-row">
+    <h1 class="m-h1">Sessions</h1>
+    <a class="btn secondary" href="/m/new" id="btn-new-session"><Plus size={16} aria-hidden="true" />New session</a>
+  </div>
   <p class="conn">{phone.connection === "online" ? "Connected to your desktop" : "Connecting…"}</p>
 
   {#if failure}<p class="err-text" role="alert" style="margin:0">{failure}</p>{/if}
@@ -44,7 +48,7 @@
   {#if !phone.loaded}
     <p class="m-p" role="status">Loading sessions…</p>
   {:else if phone.sessions.length === 0}
-    <p class="m-p">Nothing has run in OpenCompanion yet. Start a session on your computer and it shows up here.</p>
+    <p class="m-p">Nothing has run in OpenCompanion yet. Press New session to start one on your computer from here.</p>
   {/if}
 
   {#each waiting as s (s.id)}

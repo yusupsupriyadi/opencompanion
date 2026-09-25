@@ -288,7 +288,7 @@ Satu frame berisi tiga contoh berdampingan:
 
 ## 10. Layar mobile (web companion)
 
-Tanpa bottom nav: MVP hanya punya daftar sesi dan detail. Semua target sentuh minimal 44, tombol aksi utama 48, jarak antar tombol minimal 8.
+Bottom tab bar di tiga layar utama (Sessions, Chat, Board): tinggi 56 + safe area, isi `bg`, border atas `line`; tiap tab ikon 22 (`house`, `chats-circle`, `kanban`; terisi dan `forest` saat aktif) + label 12/700, `aria-current="page"`. Tab Sessions membawa jumlah sesi Waiting for you (isi `accent`, teks `on-accent` 11, tinggi 18). Layar detail dan form (M1, M3, M5, percakapan Chat) tidak menampilkan tab bar karena punya bar aksi bawah sendiri. Semua target sentuh minimal 44, tombol aksi utama 48, jarak antar tombol minimal 8; field teks 16 agar browser HP tidak memperbesar halaman.
 
 ### M1 Pair device ✗
 - Atas: `meadow-portrait.png` setinggi 280 (radius bawah 14). Di bawahnya di atas `bg`: H1 22/800 "Pair this phone", teks "On your computer, open OpenCompanion, go to Settings, turn on Phone access and scan the code shown there."
@@ -298,6 +298,7 @@ Tanpa bottom nav: MVP hanya punya daftar sesi dan detail. Semua target sentuh mi
 
 ### M2 Sessions ✗
 - Bar atas 56: wordmark 18/800 + chip "Connected" (`st-run`); baris kecil "To your desktop · 192.168.1.24".
+- Header: H1 "Sessions" + tombol secondary "New session" (ikon `plus`) menuju M5.
 - Fokus: kartu Needs you (versi mobile: judul 16/800, meta, blok perintah mono 13 yang boleh membungkus baris, Approve dan Deny berdampingan lebar sama, tinggi 48).
 - Section "Running" dan "Done today": kartu sesi (padding 14, CliMark 28, judul tugas 15/700 maksimal 2 baris, "CLI · folder", chip, Horizon lebar penuh). Seluruh kartu bisa diketuk menuju M3.
 - Empty: "Nothing is running on your computer right now."
@@ -307,7 +308,21 @@ Tanpa bottom nav: MVP hanya punya daftar sesi dan detail. Semua target sentuh mi
 - Judul 20/800, meta "Claude Code · ~/Project/uninote · 14 min".
 - Activity: Horizon lebar penuh.
 - "Latest output": blok terminal, 12 baris terakhir, mono 12, membungkus baris (tidak ada scroll horizontal).
-- Bar aksi bawah tetap (dengan safe area, konten diberi padding bawah setinggi bar): saat Waiting for you = Approve (accent) + Deny; saat Running = Stop (danger) yang membuka sheet konfirmasi "Stop Claude Code in uninote? It gets an interrupt first, then a forced stop if it does not exit." dengan "Stop session" dan "Keep running".
+- Bar aksi bawah tetap (dengan safe area; tingginya diukur dan konten diberi padding bawah setinggi bar): saat Waiting for you yang bisa dijawab = Approve (accent) + Deny; terminal berjalan = baris tombol Enter, Esc, ↑, ↓, Ctrl+C (mono 12, tinggi 44) + field teks dan Send (teks diketik, lalu Enter dikirim terpisah); terminal tertutup = "Resume terminal"; headless = textarea follow-up + Send dengan aturan yang sama seperti desktop, dan alasannya bila belum bisa.
+- Stop (danger) di kanan bar atas selama sesi berjalan, membuka sheet konfirmasi "Stop Claude Code in uninote? It gets an interrupt first, then a forced stop if it does not exit." dengan "Stop session" dan "Keep running".
+
+### M5 New session ✗
+- Bar atas: kembali "Sessions" (atau "Board" saat menjalankan kartu, `?task=`). H1 "New session" atau judul kartu.
+- Form satu kolom: CLI (option card; yang belum terpasang nonaktif), Project folder (select dari folder yang ditemukan desktop, terbaru dulu, plus "Another folder…" yang membuka field path mono), Mode (Headless terpilih karena langkahnya terbaca di HP dan menerima follow-up; Interactive), Prompt, Permission mode (default dari Settings, peringatan Bypass sama dengan desktop). Tombol primary lebar penuh "Start {CLI} in {folder}" atau "Run in {folder}".
+- State: "Checking the CLIs and project folders on your computer…", error + "Try again", folder yang tidak ada ditandai di field folder.
+
+### M6 Chats dan percakapan ✗
+- Chats: H1 "Chat" + "New chat"; baris planner "Planner: {nama}. It answers with a card for each session, and nothing starts until you press Run."; daftar chat (judul 15/700, waktu 12 `ink-2`, tinggi minimal 56). Kosong: "No chats yet. Your first message starts one, and every chat keeps its own history on your computer."
+- Percakapan: kembali "Chats", judul 20/800, pesan Anda (isi `surface-2`, radius 14/14/4/14, rata kanan), jawaban dengan label pixel "Planner" dan kartu dispatch versi HP: "Run in {folder}" lebar penuh, "Add to board", "Discard", "Undo". Edit kartu tetap di desktop. Composer di bar bawah: textarea + Send, catatan "Nothing starts until you press Run on a card." Selama planner menjawab: spinner + "The planner is reading your message. This usually takes 10 to 30 seconds."
+
+### M7 Board ✗
+- H1 "Board", segmented empat kolom (Pending, Todo, In progress, Done + jumlah; tinggi 48), satu kolom tampil sekaligus dan pilihannya disimpan di alamat (`?col=`). Kartu: CliMark, judul 15/700, chip sesi, "folder · CLI"; kartu yang sesinya Waiting for you diberi border `accent`.
+- Ketuk kartu membuka sheet: judul, kolom, path, catatan, Approve/Deny bila sesinya menunggu (FR-77), "Run in {folder}" (Pending atau Todo tanpa sesi berjalan, menuju M5), "Open session", "Move to" tiga kolom lain, "Close". Kartu baru dan edit tetap di desktop.
 
 ### M4 Can't reach your desktop ✗
 - Gema langsung dari gambar referensi "No Internet / Try:".
@@ -363,4 +378,4 @@ Tanpa bottom nav: MVP hanya punya daftar sesi dan detail. Semua target sentuh mi
 - Ilustrasi hanya di momen tanpa data: di situ tidak ada yang perlu dibaca, jadi lukisan membawa identitas tanpa mengganggu kerja.
 - Skills sebagai matriks folder × skill, bukan daftar per CLI: tujuan layar adalah membandingkan, dan kolom sejajar membuat celah langsung terlihat. Kolomnya folder karena CLI mana membaca folder mana bergantung versi CLI.
 - Skills hanya memberi perintah salin, tidak menyalin sendiri: sama dengan aturan instal CLI, OpenCompanion tidak menulis ke folder konfigurasi CLI.
-- Mobile tanpa bottom nav: hanya ada dua layar, bottom nav akan berisi tujuan yang belum ada.
+- Mobile dengan bottom tab bar (Sessions, Chat, Board): owner meminta Chat, Board dan New session di HP (2026-09-25), jadi ada tiga tujuan setara yang harus satu ketukan; layar detail menyembunyikannya karena memakai tepi bawah untuk bar aksi.

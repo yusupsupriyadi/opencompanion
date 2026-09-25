@@ -1,6 +1,6 @@
 // Phone companion client (PRD section F). Runs in the phone's browser, talks to the desktop's
 // companion server over the LAN with a device token, never to anything else.
-import type { EventRow, SessionInfo } from "./api";
+import type { CliInstall, EventRow, PermMode, ProjectFolder, SessionInfo } from "./api";
 
 const TOKEN_KEY = "air-token";
 
@@ -68,13 +68,35 @@ export async function call<T>(path: string, init: RequestInit = {}): Promise<T> 
   return body as T;
 }
 
+/** Approve or Deny a permission prompt (PRD FR-54). */
+export function answer(id: string, allow: boolean) {
+  return call<{ session: SessionInfo }>(`/api/sessions/${id}/answer`, { method: "POST", body: JSON.stringify({ allow }) });
+}
+
 export async function loadSessions() {
   const r = await call<{ sessions: SessionInfo[] }>("/api/sessions");
   phone.sessions = r.sessions;
   phone.loaded = true;
 }
 
-type Listener = (msg: { type: string; session?: SessionInfo; event?: EventRow; title?: string; body?: string }) => void;
+/** What the New session and Run forms can offer, from `GET /api/options`. */
+export interface PhoneOptions {
+  clis: CliInstall[];
+  folders: ProjectFolder[];
+  permissionMode: PermMode;
+}
+
+/** `tasks` and `chat` say the Board or a chat thread changed; the screen showing it reloads. */
+export type PhoneMessage = {
+  type: string;
+  session?: SessionInfo;
+  event?: EventRow;
+  title?: string;
+  body?: string;
+  threadId?: string;
+};
+
+type Listener = (msg: PhoneMessage) => void;
 const listeners = new Set<Listener>();
 export function onMessage(fn: Listener) {
   listeners.add(fn);
@@ -84,6 +106,13 @@ export function onMessage(fn: Listener) {
 let socket: WebSocket | null = null;
 let retry: ReturnType<typeof setTimeout> | undefined;
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** A short line in the toast at the bottom of the phone screen. */
+export function notify(text: string) {
+  phone.notice = text;
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(() => (phone.notice = ""), 6000);
+}
 
 /** Live updates (PRD FR-52). Reconnects every few seconds while the desktop is away. */
 export function connect() {
@@ -109,11 +138,7 @@ export function connect() {
       else phone.sessions.unshift(msg.session);
     }
     if (msg.type === "resync") loadSessions().catch(() => undefined);
-    if (msg.type === "notify") {
-      phone.notice = `${msg.title}. ${msg.body}`;
-      clearTimeout(noticeTimer);
-      noticeTimer = setTimeout(() => (phone.notice = ""), 6000);
-    }
+    if (msg.type === "notify") notify(`${msg.title}. ${msg.body}`);
     listeners.forEach((l) => l(msg));
   };
   ws.onclose = () => {

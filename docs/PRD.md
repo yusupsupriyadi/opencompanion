@@ -157,6 +157,7 @@ Prioritas: **P0** wajib untuk MVP, **P1** penting setelah MVP, **P2** nanti.
 | FR-56 | P1 | State tidak terhubung. | Jika desktop tidak terjangkau, HP menampilkan layar "Can't reach your desktop" dengan penyebab yang mungkin dan tombol coba lagi. |
 | FR-57 | P2 | Chat dari HP. | Mengirim pesan ke orchestrator chat dari HP, dengan konfirmasi dispatch yang sama. |
 | FR-58 | P2 | Aplikasi native mobile. | Setelah web companion stabil, versi native memakai API companion yang sama. |
+| FR-59 | P1 | Mulai sesi dan kirim pesan dari HP. | HP bisa memulai sesi baru (CLI, folder project yang dikenal desktop atau path lain, mode, prompt, mode izin) dan mengirim pesan ke sesi: follow-up untuk headless dengan aturan yang sama seperti desktop, teks plus Enter dan tombol Enter, Esc, panah, Ctrl+C untuk terminal interaktif, serta Resume untuk terminal yang sudah tertutup. |
 
 ### G. Riwayat dan Settings
 
@@ -183,7 +184,7 @@ Kolom tetap: **Pending** (belum siap: ide, pertanyaan terbuka, pekerjaan terblok
 | FR-74 | P1 | Kartu mengikuti status sesi. | Kartu In progress menampilkan status sesinya (Running, Waiting for you dengan aksen, Error) dan tautan ke sesi. Sesi yang selesai tanpa error memindahkan kartu ke Done otomatis; sesi error membiarkan kartu di In progress dengan chip Error. |
 | FR-75 | P1 | Filter per project. | Filter menyembunyikan kartu project lain; jumlah kartu di tiap kolom mengikuti filter. |
 | FR-76 | P2 | Kartu dari Chat. | Kartu dispatch di Chat punya aksi "Add to board" yang membuat kartu Todo dengan prompt, CLI, dan folder yang sama. |
-| FR-77 | P2 | Board di HP. | Companion menampilkan board tanpa edit; kartu Waiting for you bisa di-Approve dari sana. |
+| FR-77 | P2 | Board di HP. | Companion menampilkan board per kolom; kartu bisa dipindah kolom dan dijalankan, dan kartu Waiting for you bisa di-Approve dari sana. Kartu baru dan edit isi kartu tetap di desktop. |
 
 ## 8. Alur utama
 

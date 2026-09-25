@@ -1,13 +1,14 @@
 //! Phone companion over real HTTP on localhost: pairing, device tokens, the session API,
-//! and the SPA fallback (PRD FR-50 to FR-54, section 11).
+//! Chat and Board from the phone, and the SPA fallback (PRD FR-50 to FR-57, FR-77, section 11).
 
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use opencompanion_lib::cli::CliKind;
 use opencompanion_lib::companion::{hash_token, AssetLookup, Companion};
-use opencompanion_lib::db::{Db, EventRow, SessionInfo};
+use opencompanion_lib::db::{ChatMessage, Db, DispatchCard, EventRow, Mode, SessionInfo, Settings, Status};
 use opencompanion_lib::session::{Emit, Manager};
 use serde_json::Value;
 
@@ -119,5 +120,186 @@ fn too_many_wrong_codes_end_the_pairing() {
     // Even the right code is refused now; a new code has to be shown.
     let (code, _) = http(port, "POST", "/api/pair", None, Some(&format!(r#"{{"code":"{}"}}"#, pairing.code)));
     assert_eq!(code, 410);
+    companion.stop();
+}
+
+fn paired(port: u16, companion: &Companion) -> String {
+    let pairing = companion.start_pairing().expect("pairing code");
+    let (code, body) = http(port, "POST", "/api/pair", None, Some(&format!(r#"{{"code":"{}","name":"Test phone"}}"#, pairing.code)));
+    assert_eq!(code, 200, "{body}");
+    json(&body)["token"].as_str().unwrap().to_string()
+}
+
+fn wait_for(db: &Db, id: &str, what: &str, pred: impl Fn(&SessionInfo) -> bool) -> SessionInfo {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        let s = db.session(id).unwrap().unwrap();
+        if pred(&s) {
+            return s;
+        }
+        assert!(Instant::now() < deadline, "timed out waiting for {what}; last status {:?}", s.status);
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// New session, messages, Chat cards and the Board from the phone (PRD FR-12, FR-57, FR-77).
+#[test]
+fn the_phone_starts_sessions_sends_messages_and_works_the_board() {
+    let fake = env!("CARGO_BIN_EXE_fake-cli").to_string();
+    let db = Arc::new(Db::open_in_memory().unwrap());
+    let mut settings = Settings::default();
+    for kind in ["claude", "codex", "opencode"] {
+        settings.cli_paths.insert(kind.into(), fake.clone());
+    }
+    db.save_settings(&settings).unwrap();
+    let base = std::env::temp_dir().join(format!("air-companion-c-{}", std::process::id()));
+    let work = base.join("project");
+    std::fs::create_dir_all(&work).unwrap();
+    let cwd = work.display().to_string().replace('\\', "\\\\");
+    let manager = Manager::new(Arc::clone(&db), Arc::new(Quiet), base.join("data"));
+    let companion = Companion::new(Arc::clone(&db), Arc::clone(&manager), Arc::new(|_: &str| None));
+    let port = 40_000 + ((std::process::id() + 13) % 20_000) as u16;
+    assert!(tauri::async_runtime::block_on(companion.start(port)).running);
+
+    // Every new endpoint needs a paired phone.
+    let start = r#"{"cli":"opencode","cwd":".","mode":"headless"}"#;
+    for (method, path, body) in [
+        ("GET", "/api/options", None),
+        ("POST", "/api/sessions", Some(start)),
+        ("POST", "/api/sessions/x/input", Some("{}")),
+        ("GET", "/api/chat", None),
+        ("POST", "/api/chat", Some(r#"{"message":"hi"}"#)),
+        ("POST", "/api/chat/cards/run", Some(r#"{"messageId":"a","cardId":"b"}"#)),
+        ("GET", "/api/tasks", None),
+        ("POST", "/api/tasks/x/move", Some(r#"{"column":"todo"}"#)),
+        ("POST", "/api/tasks/x/run", Some(start)),
+    ] {
+        assert_eq!(http(port, method, path, None, body).0, 401, "{method} {path}");
+    }
+    let token = paired(port, &companion);
+    let t = Some(token.as_str());
+
+    let (code, body) = http(port, "GET", "/api/options", t, None);
+    assert_eq!(code, 200, "{body}");
+    let options = json(&body);
+    assert!(options["clis"].as_array().unwrap().iter().any(|c| c["kind"] == "opencode" && c["path"].is_string()));
+    assert_eq!(options["permissionMode"], "ask");
+
+    // A headless session from the phone, then a follow-up turn in the same conversation.
+    let bad = r#"{"cli":"opencode","cwd":"Z:\\no\\such\\folder","mode":"headless","prompt":"x"}"#;
+    let (code, body) = http(port, "POST", "/api/sessions", t, Some(bad));
+    assert_eq!((code, json(&body)["error"].as_str()), (409, Some("This folder does not exist.")));
+    let req = format!(r#"{{"cli":"opencode","cwd":"{cwd}","mode":"headless","prompt":"add hello","permissionMode":"plan"}}"#);
+    let (code, body) = http(port, "POST", "/api/sessions", t, Some(&req));
+    assert_eq!(code, 200, "{body}");
+    let id = json(&body)["session"]["id"].as_str().unwrap().to_string();
+    assert_eq!(json(&body)["session"]["permissionMode"], "plan");
+    wait_for(&db, &id, "first turn", |s| s.status == Status::Done);
+    let (code, body) = http(port, "POST", &format!("/api/sessions/{id}/input"), t, Some(r#"{"text":"   "}"#));
+    assert_eq!((code, json(&body)["error"].as_str()), (409, Some("Write a message first.")));
+    let (code, body) = http(port, "POST", &format!("/api/sessions/{id}/input"), t, Some(r#"{"key":"esc"}"#));
+    assert_eq!(code, 409, "{body}");
+    let (code, body) = http(port, "POST", &format!("/api/sessions/{id}/input"), t, Some(r#"{"text":"again"}"#));
+    assert_eq!(code, 200, "{body}");
+    let said = |text: &str| {
+        db.events(&id, 200)
+            .unwrap()
+            .iter()
+            .any(|e| serde_json::to_value(&e.event).unwrap()["text"] == text)
+    };
+    wait_for(&db, &id, "second turn", |_| said("done: again"));
+    assert_eq!(http(port, "POST", "/api/sessions/nope/input", t, Some(r#"{"text":"hi"}"#)).0, 404);
+
+    // In a terminal the text is typed, then entered.
+    let req = format!(r#"{{"cli":"opencode","cwd":"{cwd}","mode":"interactive"}}"#);
+    let (code, body) = http(port, "POST", "/api/sessions", t, Some(&req));
+    assert_eq!(code, 200, "{body}");
+    let pty = json(&body)["session"]["id"].as_str().unwrap().to_string();
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while !manager.output(&pty).contains("fake ready") {
+        assert!(Instant::now() < deadline, "the fake terminal never got ready");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    let (code, body) = http(port, "POST", &format!("/api/sessions/{pty}/input"), t, Some(r#"{"key":"f5"}"#));
+    assert_eq!((code, json(&body)["error"].as_str()), (409, Some("Unknown key.")));
+    let (code, body) = http(port, "POST", &format!("/api/sessions/{pty}/input"), t, Some(r#"{"text":"hello"}"#));
+    assert_eq!(code, 200, "{body}");
+    wait_for(&db, &pty, "terminal exit", |s| !s.status.is_live());
+    assert!(manager.output(&pty).contains("got: hello"));
+
+    // Chat: a new thread needs words, a missing thread is gone, and cards go to the Board or away.
+    let (code, body) = http(port, "GET", "/api/chat", t, None);
+    assert_eq!(code, 200, "{body}");
+    assert_eq!(json(&body)["threads"], Value::Array(vec![]));
+    let (code, body) = http(port, "POST", "/api/chat", t, Some(r#"{"message":"  "}"#));
+    assert_eq!((code, json(&body)["error"].as_str()), (409, Some("Write a message first.")));
+    assert_eq!(http(port, "GET", "/api/chat/nope", t, None).0, 404);
+
+    let thread = db.create_thread("Fix tests").unwrap();
+    let card = DispatchCard {
+        id: "card-a".into(),
+        cli: CliKind::Opencode,
+        title: "Fix the tests".into(),
+        folder: work.display().to_string(),
+        prompt: "fix the failing tests".into(),
+        mode: Mode::Headless,
+        reason: String::new(),
+        problem: None,
+        state: "proposed".into(),
+        session_id: None,
+    };
+    let reply = ChatMessage {
+        id: "msg-a".into(),
+        thread_id: thread.id.clone(),
+        role: "planner".into(),
+        text: "One card.".into(),
+        cards: vec![card],
+        created_at: 1,
+    };
+    db.add_chat(&reply).unwrap();
+    let (code, body) = http(port, "GET", &format!("/api/chat/{}", thread.id), t, None);
+    assert_eq!(code, 200, "{body}");
+    assert_eq!(json(&body)["messages"][0]["cards"][0]["id"], "card-a");
+
+    let pick = r#"{"messageId":"msg-a","cardId":"card-a"}"#;
+    let (code, body) = http(port, "POST", "/api/chat/cards/discard", t, Some(pick));
+    assert_eq!(code, 200, "{body}");
+    assert_eq!(json(&body)["message"]["cards"][0]["state"], "discarded");
+    let (code, body) = http(port, "POST", "/api/chat/cards/run", t, Some(pick));
+    assert_eq!((code, json(&body)["error"].as_str()), (409, Some("This card already ran or was discarded.")));
+    let (code, body) = http(port, "POST", "/api/chat/cards/discard", t, Some(r#"{"messageId":"msg-a","cardId":"card-a","undo":true}"#));
+    assert_eq!(code, 200, "{body}");
+    assert_eq!(json(&body)["message"]["cards"][0]["state"], "proposed");
+    let (code, body) = http(port, "POST", "/api/chat/cards/board", t, Some(pick));
+    assert_eq!(code, 200, "{body}");
+    let task_id = json(&body)["task"]["id"].as_str().unwrap().to_string();
+    assert_eq!(json(&body)["task"]["column"], "todo");
+    let (code, body) = http(port, "POST", "/api/chat/cards/run", t, Some(pick));
+    assert_eq!(code, 200, "{body}");
+    let started = json(&body);
+    assert_eq!(started["message"]["cards"][0]["state"], "started");
+    let from_card = started["message"]["cards"][0]["sessionId"].as_str().unwrap().to_string();
+    assert_eq!(db.session(&from_card).unwrap().unwrap().source, "chat");
+    wait_for(&db, &from_card, "card session", |s| !s.status.is_live());
+
+    // Board: move a card, refuse an unknown column, then run it.
+    let (code, body) = http(port, "GET", "/api/tasks", t, None);
+    assert_eq!(code, 200, "{body}");
+    assert_eq!(json(&body)["tasks"][0]["id"], task_id.as_str());
+    let (code, body) = http(port, "POST", &format!("/api/tasks/{task_id}/move"), t, Some(r#"{"column":"pending"}"#));
+    assert_eq!(code, 200, "{body}");
+    assert_eq!(db.task(&task_id).unwrap().unwrap().column, "pending");
+    let (code, body) = http(port, "POST", &format!("/api/tasks/{task_id}/move"), t, Some(r#"{"column":"later"}"#));
+    assert_eq!((code, json(&body)["error"].as_str()), (409, Some("Unknown column.")));
+    let req = format!(r#"{{"cli":"opencode","cwd":"{cwd}","mode":"headless","prompt":"from the board"}}"#);
+    let (code, body) = http(port, "POST", &format!("/api/tasks/{task_id}/run"), t, Some(&req));
+    assert_eq!(code, 200, "{body}");
+    let run = json(&body)["session"]["id"].as_str().unwrap().to_string();
+    let task = db.task(&task_id).unwrap().unwrap();
+    assert_eq!(task.session_id.as_deref(), Some(run.as_str()));
+    assert!(task.column == "progress" || task.column == "done", "{}", task.column);
+    wait_for(&db, &run, "board session", |s| !s.status.is_live());
+
+    manager.kill_all();
     companion.stop();
 }

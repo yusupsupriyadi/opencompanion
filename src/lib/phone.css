@@ -36,3 +36,71 @@ dialog.sheet { margin: auto auto 0; width: 100%; max-width: 480px; border-radius
 dialog.sheet .d-foot { flex-direction: column; align-items: stretch; }
 dialog.sheet .btn { min-height: 48px; }
 .phone .btn { min-height: 44px; }
+
+/* Bottom tabs: Sessions, Chat and Board are one thumb tap apart. Hidden on detail screens, which own the bottom edge. */
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; justify-content: center; background: var(--bg); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+.tabs > div { width: 100%; max-width: 480px; display: grid; grid-template-columns: repeat(3, 1fr); }
+.tabs a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 56px; font-size: 12px; font-weight: 700; color: var(--ink-2); transition: color .12s ease-out; }
+.tabs a[aria-current="page"] { color: var(--ink); }
+.tabs a[aria-current="page"] svg { color: var(--forest); }
+/* The accent marks the one thing that needs you, as on the desktop. */
+.tab-count { position: absolute; top: 5px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: var(--on-accent); font-size: 11px; line-height: 18px; text-align: center; }
+.phone.has-tabs .content { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+.head-row { display: flex; align-items: center; gap: 12px; }
+.head-row .m-h1 { flex: 1; min-width: 0; }
+
+/* A composer or action bar pinned to the bottom; the page reserves its measured height. */
+.dock > .stack { width: 100%; max-width: 448px; display: flex; flex-direction: column; gap: 8px; }
+.send-row { display: flex; gap: 8px; align-items: flex-end; }
+/* 16px keeps phone browsers from zooming into the field. */
+.send-row .input, .send-row .textarea { flex: 1; min-width: 0; font-size: 16px; }
+.send-row .textarea { min-height: 48px; max-height: 160px; }
+.send-row .btn { min-height: 48px; }
+.keys { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.keys .btn { min-height: 44px; padding: 0 4px; font: 600 12px var(--font-mono); }
+.dock .small { margin: 0; }
+
+/* Chat */
+.m-thread { display: flex; flex-direction: column; gap: 16px; }
+.m-me { align-self: flex-end; max-width: 88%; margin: 0; padding: 10px 14px; border-radius: 14px 14px 4px 14px; background: var(--surface-2); font-size: 15px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.m-planner { display: flex; flex-direction: column; gap: 10px; }
+.m-planner > p { margin: 0; font-size: 15px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.m-planner .who { font: 12px var(--font-pixel); color: var(--ink-2); }
+.m-dcard { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); }
+.m-dcard .target b { display: block; font-size: 15px; font-weight: 800; line-height: 1.3; overflow-wrap: anywhere; }
+.m-dcard .target span { font-size: 12px; color: var(--ink-2); overflow-wrap: anywhere; }
+.m-dcard .prompt { margin: 0; padding: 10px 12px; border-radius: var(--r-sm); background: var(--bg); font: 13px/1.45 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.m-dcard .why { margin: 0; font-size: 13px; color: var(--ink-2); }
+.m-dcard .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.m-dcard .acts .wide { grid-column: 1 / -1; min-height: 48px; }
+.m-discarded { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--r-md); border: 1px dashed var(--line-strong); background: var(--surface); font-size: 13px; color: var(--ink-2); }
+.thinking { display: flex; align-items: center; gap: 10px; }
+.m-list { display: flex; flex-direction: column; gap: 8px; }
+.m-list a { display: flex; flex-direction: column; gap: 2px; min-height: 56px; justify-content: center; padding: 10px 14px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); }
+.m-list a:active { background: var(--surface-2); }
+.m-list b { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+
+/* Board */
+.m-seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; padding: 3px; border-radius: var(--r-btn); background: var(--surface-2); }
+.m-seg button { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 48px; padding: 4px 2px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink-2); font-weight: 700; font-size: 13px; line-height: 1.15; text-align: center; cursor: pointer; }
+.m-seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); }
+.m-seg small { font-size: 12px; font-weight: 600; }
+.m-card.needs { border: 1.5px solid var(--accent); }
+button.m-card { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.m-notes { margin: 0; padding: 10px 12px; border-radius: var(--r-sm); background: var(--bg); font-size: 14px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 40vh; overflow-y: auto; }
+.sheet-acts { display: flex; flex-direction: column; gap: 8px; }
+.sheet-acts .btn { min-height: 48px; }
+.move-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.move-row .btn { min-height: 44px; padding: 0 6px; white-space: normal; line-height: 1.2; }
+
+/* New session */
+.m-form { display: flex; flex-direction: column; gap: 18px; }
+.m-form .opts { grid-template-columns: 1fr; }
+.m-form .opt { min-height: 48px; }
+.m-form .input, .m-form .select, .m-form .textarea { font-size: 16px; min-height: 44px; }
+.m-form fieldset { border: 0; padding: 0; margin: 0; }
+.m-form legend { padding: 0; margin-bottom: 8px; font-size: 14px; font-weight: 800; }
+
+/* The bottom edge holds the tabs or an action bar, so the phone's toast drops in under the top bar instead. */
+.phone ~ .toast { top: calc(64px + env(safe-area-inset-top)); bottom: auto; transform: translate(-50%, -12px); }
+.phone ~ .toast.show { transform: translate(-50%, 0); }

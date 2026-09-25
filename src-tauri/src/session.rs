@@ -28,6 +28,8 @@ pub trait Emit: Send + Sync {
     fn event(&self, row: &EventRow);
     fn tasks_changed(&self);
     fn notify(&self, title: &str, body: &str, session_id: &str);
+    /// A chat thread changed from the phone, so an open Chat screen reloads it.
+    fn chat_changed(&self, _thread_id: &str) {}
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -204,6 +206,19 @@ impl Manager {
 
     pub fn db(&self) -> &Arc<Db> {
         &self.db
+    }
+
+    pub fn data_dir(&self) -> &Path {
+        &self.data_dir
+    }
+
+    /// The Board changed outside a session (a card was added, moved or run).
+    pub fn tasks_changed(&self) {
+        self.emit.tasks_changed();
+    }
+
+    pub fn chat_changed(&self, thread_id: &str) {
+        self.emit.chat_changed(thread_id);
     }
 
     pub fn own_pids(&self) -> Vec<u32> {
