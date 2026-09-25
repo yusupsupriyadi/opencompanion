@@ -48,6 +48,27 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 svg { flex: none; }
 
+/* Scrollbars: a thin bar with square ends, like the status dots and horizon marks, instead of the OS pill.
+   line-strong is mixed a quarter toward ink-2 so the bar clears 3:1 on bg, surface and surface-2 in both themes.
+   Touch screens (the phone page) keep their native overlay scrollbars. */
+:root { --scroll-thumb: color-mix(in srgb, var(--line-strong) 75%, var(--ink-2)); --scroll-thumb-hover: var(--ink-2); }
+.term { --scroll-thumb: color-mix(in srgb, var(--term-dim) 60%, transparent); --scroll-thumb-hover: var(--term-dim); }
+/* The glass lets the painting through, so the sidebar bar takes ink-2, the pair DESIGN.md already clears on glass. */
+.sidebar { --scroll-thumb: var(--ink-2); --scroll-thumb-hover: var(--ink); }
+@media (hover: hover) and (pointer: fine) {
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--scroll-thumb) padding-box; border: 3px solid transparent; }
+  ::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active { background-color: var(--scroll-thumb-hover); border-width: 2px; }
+  /* Scrollers with no panel sit straight on the painting, where no single color holds 3:1 over both sky and grass.
+     Like text there they use ink, ringed 1px in bg, which keeps 3:1 over every pixel of the painting in both themes. */
+  .main::-webkit-scrollbar-thumb, .thread::-webkit-scrollbar-thumb, .board::-webkit-scrollbar-thumb, .detail-side::-webkit-scrollbar-thumb { background-color: var(--ink); box-shadow: inset 0 0 0 1px var(--bg); }
+  @supports not selector(::-webkit-scrollbar) {
+    * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+    :is(.main, .thread, .board, .detail-side) { scrollbar-color: var(--ink) transparent; }
+  }
+}
+
 /* App shell */
 /* The painting sits behind the whole app under a haze that is thin over the sky (top 30%) and 66% from 40% down,
    the level at which ink text passes 4.5:1 over the darkest pixel. Only the sidebar is a panel (84% + blur 14px). */

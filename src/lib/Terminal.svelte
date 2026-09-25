@@ -34,6 +34,10 @@
         cursor: "#A6CF6A",
         cursorAccent: "#1E2B1F",
         selectionBackground: "#A6CF6A55",
+        // Same slider as the page scrollbars inside .term: term-dim at 60%, full on hover, term-text while dragged.
+        scrollbarSliderBackground: "#A9B38F99",
+        scrollbarSliderHoverBackground: "#A9B38F",
+        scrollbarSliderActiveBackground: "#EDE6C4",
         black: "#1E2B1F",
         red: "#E88B6B",
         green: "#A6CF6A",
