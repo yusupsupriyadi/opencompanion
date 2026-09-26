@@ -27,7 +27,7 @@ use tauri_plugin_notification::NotificationExt;
 use crate::actions::{cli_args, detect_with_settings, ChatTurn, RunTaskInput};
 use crate::cli::{CliInstall, CliKind};
 use crate::companion::{Companion, CompanionStatus, Pairing};
-use crate::db::{ChatMessage, ChatModel, ChatThread, Db, DispatchCard, EventRow, Mode, Project, SessionInfo, Settings, Task};
+use crate::db::{ChatMessage, ChatModel, ChatThread, Db, DispatchCard, EventRow, Project, SessionInfo, Settings, Task};
 use crate::session::{Emit, StartRequest};
 
 struct AppState {
@@ -51,8 +51,8 @@ impl Emit for TauriEmit {
             c.broadcast(json!({ "type": "session", "session": info }));
         }
     }
-    fn output(&self, id: &str, data: &str) {
-        let _ = self.app.emit("session-output", json!({ "id": id, "data": data }));
+    fn output(&self, id: &str, data: &str, seq: u64) {
+        let _ = self.app.emit("session-output", json!({ "id": id, "data": data, "seq": seq }));
     }
     fn event(&self, row: &EventRow) {
         let _ = self.app.emit("session-event", row);
@@ -160,7 +160,6 @@ fn list_sessions(state: State<'_, AppState>, limit: Option<u32>) -> Res<Vec<Sess
 struct SessionDetail {
     session: SessionInfo,
     events: Vec<EventRow>,
-    output: String,
     task: Option<Task>,
 }
 
@@ -168,18 +167,22 @@ struct SessionDetail {
 fn get_session(state: State<'_, AppState>, id: String) -> Res<SessionDetail> {
     let session = state.db.session(&id)?.ok_or("Session not found.")?;
     let events = state.db.events(&id, 400)?;
-    let output = if session.mode == Mode::Interactive {
-        state.manager.output(&id)
-    } else {
-        String::new()
-    };
     let task = state.db.task_for_session(&id)?;
-    Ok(SessionDetail {
-        session,
-        events,
-        output,
-        task,
-    })
+    Ok(SessionDetail { session, events, task })
+}
+
+#[derive(Serialize)]
+struct OutputSnapshot {
+    data: String,
+    seq: u64,
+}
+
+/// What the terminal view writes before live output: read after it starts listening, so no
+/// chunk falls between the two (see `Manager::output_snapshot`).
+#[tauri::command]
+fn session_output(state: State<'_, AppState>, id: String) -> OutputSnapshot {
+    let (data, seq) = state.manager.output_snapshot(&id);
+    OutputSnapshot { data, seq }
 }
 
 /// CPU and memory of a running session's CLI and the processes it started (PRD FR-34).
@@ -630,6 +633,7 @@ pub fn run() {
             scan_skills,
             list_sessions,
             get_session,
+            session_output,
             session_usage,
             start_session,
             send_input,

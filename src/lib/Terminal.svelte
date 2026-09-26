@@ -6,7 +6,7 @@
   import { onMount } from "svelte";
   import { api } from "./api";
 
-  let { id, initial, live, label }: { id: string; initial: string; live: boolean; label: string } = $props();
+  let { id, live, label }: { id: string; live: boolean; label: string } = $props();
 
   let host: HTMLDivElement | undefined = $state();
   // Read inside the xterm callbacks, which outlive the first render.
@@ -19,15 +19,28 @@
   // answer is dropped instead of being typed into the CLI.
   const CURSOR_REPORT = /\x1b\[\d+;\d+R/g;
 
+  const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+  /** Moves focus to the control after (or before) the terminal, the way Tab would without it. */
+  function leave(from: HTMLElement, back: boolean) {
+    const all = [...document.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => !from.contains(el) && el.getClientRects().length > 0);
+    const after = (el: HTMLElement) => Boolean(from.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const target = back ? all.filter((el) => !after(el)).at(-1) : all.find(after);
+    target?.focus();
+  }
+
   onMount(() => {
     acceptInput = live;
     if (!host) return;
+    const box = host;
     const term = new Terminal({
       fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
       fontSize: 13,
       lineHeight: 1.25,
       scrollback: 8000,
       allowTransparency: true,
+      // DESIGN.md section 12: output reaches screen readers too.
+      screenReaderMode: true,
       theme: {
         background: "#00000000",
         foreground: "#EDE6C4",
@@ -58,13 +71,25 @@
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
-    term.open(host);
+    term.open(box);
     try {
       fit.fit();
     } catch {
       // A hidden host has no size yet; the observer fits it once it is shown.
     }
-    if (initial) term.write(initial);
+
+    // Tab belongs to the CLI while it runs, so Ctrl+Tab and Ctrl+Shift+Tab leave the terminal
+    // instead. A closed terminal takes no keys, and Tab moves on as everywhere else.
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.key !== "Tab") return true;
+      if (!acceptInput) return false;
+      if (!e.ctrlKey) return true;
+      if (e.type === "keydown") {
+        e.preventDefault();
+        leave(box, e.shiftKey);
+      }
+      return false;
+    });
 
     let chain: Promise<unknown> = Promise.resolve();
     const send = (data: string) => {
@@ -80,9 +105,31 @@
     });
     if (acceptInput) api.resizeSession(id, term.cols, term.rows).catch(() => undefined);
 
-    const unlisten = listen<{ id: string; data: string }>("session-output", (e) => {
-      if (e.payload.id === id) term.write(e.payload.data);
+    // Listening starts before the snapshot is read, and chunks up to the snapshot's last one are
+    // skipped, so output that arrives in between is neither lost nor written twice.
+    let shown = -1;
+    let gone = false;
+    const early: { data: string; seq: number }[] = [];
+    const show = (chunk: { data: string; seq: number }) => {
+      if (chunk.seq <= shown) return;
+      term.write(chunk.data);
+      shown = chunk.seq;
+    };
+    const unlisten = listen<{ id: string; data: string; seq: number }>("session-output", (e) => {
+      if (e.payload.id !== id) return;
+      if (shown < 0) early.push(e.payload);
+      else show(e.payload);
     });
+    unlisten
+      .then(() => api.sessionOutput(id))
+      .catch(() => ({ data: "", seq: 0 }))
+      .then((snap) => {
+        if (gone) return;
+        if (snap.data) term.write(snap.data);
+        shown = snap.seq;
+        early.splice(0).forEach(show);
+      });
+
     const ro = new ResizeObserver(() => {
       try {
         fit.fit();
@@ -90,10 +137,11 @@
         // Ignored while the panel is collapsed.
       }
     });
-    ro.observe(host);
+    ro.observe(box);
     if (acceptInput) term.focus();
 
     return () => {
+      gone = true;
       ro.disconnect();
       unlisten.then((f) => f());
       term.dispose();

@@ -41,9 +41,13 @@
       const d = await api.getSession(target);
       if (target !== id) return;
       detail = d;
-      events = d.events;
+      // Events that arrived while the page loaded are kept; the stored ones come first.
+      const known = new Set(d.events.map((e) => e.id));
+      events = [...d.events, ...events.filter((e) => !known.has(e.id))];
       loadState = "ready";
     } catch (e) {
+      // A slow failure for a session left behind does not replace the one now shown.
+      if (target !== id) return;
       const msg = errorText(e);
       if (msg === "Session not found.") loadState = "missing";
       else {
@@ -59,7 +63,7 @@
 
   onMount(() => {
     const un = listen<EventRow>("session-event", (e) => {
-      if (e.payload.sessionId === id) events = [...events, e.payload];
+      if (e.payload.sessionId === id && !events.some((x) => x.id === e.payload.id)) events = [...events, e.payload];
     });
     return () => {
       un.then((f) => f());
@@ -222,10 +226,12 @@
       <section class="term" aria-label="Session output">
         {#if s.mode === "interactive"}
           {#key `${id}-${termKey}`}
-            <Terminal id={s.id} initial={detail?.output ?? ""} {live} label="Terminal for {CLI_LABEL[s.cli]} in {folderName(s.cwd)}" />
+            <Terminal id={s.id} {live} label="Terminal for {CLI_LABEL[s.cli]} in {folderName(s.cwd)}" />
           {/key}
           <div class="term-note">
-            {live ? "Type straight into the terminal. Ctrl+C interrupts the CLI." : "This terminal has closed. Resume opens it again with the CLI's own history when it has one."}
+            {live
+              ? "Type straight into the terminal. Ctrl+C interrupts the CLI. Ctrl+Tab leaves the terminal."
+              : "This terminal has closed. Resume opens it again with the CLI's own history when it has one."}
           </div>
         {:else}
           <Timeline {events} />

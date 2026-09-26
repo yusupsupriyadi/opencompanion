@@ -15,6 +15,7 @@ use opencompanion_lib::session::{Emit, Manager, StartRequest};
 #[derive(Default)]
 struct Recorder {
     output: Mutex<String>,
+    seqs: Mutex<Vec<u64>>,
     events: Mutex<Vec<EventRow>>,
     notes: Mutex<Vec<String>>,
     tasks: AtomicUsize,
@@ -22,8 +23,9 @@ struct Recorder {
 
 impl Emit for Recorder {
     fn session(&self, _info: &SessionInfo) {}
-    fn output(&self, _id: &str, data: &str) {
+    fn output(&self, _id: &str, data: &str, seq: u64) {
         self.output.lock().unwrap().push_str(data);
+        self.seqs.lock().unwrap().push(seq);
     }
     fn event(&self, row: &EventRow) {
         self.events.lock().unwrap().push(row.clone());
@@ -191,6 +193,15 @@ fn interactive_session_streams_output_and_takes_input() {
     let r = rig("pty");
     let s = start(&r, CliKind::Opencode, Mode::Interactive, "", None);
     wait_until(&r, &s.id, "prompt on screen", |_| r.rec.output.lock().unwrap().contains("fake ready"));
+
+    // A late view's snapshot ends at the last chunk sent so far, and chunks count up from 1.
+    thread::sleep(Duration::from_millis(300));
+    let (text, seq) = r.manager.output_snapshot(&s.id);
+    let seqs = r.rec.seqs.lock().unwrap().clone();
+    assert!(text.contains("fake ready"));
+    assert_eq!(seqs, (1..=seqs.len() as u64).collect::<Vec<_>>());
+    assert_eq!(seq, *seqs.last().unwrap());
+
     r.manager.send_input(&s.id, "hello\r").unwrap();
     let done = wait_until(&r, &s.id, "exit", |s| !s.status.is_live());
     assert_eq!(done.status, Status::Done, "last: {:?}", done.last_event);

@@ -15,7 +15,7 @@ use serde_json::Value;
 struct Quiet;
 impl Emit for Quiet {
     fn session(&self, _: &SessionInfo) {}
-    fn output(&self, _: &str, _: &str) {}
+    fn output(&self, _: &str, _: &str, _: u64) {}
     fn event(&self, _: &EventRow) {}
     fn tasks_changed(&self) {}
     fn notify(&self, _: &str, _: &str, _: &str) {}

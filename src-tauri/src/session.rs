@@ -24,7 +24,9 @@ use crate::waiting;
 /// webview, the phone companion and OS notifications; tests record them.
 pub trait Emit: Send + Sync {
     fn session(&self, info: &SessionInfo);
-    fn output(&self, id: &str, data: &str);
+    /// Terminal text. `seq` counts the session's chunks from 1, so a view that read a snapshot
+    /// can skip what the snapshot already holds.
+    fn output(&self, id: &str, data: &str, seq: u64);
     fn event(&self, row: &EventRow);
     fn tasks_changed(&self);
     fn notify(&self, title: &str, body: &str, session_id: &str);
@@ -64,6 +66,8 @@ struct Live {
     info: Mutex<SessionInfo>,
     runner: Mutex<Runner>,
     output: Mutex<String>,
+    /// Chunks added to `output` so far; changed only while `output` is locked.
+    output_seq: AtomicU64,
     utf8_carry: Mutex<Vec<u8>>,
     log: Mutex<Option<File>>,
     last_output: Mutex<Instant>,
@@ -377,6 +381,7 @@ impl Manager {
             info: Mutex::new(info),
             runner: Mutex::new(Runner::None),
             output: Mutex::new(String::new()),
+            output_seq: AtomicU64::new(0),
             utf8_carry: Mutex::new(Vec::new()),
             log: Mutex::new(log),
             last_output: Mutex::new(Instant::now()),
@@ -554,7 +559,8 @@ impl Manager {
                 if text.is_empty() {
                     return;
                 }
-                if let Ok(mut out) = sink_live.output.lock() {
+                let seq = {
+                    let mut out = sink_live.output.lock().unwrap_or_else(|p| p.into_inner());
                     out.push_str(&text);
                     if out.len() > OUTPUT_KEEP {
                         let mut cut = out.len() - OUTPUT_KEEP;
@@ -563,8 +569,9 @@ impl Manager {
                         }
                         out.drain(..cut);
                     }
-                }
-                sink_self.emit.output(&session_id, &text);
+                    sink_live.output_seq.fetch_add(1, Ordering::SeqCst) + 1
+                };
+                sink_self.emit.output(&session_id, &text, seq);
                 if let Some(name) = names_task.then(|| terminal_task_name(&text)).flatten() {
                     sink_self.adopt_task_name(&sink_live, &name);
                 }
@@ -1200,6 +1207,20 @@ impl Manager {
         }
     }
 
+    /// Terminal text for a view that attaches late, with the number of the last chunk in it. A view
+    /// that listens first and reads this second writes only the chunks after that number.
+    /// A session that is not running has no more chunks coming: its log tail and 0.
+    pub fn output_snapshot(&self, id: &str) -> (String, u64) {
+        if let Ok(live) = self.get_live(id) {
+            if let Ok(out) = live.output.lock() {
+                if !out.is_empty() {
+                    return (out.clone(), live.output_seq.load(Ordering::SeqCst));
+                }
+            }
+        }
+        (read_tail(&self.log_path(id), 256 * 1024), 0)
+    }
+
     /// Terminal text for a view that attaches late: the live buffer, or the log tail.
     pub fn output(&self, id: &str) -> String {
         if let Ok(live) = self.get_live(id) {
@@ -1344,7 +1365,7 @@ mod tests {
     struct NoEmit;
     impl Emit for NoEmit {
         fn session(&self, _: &SessionInfo) {}
-        fn output(&self, _: &str, _: &str) {}
+        fn output(&self, _: &str, _: &str, _: u64) {}
         fn event(&self, _: &EventRow) {}
         fn tasks_changed(&self) {}
         fn notify(&self, _: &str, _: &str, _: &str) {}

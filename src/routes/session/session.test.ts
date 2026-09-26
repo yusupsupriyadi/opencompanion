@@ -1,5 +1,7 @@
+import { listen } from "@tauri-apps/api/event";
 import { render, screen } from "@testing-library/svelte";
-import { beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
+import type { EventRow } from "$lib/api";
 import { app } from "$lib/store.svelte";
 import { setUrl } from "../../test/app-state.svelte";
 import { CLIS, backend, session } from "../../test/fixtures";
@@ -36,4 +38,29 @@ test("a finished session is not measured", async () => {
   expect(await screen.findByRole("heading", { name: "Add a dark mode toggle" })).toBeInTheDocument();
   expect(screen.queryByText("CPU")).not.toBeInTheDocument();
   expect(calls.calls("session_usage")).toHaveLength(0);
+});
+
+test("events that arrive while the page loads are kept, once each", async () => {
+  const handlers: Record<string, (e: { payload: unknown }) => void> = {};
+  vi.mocked(listen).mockImplementation(async (name, handler) => {
+    handlers[name] = handler as (e: { payload: unknown }) => void;
+    return () => undefined;
+  });
+  const s = session({ status: "running" });
+  app.sessions = [s];
+  const stored: EventRow = { id: 1, sessionId: "s1", at: Date.now() - 1000, event: { kind: "tool_call", tool: "Read", summary: "README.md" } };
+  const early: EventRow = { id: 2, sessionId: "s1", at: Date.now(), event: { kind: "tool_call", tool: "Edit", summary: "src/app.ts" } };
+  let finish: (d: unknown) => void = () => undefined;
+  backend({ get_session: () => new Promise((resolve) => (finish = resolve)) });
+  render(SessionPage);
+
+  await vi.waitFor(() => expect(handlers["session-event"]).toBeTypeOf("function"));
+  handlers["session-event"]({ payload: early });
+  finish({ session: s, events: [stored], task: null });
+  const out = await screen.findByText(/Edit src\/app\.ts/);
+  expect(out.closest("pre")).toHaveTextContent(/Read README\.md[\s\S]*Edit src\/app\.ts/);
+  // The same event again, as a late listener would deliver it, is not shown twice.
+  handlers["session-event"]({ payload: early });
+  await Promise.resolve();
+  expect(screen.getAllByText(/Edit src\/app\.ts/)).toHaveLength(1);
 });

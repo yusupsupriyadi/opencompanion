@@ -164,7 +164,6 @@ export type Column = "pending" | "todo" | "progress" | "done";
 export interface SessionDetail {
   session: SessionInfo;
   events: EventRow[];
-  output: string;
   task: Task | null;
 }
 
@@ -327,6 +326,8 @@ export const api = {
   scanSkills: () => invoke<SkillScan>("scan_skills"),
   listSessions: (limit?: number) => invoke<SessionView[]>("list_sessions", { limit }),
   getSession: (id: string) => invoke<SessionDetail>("get_session", { id }),
+  /** The terminal text so far; `seq` is its last chunk, so live chunks up to it are already in it. */
+  sessionOutput: (id: string) => invoke<{ data: string; seq: number }>("session_output", { id }),
   /** Null when the session is not running. */
   sessionUsage: (id: string) => invoke<Usage | null>("session_usage", { id }),
   startSession: (req: StartRequest) => invoke<SessionInfo>("start_session", { req }),
