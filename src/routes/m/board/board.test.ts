@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import { goto } from "$app/navigation";
 import type { SessionInfo, Task } from "$lib/api";
-import { phone } from "$lib/phone.svelte";
+import { phone, receive } from "$lib/phone.svelte";
 import { setUrl } from "../../../test/app-state.svelte";
 import { phoneServer, sent } from "../../../test/phone-server";
 import Board from "./+page.svelte";
@@ -80,4 +80,18 @@ test("a card whose session waits can be approved from the Board", async () => {
   expect(within(sheet).queryByRole("link", { name: /Run/ })).not.toBeInTheDocument();
   await u.click(within(sheet).getByRole("button", { name: "Approve" }));
   expect(sent(fetchMock, "POST /api/sessions/s1/answer")).toEqual([{ allow: true }]);
+});
+
+test("a card deleted on the computer while its sheet is open closes the sheet", async () => {
+  let tasks = [task({})];
+  phoneServer({ "GET /api/tasks": () => [200, { tasks }] });
+  const u = userEvent.setup();
+  render(Board);
+  await u.click(await screen.findByRole("button", { name: /Write the API docs/ }));
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+  tasks = [];
+  receive({ type: "tasks" });
+  await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(phone.notice).toBe("That card was deleted on your computer.");
 });

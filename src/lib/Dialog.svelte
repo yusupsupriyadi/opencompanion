@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import { refocus } from "./focus";
 
   // Native <dialog>: Esc closes it and focus is trapped by the browser. Focus returns to
   // whatever opened it.
@@ -25,7 +26,9 @@
 
   function onclose() {
     open = false;
+    // The opener can be gone, such as a sidebar row whose session was just deleted.
     if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+    else refocus();
   }
 </script>
 

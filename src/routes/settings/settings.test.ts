@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import type { Settings } from "$lib/api";
-import { app } from "$lib/store.svelte";
+import { app, toast } from "$lib/store.svelte";
 import { CLIS, backend } from "../../test/fixtures";
 import SettingsPage from "./+page.svelte";
 
@@ -160,4 +160,28 @@ test("finished sessions are kept for the time picked, and Delete history refresh
   await user.click(screen.getByRole("button", { name: "Press again to delete finished sessions" }));
   expect(calls.calls("delete_history")).toHaveLength(1);
   expect(calls.calls("list_sessions")).toHaveLength(1);
+});
+
+test("a setting that could not be saved shows the stored value again", async () => {
+  api();
+  backend({
+    get_settings: () => stored,
+    save_settings: () => new Error("The database is locked."),
+    companion_status: () => ({ running: false, address: null, port: 8765, error: null }),
+    list_devices: () => [],
+    app_info: () => ({ version: "0.1.0", dataDir: "C:\data", counts: { sessions: 0, devices: 0 } }),
+    default_project_roots: () => [],
+    project_folders: () => [],
+  });
+  const user = userEvent.setup();
+  render(SettingsPage);
+  const waiting = await screen.findByRole("checkbox", { name: "A session is waiting for you" });
+  expect(waiting).toBeChecked();
+  await user.click(waiting);
+  await vi.waitFor(() => expect(waiting).toBeChecked());
+
+  const scan = screen.getByLabelText(/How often OpenCompanion looks/);
+  await user.selectOptions(scan, "60");
+  await vi.waitFor(() => expect(scan).toHaveValue("10"));
+  expect(toast.text).toBe("The database is locked.");
 });

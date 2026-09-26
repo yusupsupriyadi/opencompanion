@@ -58,6 +58,14 @@
   const opened = $derived(tasks.find((t) => t.id === openId) ?? null);
   const openedSession = $derived(opened ? sessionOf(opened) : undefined);
 
+  // A card deleted on the computer while its sheet is open closes the sheet instead of emptying it.
+  $effect(() => {
+    if (sheetOpen && openId && !opened) {
+      sheetOpen = false;
+      notify("That card was deleted on your computer.");
+    }
+  });
+
   function sessionOf(t: Task) {
     return t.sessionId ? phone.sessions.find((s) => s.id === t.sessionId) : undefined;
   }

@@ -4,6 +4,7 @@
   import X from "phosphor-svelte/lib/X";
   import { api, errorText, type SessionInfo } from "./api";
   import CliMark from "./CliMark.svelte";
+  import { refocus } from "./focus";
   import { CLI_LABEL, ago, folderName, shortPath, waitingTitle } from "./format";
   import { app, showToast } from "./store.svelte";
 
@@ -21,6 +22,8 @@
     try {
       await api.answerSession(s.id, allow);
       showToast(allow ? `Approved. ${CLI_LABEL[s.cli]} continues in ${folderName(s.cwd)}.` : `Denied. ${CLI_LABEL[s.cli]} was told no.`);
+      // This panel leaves once the session runs again, taking the pressed button with it.
+      refocus();
     } catch (e) {
       failure = errorText(e);
     } finally {

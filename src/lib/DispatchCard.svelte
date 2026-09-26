@@ -5,6 +5,7 @@
   import TerminalWindow from "phosphor-svelte/lib/TerminalWindow";
   import { api, errorText, type ChatMessage, type CliKind, type DispatchCard, type Mode } from "./api";
   import CliMark from "./CliMark.svelte";
+  import { refocus } from "./focus";
   import StatusChip from "./StatusChip.svelte";
   import { CLI_LABEL, ago, folderName, shortPath } from "./format";
   import { app, showToast } from "./store.svelte";
@@ -15,6 +16,7 @@
   let busy = $state(false);
   let failure = $state("");
   let draft = $state({ cli: "claude" as CliKind, title: "", folder: "", prompt: "", mode: "headless" as Mode });
+  let slot: HTMLDivElement | undefined = $state();
 
   const session = $derived(card.sessionId ? app.sessions.find((s) => s.id === card.sessionId) : undefined);
   const labelId = $derived(`card-${card.id}`);
@@ -31,6 +33,8 @@
     try {
       onchange(await what());
       if (done) showToast(done);
+      // Run, Discard and Undo swap the buttons; focus moves to what took their place.
+      refocus(slot);
     } catch (e) {
       failure = errorText(e);
     } finally {
@@ -51,6 +55,7 @@
   const toBoard = () => act(() => api.chatCardToBoard(messageId, card.id), "Added to the Board in Todo.");
 </script>
 
+<div class="slot" bind:this={slot}>
 {#if card.state === "discarded"}
   <div class="discarded">
     <span class="grow">Discarded the {CLI_LABEL[card.cli]} card for {folderName(card.folder)}.</span>
@@ -129,8 +134,12 @@
     </div>
   </article>
 {/if}
+</div>
 
 <style>
+  .slot {
+    display: contents;
+  }
   .dcard {
     display: flex;
     flex-direction: column;

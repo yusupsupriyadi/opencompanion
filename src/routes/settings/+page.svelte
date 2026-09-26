@@ -28,13 +28,16 @@
   const planners = $derived(app.clis.filter((c) => c.path && c.kind !== "gemini"));
   const usingApi = $derived(settings?.plannerSource === "api");
 
-  function pickPlanner(value: string) {
+  async function pickPlanner(el: HTMLSelectElement) {
+    const value = el.value;
+    let ok;
     if (value === "api") {
       const done = settings?.plannerApi.baseUrl && settings.plannerApi.model;
-      save({ plannerSource: "api" }, done ? "Chat planner saved." : "Chat planner saved. Add the provider's base URL and model below.");
+      ok = await save({ plannerSource: "api" }, done ? "Chat planner saved." : "Chat planner saved. Add the provider's base URL and model below.");
     } else {
-      save({ plannerSource: "cli", chatCli: value as Settings["chatCli"] }, "Chat planner saved.");
+      ok = await save({ plannerSource: "cli", chatCli: value as Settings["chatCli"] }, "Chat planner saved.");
     }
+    if (!ok) el.value = usingApi ? "api" : (settings?.chatCli ?? planners[0]?.kind ?? "");
   }
 
   // The provider fields are saved together, on Save provider, so a half-typed URL is never used.
@@ -74,7 +77,8 @@
   async function applyMode(m: PermMode) {
     confirmBypass = false;
     modeChoice = m;
-    await save({ permissionMode: m }, `New sessions use ${modeLabel(m)}.`);
+    // A failed save leaves the stored mode in charge, so the choice shows it again.
+    if (!(await save({ permissionMode: m }, `New sessions use ${modeLabel(m)}.`))) modeChoice = settings?.permissionMode ?? "ask";
   }
 
   function keepMode() {
@@ -147,14 +151,26 @@
     };
   });
 
-  async function save(patch: Partial<Settings>, message?: string) {
-    if (!settings) return;
+  /** False when the save failed, so the control that asked can show the stored value again. */
+  async function save(patch: Partial<Settings>, message?: string): Promise<boolean> {
+    if (!settings) return false;
     try {
       settings = await saveSettings({ ...settings, ...patch });
       if (message) showToast(message);
+      return true;
     } catch (e) {
       showToast(errorText(e));
+      return false;
     }
+  }
+
+  /** Checkboxes and selects show what was picked, not what is stored; a failed save puts them back. */
+  async function saveControl(el: HTMLInputElement | HTMLSelectElement, patch: Partial<Settings>, message?: string) {
+    const was = el instanceof HTMLInputElement ? !el.checked : null;
+    const stored = settings;
+    if (await save(patch, message)) return;
+    if (el instanceof HTMLInputElement) el.checked = Boolean(was);
+    else if (stored) el.value = String(stored[Object.keys(patch)[0] as keyof Settings]);
   }
 
   async function newCode() {
@@ -221,8 +237,9 @@
     { days: 1, label: "1 day" },
   ];
 
-  async function pickKeep(days: number) {
-    await save({ keepDays: days }, days ? `Finished sessions older than ${KEEP.find((k) => k.days === days)?.label} are deleted from now on.` : "Finished sessions are kept until you delete them.");
+  async function pickKeep(el: HTMLSelectElement) {
+    const days = Number(el.value);
+    await saveControl(el, { keepDays: days }, days ? `Finished sessions older than ${KEEP.find((k) => k.days === days)?.label} are deleted from now on.` : "Finished sessions are kept until you delete them.");
     info = await api.appInfo().catch(() => info);
   }
 
@@ -280,9 +297,10 @@
               <div class="qr" role="img" aria-label="Pairing QR code for {pairing?.url}">{@html qrSvg}</div>
               <span class="meta">Pairing code</span>
               <span class="code">{pairing?.code.slice(0, 3)} {pairing?.code.slice(3)}</span>
-              <span class="meta" aria-live="polite">Expires in {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}</span>
+              <!-- Not a live region: a screen reader would read the countdown every second. The expiry is announced once, below. -->
+              <span class="meta">Expires in {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}</span>
             {:else}
-              <div class="qr empty"><span class="meta">{pairError || "The code expired."}</span></div>
+              <div class="qr empty"><span class="meta" role="status">{pairError || "The code expired. Press New code for another."}</span></div>
             {/if}
             <button class="btn secondary sm" type="button" style="align-self:flex-start" onclick={newCode}><ArrowClockwise size={16} aria-hidden="true" />New code</button>
           </div>
@@ -377,7 +395,7 @@
           class="select"
           id="planner-select"
           value={usingApi ? "api" : (settings.chatCli ?? planners[0]?.kind ?? "")}
-          onchange={(e) => pickPlanner((e.currentTarget as HTMLSelectElement).value)}
+          onchange={(e) => pickPlanner(e.currentTarget)}
         >
           {#each planners as c (c.kind)}<option value={c.kind}>{c.label} {c.version ?? ""}</option>{/each}
           {#if planners.length === 0}<option value="">No CLI can plan yet</option>{/if}
@@ -437,7 +455,7 @@
           </form>
         {/if}
         <label class="check-row">
-          <input type="checkbox" checked={settings.plannerCanRead && !usingApi} disabled={usingApi} onchange={(e) => save({ plannerCanRead: (e.currentTarget as HTMLInputElement).checked }, "Planner access saved.")} />
+          <input type="checkbox" checked={settings.plannerCanRead && !usingApi} disabled={usingApi} onchange={(e) => saveControl(e.currentTarget, { plannerCanRead: e.currentTarget.checked }, "Planner access saved.")} />
           <span>Let the planner read my project folders</span>
         </label>
         <p class="meta" style="margin:0">
@@ -470,9 +488,9 @@
       <section class="card" aria-labelledby="notif-title">
         <h2 id="notif-title">Notifications</h2>
         <div class="checks">
-          <label><input type="checkbox" checked={settings.notifyWaiting} onchange={(e) => save({ notifyWaiting: (e.currentTarget as HTMLInputElement).checked })} />A session is waiting for you</label>
-          <label><input type="checkbox" checked={settings.notifyDone} onchange={(e) => save({ notifyDone: (e.currentTarget as HTMLInputElement).checked })} />A session is done</label>
-          <label><input type="checkbox" checked={settings.notifyError} onchange={(e) => save({ notifyError: (e.currentTarget as HTMLInputElement).checked })} />A session stopped with an error</label>
+          <label><input type="checkbox" checked={settings.notifyWaiting} onchange={(e) => saveControl(e.currentTarget, { notifyWaiting: e.currentTarget.checked })} />A session is waiting for you</label>
+          <label><input type="checkbox" checked={settings.notifyDone} onchange={(e) => saveControl(e.currentTarget, { notifyDone: e.currentTarget.checked })} />A session is done</label>
+          <label><input type="checkbox" checked={settings.notifyError} onchange={(e) => saveControl(e.currentTarget, { notifyError: e.currentTarget.checked })} />A session stopped with an error</label>
         </div>
       </section>
 
@@ -497,7 +515,7 @@
       <section class="card" aria-labelledby="scan-title">
         <h2 id="scan-title">Outside sessions</h2>
         <label class="meta" for="scan-select">How often OpenCompanion looks for CLIs running in other terminals. The scan reads the process list only.</label>
-        <select class="select" id="scan-select" value={String(settings.scanSeconds)} onchange={(e) => save({ scanSeconds: Number((e.currentTarget as HTMLSelectElement).value) }, "Scan interval saved.")}>
+        <select class="select" id="scan-select" value={String(settings.scanSeconds)} onchange={(e) => saveControl(e.currentTarget, { scanSeconds: Number(e.currentTarget.value) }, "Scan interval saved.")}>
           <option value="5">Every 5 seconds</option>
           <option value="10">Every 10 seconds</option>
           <option value="30">Every 30 seconds</option>
@@ -512,7 +530,7 @@
           {#if info}{info.counts.sessions} sessions are stored.{/if}
         </p>
         <label class="meta" for="keep-select">Keep finished sessions for</label>
-        <select class="select" id="keep-select" value={String(settings.keepDays)} onchange={(e) => pickKeep(Number((e.currentTarget as HTMLSelectElement).value))}>
+        <select class="select" id="keep-select" value={String(settings.keepDays)} onchange={(e) => pickKeep(e.currentTarget)}>
           {#each KEEP as k (k.days)}<option value={String(k.days)}>{k.label}</option>{/each}
         </select>
         <p class="meta" style="margin:0">Older ones go with their events and terminal logs, checked every hour. Files the CLIs changed in your projects are never touched.</p>

@@ -362,6 +362,7 @@ Bottom tab bar di tiga layar utama (Sessions, Chat, Board): tinggi 56 + safe are
 - Status tidak pernah warna saja: chip selalu berlabel. Item sesi di sidebar hanya menampilkan logo CLI dan judul; CLI dan status tetap dibacakan screen reader dan ada di tooltip.
 - Semua kontrol bisa dicapai dengan Tab sesuai urutan visual; Enter/Space mengaktifkan; Esc menutup modal dan sheet.
 - Focus ring 2px `forest` + jarak 2px di kedua tema.
+- Aksi yang menghapus tombolnya sendiri (Approve, Run, Discard, dialog yang pembukanya sudah hilang) memindah fokus ke kontrol pertama yang menggantikannya, atau ke area utama halaman; fokus tidak pernah jatuh ke awal dokumen. Hitung mundur kode pairing tidak dibacakan tiap detik; kedaluwarsanya diumumkan sekali.
 - Terminal: xterm dengan mode screen reader aktif; ringkasan status sesi juga diumumkan lewat live region ("Codex CLI in ai-remote is waiting for you"). Selama CLI berjalan, Tab milik CLI, jadi Ctrl+Tab dan Ctrl+Shift+Tab memindah fokus keluar dari terminal (disebut di catatan bawah terminal); terminal yang sudah tertutup tidak menangkap Tab sama sekali.
 - Mobile: teks bisa diperbesar 200% tanpa terpotong; input fokus tidak tertutup keyboard.
 - Desktop: Settings › Text size (90, 100, 110, 125, 150%) memakai zoom webview, sehingga skala di bagian 3 dan spasi di bagian 4 membesar bersama. Di jendela sempit layout turun ke breakpoint 1100 dan 720 yang sudah ada.

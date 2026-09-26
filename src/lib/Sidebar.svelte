@@ -220,10 +220,10 @@
       <span class="chip {phoneOn ? 'run' : 'idle'}">{phoneOn ? "On" : "Off"}</span>
     </a>
     <div class="seg" role="group" aria-label="Theme">
-      <button type="button" aria-pressed={currentTheme() === "light"} onclick={() => setTheme("light")}>
+      <button type="button" title="Day" aria-pressed={currentTheme() === "light"} onclick={() => setTheme("light")}>
         <Sun size={16} aria-hidden="true" /><span class="lbl">Day</span>
       </button>
-      <button type="button" aria-pressed={currentTheme() === "dark"} onclick={() => setTheme("dark")}>
+      <button type="button" title="Dusk" aria-pressed={currentTheme() === "dark"} onclick={() => setTheme("dark")}>
         <Moon size={16} aria-hidden="true" /><span class="lbl">Dusk</span>
       </button>
     </div>

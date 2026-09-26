@@ -70,7 +70,7 @@
     {#if planners.length}
       <div class="field">
         <label class="label" for="ob-planner">Planner for Chat</label>
-        <select class="select" id="ob-planner" bind:value={chosen}>
+        <select class="select" id="ob-planner" value={pick} onchange={(e) => (chosen = e.currentTarget.value as CliKind)}>
           {#each planners as c (c.kind)}<option value={c.kind}>{c.label} {c.version ?? ""}</option>{/each}
         </select>
         <p class="help">Chat runs this CLI headless, with read-only access to your project folders, to turn your requests into session suggestions. You can change it later in Settings.</p>
