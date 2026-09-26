@@ -1,7 +1,7 @@
 //! Session manager (PRD section B): starts CLIs in a PTY or headless, tracks one status per
 //! session, detects "Waiting for you", answers permissions, and records everything in SQLite.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -75,6 +75,9 @@ struct Live {
     /// Pending Claude `can_use_tool` input, echoed back on Approve.
     pending_input: Mutex<Option<Value>>,
     hook_file: Option<PathBuf>,
+    /// Claude Code's Stop hook said the turn is over. Terminal redraws do not make it Running
+    /// again; the next hook report does.
+    hook_idle: AtomicBool,
 }
 
 pub struct Manager {
@@ -82,6 +85,23 @@ pub struct Manager {
     emit: Arc<dyn Emit>,
     data_dir: PathBuf,
     live: Mutex<HashMap<String, Arc<Live>>>,
+    /// Sessions a Resume or follow-up is starting right now, so a second press from the phone
+    /// or the desktop cannot start a second process.
+    spawning: Mutex<HashSet<String>>,
+}
+
+/// Holds a session's place in `Manager::spawning` until the spawn is over.
+struct Spawning<'a> {
+    set: &'a Mutex<HashSet<String>>,
+    id: String,
+}
+
+impl Drop for Spawning<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut set) = self.set.lock() {
+            set.remove(&self.id);
+        }
+    }
 }
 
 fn title_for(kind: CliKind, cwd: &str, prompt: &str) -> String {
@@ -177,7 +197,8 @@ fn event_summary(ev: &SessionEvent) -> Option<String> {
 /// Settings file injected into interactive Claude Code so its hooks report state to us.
 /// Hook commands run in Git Bash, which Claude Code on Windows requires.
 fn claude_hook_settings(hook_file: &Path) -> String {
-    let target = hook_file.display().to_string().replace('\\', "/");
+    // Single-quoted for Git Bash, so a quote in the path (C:\Users\O'Neil) closes and reopens it.
+    let target = hook_file.display().to_string().replace('\\', "/").replace('\'', r"'\''");
     let cmd = format!("cat >> '{target}'; echo >> '{target}'");
     let hook = serde_json::json!([{ "hooks": [{ "type": "command", "command": cmd }] }]);
     serde_json::json!({
@@ -201,6 +222,7 @@ impl Manager {
             emit,
             data_dir,
             live: Mutex::new(HashMap::new()),
+            spawning: Mutex::new(HashSet::new()),
         })
     }
 
@@ -221,16 +243,29 @@ impl Manager {
         self.emit.chat_changed(thread_id);
     }
 
+    /// This app and the CLIs it runs now. A finished session's PID is left out: Windows hands
+    /// it to new processes, which would then be hidden from the outside list.
     pub fn own_pids(&self) -> Vec<u32> {
         let mut pids = vec![std::process::id()];
         if let Ok(map) = self.live.lock() {
             for live in map.values() {
                 if let Ok(info) = live.info.lock() {
-                    pids.extend(info.pid);
+                    if info.status.is_live() {
+                        pids.extend(info.pid);
+                    }
                 }
             }
         }
         pids
+    }
+
+    /// Claims `id` for a spawn; `None` while another Resume or follow-up is starting it.
+    fn claim_spawn(&self, id: &str) -> Option<Spawning<'_>> {
+        let mut set = self.spawning.lock().ok()?;
+        set.insert(id.to_string()).then(|| Spawning {
+            set: &self.spawning,
+            id: id.to_string(),
+        })
     }
 
     fn resolve_exe(&self, kind: CliKind) -> Result<PathBuf, String> {
@@ -345,6 +380,7 @@ impl Manager {
             turn_failed: AtomicBool::new(false),
             pending_input: Mutex::new(None),
             hook_file,
+            hook_idle: AtomicBool::new(false),
         });
         if let Ok(mut map) = self.live.lock() {
             map.insert(id, Arc::clone(&live));
@@ -363,10 +399,12 @@ impl Manager {
             let before = info.status;
             f(&mut info);
             info.updated_at = db::now_ms();
+            // Stored and announced under the lock: a reader thread's copy taken just before a
+            // finish can then never land after it and show the session running again.
+            let _ = self.db.upsert_session(&info);
+            self.emit.session(&info);
             (before, info.clone())
         };
-        let _ = self.db.upsert_session(&after);
-        self.emit.session(&after);
         if before != after.status {
             self.on_status_change(before, &after);
         }
@@ -436,17 +474,26 @@ impl Manager {
     }
 
     fn finish(&self, live: &Live, status: Status, code: Option<i32>, note: Option<String>) {
-        self.update(live, |i| {
-            i.status = status;
-            i.exit_code = code.or(i.exit_code);
-            i.ended_at = Some(db::now_ms());
-            i.waiting = None;
-            if let Some(n) = note {
-                i.last_event = Some(n);
-            }
-        });
+        let id = self
+            .update(live, |i| {
+                i.status = status;
+                i.exit_code = code.or(i.exit_code);
+                i.ended_at = Some(db::now_ms());
+                i.waiting = None;
+                if let Some(n) = note {
+                    i.last_event = Some(n);
+                }
+            })
+            .id;
         if let Ok(mut r) = live.runner.lock() {
             *r = Runner::None;
+        }
+        // A finished session keeps nothing in memory: its terminal output is in the log, and
+        // Resume or a follow-up registers it again. Only this copy leaves, not a newer one.
+        if let Ok(mut map) = self.live.lock() {
+            if map.get(&id).is_some_and(|l| std::ptr::eq(Arc::as_ptr(l), live)) {
+                map.remove(&id);
+            }
         }
     }
 
@@ -640,7 +687,7 @@ impl Manager {
             if info.waiting.is_none() {
                 if quiet && info.status == Status::Running {
                     self.update(&live, |i| i.status = Status::Idle);
-                } else if !quiet && info.status == Status::Idle {
+                } else if !quiet && info.status == Status::Idle && !live.hook_idle.load(Ordering::SeqCst) {
                     self.update(&live, |i| i.status = Status::Running);
                 }
             }
@@ -665,7 +712,11 @@ impl Manager {
                 self.update(live, |i| i.cli_session_id = Some(sid));
             }
         }
-        match v["hook_event_name"].as_str() {
+        let event = v["hook_event_name"].as_str();
+        if event.is_some() {
+            live.hook_idle.store(event == Some("Stop"), Ordering::SeqCst);
+        }
+        match event {
             Some("PermissionRequest") => {
                 let tool = v["tool_name"].as_str().unwrap_or_default().to_string();
                 let detail = hook_input_summary(&v["tool_input"]);
@@ -985,6 +1036,9 @@ impl Manager {
             .clone()
             .ok_or("This CLI did not report a session id, so the conversation cannot continue.")?;
         let exe = self.resolve_exe(info.cli)?;
+        let _claim = self
+            .claim_spawn(id)
+            .ok_or("The next turn is starting. Send your message again in a moment.")?;
         let live = match self.get_live(id) {
             Ok(l) => l,
             Err(_) => self.register(info.clone(), false),
@@ -1000,6 +1054,7 @@ impl Manager {
 
     /// Reopens a finished interactive session with the CLI's own resume (PRD FR-15).
     pub fn resume(self: &Arc<Self>, id: &str, cols: Option<u16>, rows: Option<u16>) -> Result<SessionInfo, String> {
+        let _claim = self.claim_spawn(id).ok_or("This session is already resuming.")?;
         let info = self.db.session(id)?.ok_or("Session not found.")?;
         if info.status.is_live() {
             return Err("This session is still running.".into());
@@ -1223,6 +1278,12 @@ mod tests {
         let cmd = v["hooks"]["PermissionRequest"][0]["hooks"][0]["command"].as_str().unwrap();
         assert!(cmd.contains("'C:/data/hooks/a.jsonl'"));
         assert!(v["hooks"]["Stop"].is_array());
+
+        // A quote in the profile folder closes the quoted path and opens it again.
+        let s = claude_hook_settings(Path::new(r"C:\Users\O'Neil\hooks\a.jsonl"));
+        let v: Value = serde_json::from_str(&s).unwrap();
+        let cmd = v["hooks"]["Stop"][0]["hooks"][0]["command"].as_str().unwrap();
+        assert_eq!(cmd, r"cat >> 'C:/Users/O'\''Neil/hooks/a.jsonl'; echo >> 'C:/Users/O'\''Neil/hooks/a.jsonl'");
     }
 
     struct NoEmit;
@@ -1278,6 +1339,47 @@ mod tests {
         assert!(db.session("done").unwrap().is_none());
         assert!(!m.log_path("done").exists() && !m.hook_path("done").exists());
         assert_eq!(m.delete("done").unwrap_err(), "Session not found.");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    fn temp_manager(name: &str) -> (PathBuf, Arc<Db>, Arc<Manager>) {
+        let dir = std::env::temp_dir().join(format!("air-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let db = Arc::new(Db::open_in_memory().unwrap());
+        let m = Manager::new(Arc::clone(&db), Arc::new(NoEmit), dir.clone());
+        (dir, db, m)
+    }
+
+    #[test]
+    fn a_finished_session_leaves_memory_and_the_own_pids() {
+        let (dir, db, m) = temp_manager("own");
+        let mut running = stored("run", Status::Running);
+        running.pid = Some(111);
+        let mut done = stored("done", Status::Done);
+        done.pid = Some(222);
+        db.upsert_session(&running).unwrap();
+        db.upsert_session(&done).unwrap();
+        let live = m.register(running, false);
+        m.register(done, false);
+        let own = m.own_pids();
+        assert!(own.contains(&111) && !own.contains(&222));
+
+        m.finish(&live, Status::Stopped, None, None);
+        assert!(m.get_live("run").is_err());
+        assert!(!m.own_pids().contains(&111));
+        assert_eq!(db.session("run").unwrap().unwrap().status, Status::Stopped);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_second_resume_or_follow_up_waits_for_the_first() {
+        let (dir, _db, m) = temp_manager("claim");
+        let first = m.claim_spawn("s1");
+        assert!(first.is_some());
+        assert!(m.claim_spawn("s1").is_none());
+        assert!(m.claim_spawn("s2").is_some());
+        drop(first);
+        assert!(m.claim_spawn("s1").is_some());
         let _ = fs::remove_dir_all(&dir);
     }
 
