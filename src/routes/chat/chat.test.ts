@@ -1,10 +1,10 @@
 import { render, screen, waitFor, within } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test } from "vitest";
 import type { ChatMessage, ChatThread, Settings } from "$lib/api";
 import { app, forgetModelLists } from "$lib/store.svelte";
 import { page, setUrl } from "../../test/app-state.svelte";
-import { CLIS, backend } from "../../test/fixtures";
+import { CLIS, backend, session } from "../../test/fixtures";
 import ChatPage from "./+page.svelte";
 
 const now = Date.now();
@@ -38,12 +38,24 @@ function chats(threads: ChatThread[] = [docs, tests]) {
 }
 
 const list = () => within(screen.getByRole("navigation", { name: "Chats" }));
+const rail = () => screen.queryByRole("complementary", { name: "Live sessions" });
+
+// The shared jsdom stub reads as a narrow window; this one is at least 1280 wide.
+const narrowWindow = window.matchMedia;
+function wideWindow() {
+  window.matchMedia = ((media: string) => ({ ...narrowWindow(media), matches: media.includes("min-width: 1280px") })) as typeof window.matchMedia;
+}
 
 beforeEach(() => {
   app.clis = CLIS;
   app.sessions = [];
   app.settings = null;
   app.now = now;
+  localStorage.removeItem("air-chat-rail-hidden");
+});
+
+afterEach(() => {
+  window.matchMedia = narrowWindow;
 });
 
 test("the list shows every chat, newest first, and opens the one in the address", async () => {
@@ -188,4 +200,49 @@ test("with no CLI that can plan, the composer says why Send is off", async () =>
   expect(await screen.findByText("No CLI that can plan is installed.")).toBeInTheDocument();
   await user.type(screen.getByLabelText("Message the planner"), "Fix the tests");
   expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+});
+
+test("a wide window docks the live rail, and hiding it is remembered", async () => {
+  wideWindow();
+  setUrl("/chat");
+  chats([]);
+  app.sessions = [session()];
+  const user = userEvent.setup();
+  const { unmount } = render(ChatPage);
+  const toggle = screen.getByRole("button", { name: "Live sessions" });
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  expect(rail()).toHaveTextContent("Add a dark mode toggle");
+
+  await user.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(rail()).not.toBeInTheDocument();
+  unmount();
+
+  render(ChatPage);
+  expect(rail()).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Live sessions" }));
+  expect(rail()).toBeInTheDocument();
+  expect(localStorage.getItem("air-chat-rail-hidden")).toBeNull();
+});
+
+test("a narrow window opens the live rail over the chat, and Escape closes it", async () => {
+  setUrl("/chat");
+  chats([]);
+  app.sessions = [session()];
+  const user = userEvent.setup();
+  render(ChatPage);
+  const toggle = screen.getByRole("button", { name: "Live sessions" });
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(rail()).not.toBeInTheDocument();
+
+  await user.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  const link = within(rail()!).getByRole("link", { name: /Add a dark mode toggle/ });
+  expect(link).toHaveAttribute("href", "/session?id=s1");
+  await user.tab();
+  expect(link).toHaveFocus();
+
+  await user.keyboard("{Escape}");
+  expect(rail()).not.toBeInTheDocument();
+  expect(toggle).toHaveFocus();
 });

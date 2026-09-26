@@ -4,9 +4,11 @@
   import CaretDown from "phosphor-svelte/lib/CaretDown";
   import PaperPlaneTilt from "phosphor-svelte/lib/PaperPlaneTilt";
   import Plus from "phosphor-svelte/lib/Plus";
+  import SidebarSimple from "phosphor-svelte/lib/SidebarSimple";
   import SpinnerGap from "phosphor-svelte/lib/SpinnerGap";
   import Trash from "phosphor-svelte/lib/Trash";
   import { onMount, tick, untrack } from "svelte";
+  import { MediaQuery } from "svelte/reactivity";
   import { api, errorText, type ChatMessage, type ChatThread } from "$lib/api";
   import CliMark from "$lib/CliMark.svelte";
   import DispatchCard from "$lib/DispatchCard.svelte";
@@ -62,6 +64,49 @@
   });
   const canPlan = $derived(provider ? provider.ready : planner !== null);
   const liveSessions = $derived(app.sessions.filter(isLive));
+
+  // A wide window docks the rail and remembers when it was hidden; a narrower one opens it over the conversation.
+  const RAIL_KEY = "air-chat-rail-hidden";
+  const wide = new MediaQuery("min-width: 1280px", true);
+  let railHidden = $state(readRailHidden());
+  let railPeek = $state(false);
+  let railBtn: HTMLButtonElement | undefined = $state();
+  let railPop: HTMLElement | undefined = $state();
+  const railOpen = $derived(wide.current ? !railHidden : railPeek);
+
+  function readRailHidden() {
+    try {
+      return localStorage.getItem(RAIL_KEY) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function toggleRail() {
+    if (!wide.current) {
+      railPeek = !railPeek;
+      return;
+    }
+    railHidden = !railHidden;
+    try {
+      if (railHidden) localStorage.setItem(RAIL_KEY, "1");
+      else localStorage.removeItem(RAIL_KEY);
+    } catch {
+      // Private windows can refuse storage; the change still holds for this session.
+    }
+  }
+
+  // Escape closes the floating rail from anywhere, unless another control used it first (the @ folder list).
+  function closePeek(e: KeyboardEvent) {
+    if (e.key !== "Escape" || !railPeek || e.defaultPrevented) return;
+    const inside = railPop?.contains(document.activeElement);
+    railPeek = false;
+    if (inside) railBtn?.focus();
+  }
+
+  $effect(() => {
+    if (wide.current) railPeek = false;
+  });
 
   async function scrollDown() {
     await tick();
@@ -189,8 +234,9 @@
 </script>
 
 <svelte:head><title>{current ? `${current.title} · ` : ""}Chat · OpenCompanion</title></svelte:head>
+<svelte:window onkeydown={closePeek} />
 
-<div class="chat-wrap">
+<div class="chat-wrap" class:docked={railOpen && wide.current}>
   <nav class="history" class:open={listOpen} id="chat-history" aria-labelledby="history-title">
     <div class="history-head">
       <h2 id="history-title" class="grow">Chats</h2>
@@ -235,6 +281,24 @@
         <button class="btn ghost" type="button" id="btn-delete-chat" onclick={deleteChat} disabled={thinkingHere}>
           <Trash size={16} aria-hidden="true" />{confirmDelete ? "Press again to delete" : "Delete chat"}
         </button>
+      {/if}
+      <button
+        class="icon-btn"
+        type="button"
+        id="btn-live-rail"
+        bind:this={railBtn}
+        aria-expanded={railOpen}
+        aria-controls="chat-live-rail"
+        aria-label="Live sessions"
+        title={railOpen ? "Hide live sessions" : "Show live sessions"}
+        onclick={toggleRail}
+      >
+        <SidebarSimple size={20} weight={railOpen ? "fill" : "regular"} mirrored aria-hidden="true" />
+      </button>
+      {#if railOpen && !wide.current}
+        <aside class="rail pop" id="chat-live-rail" aria-labelledby="rail-title" bind:this={railPop}>
+          {@render live()}
+        </aside>
       {/if}
     </header>
 
@@ -319,31 +383,40 @@
     </form>
   </main>
 
-  <aside class="rail" aria-labelledby="rail-title">
-    <h2 id="rail-title">Live sessions</h2>
-    {#if liveSessions.length === 0}
-      <p class="meta" style="margin:0">Nothing is running. Sessions you start from a card show up here.</p>
-    {/if}
-    {#each liveSessions as s (s.id)}
-      <a class="live" href="/session?id={s.id}">
-        <span class="row" style="gap:8px">
-          <CliMark kind={s.cli} small />
-          <b class="grow" title={s.title}>{s.title}</b>
-          <StatusChip status={s.status} />
-        </span>
-        <Horizon marks={s.marks} start={s.startedAt} end={app.now} live={s.status === "running"} full />
-        <span class="meta" style="font-size:12px"><span title={s.cwd}>{CLI_LABEL[s.cli]} in {folderName(s.cwd)}</span> · {s.lastEvent ?? "Starting"}</span>
-      </a>
-    {/each}
-  </aside>
+  {#if railOpen && wide.current}
+    <aside class="rail" id="chat-live-rail" aria-labelledby="rail-title">
+      {@render live()}
+    </aside>
+  {/if}
 </div>
+
+{#snippet live()}
+  <h2 id="rail-title">Live sessions</h2>
+  {#if liveSessions.length === 0}
+    <p class="meta" style="margin:0">Nothing is running. Sessions you start from a card show up here.</p>
+  {/if}
+  {#each liveSessions as s (s.id)}
+    <a class="live" href="/session?id={s.id}">
+      <span class="row" style="gap:8px">
+        <CliMark kind={s.cli} small />
+        <b class="grow" title={s.title}>{s.title}</b>
+        <StatusChip status={s.status} />
+      </span>
+      <Horizon marks={s.marks} start={s.startedAt} end={app.now} live={s.status === "running"} full />
+      <span class="meta" style="font-size:12px"><span title={s.cwd}>{CLI_LABEL[s.cli]} in {folderName(s.cwd)}</span> · {s.lastEvent ?? "Starting"}</span>
+    </a>
+  {/each}
+{/snippet}
 
 <style>
   .chat-wrap {
     display: grid;
-    grid-template-columns: 240px minmax(0, 1fr) 300px;
+    grid-template-columns: 240px minmax(0, 1fr);
     gap: 12px;
     min-height: 0;
+  }
+  .chat-wrap.docked {
+    grid-template-columns: 240px minmax(0, 1fr) 300px;
   }
   .ellipsis {
     overflow: hidden;
@@ -531,6 +604,7 @@
   /* No plate behind the header, at the owner's request. Each control carries its own glass instead, since ink over the
      bare Day sky drops to about 1.9:1. */
   .page-head {
+    position: relative;
     width: fit-content;
     align-self: flex-end;
     padding: 0;
@@ -539,14 +613,27 @@
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
-  .page-head > .btn {
+  .page-head > .btn,
+  .page-head > .icon-btn {
     background: var(--surface);
     box-shadow: var(--glass-rim);
     -webkit-backdrop-filter: var(--glass-blur);
     backdrop-filter: var(--glass-blur);
   }
-  .page-head > .btn:hover {
+  .page-head > .btn:hover,
+  .page-head > .icon-btn:hover {
     background: var(--surface-2);
+  }
+  /* Below 1280 the rail has no column, so it floats under its button above the conversation. */
+  .rail.pop {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 5;
+    width: min(300px, calc(100vw - 32px));
+    max-height: min(480px, 60vh);
+    padding: 20px;
+    box-shadow: var(--glass-rim), var(--shadow-modal);
   }
   .live {
     display: flex;
@@ -565,14 +652,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-  @media (max-width: 1279px) {
-    .chat-wrap {
-      grid-template-columns: 240px minmax(0, 1fr);
-    }
-    .rail {
-      display: none;
-    }
   }
   @media (max-width: 900px) {
     .chat-wrap {
@@ -617,6 +696,10 @@
     .composer-bar > .send {
       width: 44px;
       min-height: 44px;
+    }
+    .page-head .icon-btn {
+      width: 44px;
+      height: 44px;
     }
     .chat-col {
       padding: 20px 16px;

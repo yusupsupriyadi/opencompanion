@@ -27,6 +27,18 @@ if (!HTMLDialogElement.prototype.showModal) {
   };
 }
 
+// jsdom has no matchMedia, so every media query reads as not matching: a narrow window with the light theme.
+window.matchMedia ??= ((media: string) => ({
+  matches: false,
+  media,
+  onchange: null,
+  addEventListener() {},
+  removeEventListener() {},
+  addListener() {},
+  removeListener() {},
+  dispatchEvent: () => false,
+})) as unknown as typeof window.matchMedia;
+
 // xterm needs canvas and layout APIs that jsdom does not have; it is not under test here.
 class NoopObserver {
   observe() {}
