@@ -45,12 +45,12 @@ The integration tests drive a stand-in CLI (`src-tauri/src/bin/fake-cli.rs`) tha
 
 ## Status
 
-Built: the P0 requirements of PRD sections A to G, most P1 ones (install commands, custom CLI paths, resume, waiting detection, Approve/Deny, planner context, activity track, device list, offline screen, permission modes Ask me / Plan / Auto / Bypass, text size, planner model and thinking level, `@` folder mentions in Chat, CPU and memory per session, transcripts of sessions opened outside OpenCompanion), and the Board (section H, including Add to board from Chat). Outside the PRD: the Skills screen, which shows which skill is missing from a CLI's folder or has different content there, with a copy command to run yourself.
+Built: the P0 requirements of PRD sections A to G, most P1 ones (install commands, custom CLI paths, resume, waiting detection, Approve/Deny, planner context, activity track, device list, offline screen, permission modes Ask me / Plan / Auto / Bypass, text size, planner model and thinking level, `@` folder mentions in Chat, CPU and memory per session, transcripts of sessions opened outside OpenCompanion, retention of finished sessions), and the Board (section H, including Add to board from Chat). Outside the PRD: the Skills screen, which shows which skill is missing from a CLI's folder or has different content there, with a copy command to run yourself.
 
 Known limits:
 
 - Approve/Deny works for Claude Code (headless through its stdio control protocol, interactive through hooks). Codex and OpenCode prompts are answered in their own terminal; OpenCode's headless `run` refuses prompts by itself.
 - Codex success-path events are parsed from its documentation; on the development machine Codex could not authenticate, so only its failure path was observed.
 - Clicking a desktop notification does not open the session yet (part of FR-40): the Tauri notification plugin has no click action on desktop.
-- Not built yet: sending a task to a running session from Chat (FR-25), per-CLI or per-project notification choices (FR-41), automatic retention (FR-62 has manual delete only), UI language switch (FR-63), tray mode (FR-18) and Web Push to the phone (FR-42).
+- Not built yet: sending a task to a running session from Chat (FR-25), per-CLI or per-project notification choices (FR-41), UI language switch (FR-63), tray mode (FR-18) and Web Push to the phone (FR-42).
 - Windows 11 is the tested platform. macOS and Linux build from the same code but are untested.

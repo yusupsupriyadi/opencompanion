@@ -222,6 +222,8 @@ export interface Settings {
   /** What answers in Chat: the chosen CLI, or the model in `plannerApi`. */
   plannerSource: "cli" | "api";
   plannerApi: PlannerApi;
+  /** Days a finished session is kept before it is deleted with its logs; 0 keeps it. */
+  keepDays: number;
 }
 
 /** Mirrors `db::PlannerApi`: an OpenAI-compatible chat completions endpoint. */

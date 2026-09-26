@@ -8,7 +8,7 @@
   import { onMount } from "svelte";
   import { api, errorText, type AppInfo, type Device, type Pairing, type PermMode, type PlannerApi, type Settings } from "$lib/api";
   import { MODES, TEXT_SIZES, ago, modeLabel } from "$lib/format";
-  import { app, loadSettings, saveSettings, showToast } from "$lib/store.svelte";
+  import { app, loadSettings, refreshSessions, saveSettings, showToast } from "$lib/store.svelte";
 
   let settings = $state<Settings | null>(null);
   let loadError = $state("");
@@ -203,11 +203,27 @@
     try {
       await api.deleteHistory();
       clearStep = false;
-      info = await api.appInfo();
-      showToast("Finished sessions were deleted from the history.");
+      showToast("Finished sessions were deleted with their terminal logs.");
     } catch (e) {
       showToast(errorText(e));
+    } finally {
+      // Whatever was deleted leaves every list, even when one session could not go.
+      refreshSessions();
+      info = await api.appInfo().catch(() => info);
     }
+  }
+
+  const KEEP = [
+    { days: 0, label: "Forever" },
+    { days: 90, label: "90 days" },
+    { days: 30, label: "30 days" },
+    { days: 7, label: "7 days" },
+    { days: 1, label: "1 day" },
+  ];
+
+  async function pickKeep(days: number) {
+    await save({ keepDays: days }, days ? `Finished sessions older than ${KEEP.find((k) => k.days === days)?.label} are deleted from now on.` : "Finished sessions are kept until you delete them.");
+    info = await api.appInfo().catch(() => info);
   }
 
   async function copy(text: string) {
@@ -495,6 +511,11 @@
           Sessions, their events and terminal logs are stored on this computer only{info ? `, in ${info.dataDir}` : ""}.
           {#if info}{info.counts.sessions} sessions are stored.{/if}
         </p>
+        <label class="meta" for="keep-select">Keep finished sessions for</label>
+        <select class="select" id="keep-select" value={String(settings.keepDays)} onchange={(e) => pickKeep(Number((e.currentTarget as HTMLSelectElement).value))}>
+          {#each KEEP as k (k.days)}<option value={String(k.days)}>{k.label}</option>{/each}
+        </select>
+        <p class="meta" style="margin:0">Older ones go with their events and terminal logs, checked every hour. Files the CLIs changed in your projects are never touched.</p>
         <button class="btn secondary" type="button" style="align-self:flex-start" onclick={clearHistory}>
           {clearStep ? "Press again to delete finished sessions" : "Delete finished sessions"}
         </button>

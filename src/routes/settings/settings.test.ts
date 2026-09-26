@@ -24,6 +24,7 @@ const base: Settings = {
   chatModels: {},
   plannerSource: "cli",
   plannerApi: { baseUrl: "", model: "", apiKey: "" },
+  keepDays: 0,
 };
 
 let stored: Settings;
@@ -144,4 +145,19 @@ test("the provider form names what is missing instead of saving", async () => {
   await user.click(screen.getByRole("button", { name: "Save provider" }));
   expect(screen.getByText("The base URL must start with http:// or https://.")).toBeInTheDocument();
   expect(calls.calls("save_settings")).toHaveLength(0);
+});
+
+test("finished sessions are kept for the time picked, and Delete history refreshes every list", async () => {
+  const calls = api();
+  const user = userEvent.setup();
+  render(SettingsPage);
+  const keep = await screen.findByLabelText("Keep finished sessions for");
+  expect(keep).toHaveValue("0");
+  await user.selectOptions(keep, "30");
+  expect(calls.calls("save_settings").at(-1)).toMatchObject({ settings: { keepDays: 30 } });
+
+  await user.click(screen.getByRole("button", { name: "Delete finished sessions" }));
+  await user.click(screen.getByRole("button", { name: "Press again to delete finished sessions" }));
+  expect(calls.calls("delete_history")).toHaveLength(1);
+  expect(calls.calls("list_sessions")).toHaveLength(1);
 });

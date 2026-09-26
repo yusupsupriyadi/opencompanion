@@ -296,6 +296,11 @@ impl Manager {
         self.data_dir.join("hooks").join(format!("{id}.jsonl"))
     }
 
+    /// The `--settings` file that points Claude Code's hooks at `hook_path`.
+    fn hook_settings_path(&self, id: &str) -> PathBuf {
+        self.data_dir.join("hooks").join(format!("{id}.settings.json"))
+    }
+
     // Lifecycle
 
     pub fn start(self: &Arc<Self>, req: StartRequest) -> Result<SessionInfo, String> {
@@ -511,7 +516,7 @@ impl Manager {
         let info = self.info(live);
         let mut args = Vec::new();
         if let Some(hook_file) = &live.hook_file {
-            let settings_path = hook_file.with_extension("settings.json");
+            let settings_path = self.hook_settings_path(&info.id);
             fs::write(&settings_path, claude_hook_settings(hook_file)).map_err(|e| e.to_string())?;
             let _ = File::create(hook_file);
             args.extend(["--settings".to_string(), settings_path.display().to_string()]);
@@ -1134,7 +1139,7 @@ impl Manager {
         }
         drop(map);
         self.db.delete_session(id)?;
-        for path in [self.log_path(id), self.hook_path(id)] {
+        for path in [self.log_path(id), self.hook_path(id), self.hook_settings_path(id)] {
             match fs::remove_file(&path) {
                 Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
                     return Err(format!("The session is gone, but {} could not be removed: {e}", path.display()));
@@ -1143,6 +1148,56 @@ impl Manager {
             }
         }
         Ok(())
+    }
+
+    /// Settings › History "Delete finished sessions": every finished session with its files.
+    /// Returns the ids that are gone, and why any could not go.
+    pub fn delete_finished(&self) -> (Vec<String>, Vec<String>) {
+        let ids = match self.db.finished_sessions(None) {
+            Ok(ids) => ids,
+            Err(e) => return (vec![], vec![e]),
+        };
+        let (mut gone, mut problems) = (Vec::new(), Vec::new());
+        for id in ids {
+            match self.delete(&id) {
+                Ok(()) => gone.push(id),
+                Err(e) => problems.push(e),
+            }
+        }
+        self.sweep_files();
+        (gone, problems)
+    }
+
+    /// Retention (PRD FR-62): finished sessions that ended more than `keep_days` ago go, with
+    /// their events, terminal logs and hook files. `0` keeps everything. Returns the ids that went.
+    pub fn prune(&self, keep_days: u32) -> Vec<String> {
+        let mut gone = Vec::new();
+        if keep_days > 0 {
+            let cutoff = db::now_ms() - i64::from(keep_days) * 86_400_000;
+            for id in self.db.finished_sessions(Some(cutoff)).unwrap_or_default() {
+                if self.delete(&id).is_ok() {
+                    gone.push(id);
+                }
+            }
+        }
+        self.sweep_files();
+        gone
+    }
+
+    /// Terminal logs and hook files whose session is no longer stored, such as those an older
+    /// Delete history left behind. A log can hold secrets the CLI printed, so none stays.
+    fn sweep_files(&self) {
+        for dir in [self.data_dir.join("sessions"), self.data_dir.join("hooks")] {
+            let Ok(entries) = fs::read_dir(&dir) else { continue };
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                let id = name.split('.').next().unwrap_or_default();
+                let is_id = id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit());
+                if is_id && matches!(self.db.session(id), Ok(None)) && self.get_live(id).is_err() {
+                    let _ = fs::remove_file(entry.path());
+                }
+            }
+        }
     }
 
     /// Terminal text for a view that attaches late: the live buffer, or the log tail.
@@ -1348,6 +1403,45 @@ mod tests {
         let db = Arc::new(Db::open_in_memory().unwrap());
         let m = Manager::new(Arc::clone(&db), Arc::new(NoEmit), dir.clone());
         (dir, db, m)
+    }
+
+    #[test]
+    fn retention_removes_old_finished_sessions_with_their_files_and_sweeps_leftovers() {
+        let (dir, db, m) = temp_manager("prune");
+        let day = 86_400_000;
+        let (old_id, new_id, live_id, orphan) = ("a".repeat(32), "b".repeat(32), "c".repeat(32), "d".repeat(32));
+        let mut old = stored(&old_id, Status::Done);
+        old.ended_at = Some(db::now_ms() - 10 * day);
+        let mut recent = stored(&new_id, Status::Error);
+        recent.ended_at = Some(db::now_ms() - day / 2);
+        let mut running = stored(&live_id, Status::Running);
+        running.started_at = db::now_ms() - 30 * day;
+        for s in [&old, &recent, &running] {
+            db.upsert_session(s).unwrap();
+            fs::write(m.log_path(&s.id), "output").unwrap();
+        }
+        fs::write(m.hook_settings_path(&old_id), "{}").unwrap();
+        fs::write(m.log_path(&orphan), "left behind").unwrap();
+        fs::write(m.hook_path(&orphan), "{}").unwrap();
+        fs::write(dir.join("sessions").join("notes.txt"), "not ours to judge").unwrap();
+
+        // Keeping everything still sweeps files whose session is gone.
+        assert!(m.prune(0).is_empty());
+        assert!(!m.log_path(&orphan).exists() && !m.hook_path(&orphan).exists());
+        assert!(dir.join("sessions").join("notes.txt").exists());
+
+        assert_eq!(m.prune(7), vec![old_id.clone()]);
+        assert!(db.session(&old_id).unwrap().is_none());
+        assert!(!m.log_path(&old_id).exists() && !m.hook_settings_path(&old_id).exists());
+        assert!(db.session(&new_id).unwrap().is_some() && m.log_path(&new_id).exists());
+        assert!(db.session(&live_id).unwrap().is_some() && m.log_path(&live_id).exists());
+
+        // Delete history takes every finished session and leaves the running one.
+        let (gone, problems) = m.delete_finished();
+        assert_eq!((gone, problems), (vec![new_id.clone()], vec![]));
+        assert!(!m.log_path(&new_id).exists());
+        assert!(db.session(&live_id).unwrap().is_some());
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

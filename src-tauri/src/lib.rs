@@ -226,18 +226,42 @@ async fn resume_session(state: State<'_, AppState>, id: String, cols: Option<u16
     blocking(move || manager.resume(&id, cols, rows)).await
 }
 
+/// Tells every screen and the phone that sessions are gone, and that Board cards lost their link.
+fn announce_deleted(app: &AppHandle, manager: &session::Manager, companion: &Companion, ids: &[String]) {
+    if ids.is_empty() {
+        return;
+    }
+    for id in ids {
+        let _ = app.emit("session-deleted", id);
+    }
+    manager.tasks_changed();
+    companion.broadcast(json!({ "type": "resync" }));
+}
+
+/// Deletes every finished session with its events, terminal log and hook files.
 #[tauri::command]
-fn delete_history(state: State<'_, AppState>) -> Res<()> {
-    state.db.delete_history()
+async fn delete_history(app: AppHandle, state: State<'_, AppState>) -> Res<()> {
+    let manager = Arc::clone(&state.manager);
+    let (gone, problems) = blocking(move || Ok(manager.delete_finished())).await?;
+    announce_deleted(&app, &state.manager, &state.companion, &gone);
+    match problems.first() {
+        Some(first) => Err(first.clone()),
+        None => Ok(()),
+    }
 }
 
 #[tauri::command]
 fn delete_session(app: AppHandle, state: State<'_, AppState>, id: String) -> Res<()> {
     state.manager.delete(&id)?;
-    let _ = app.emit("session-deleted", &id);
-    state.manager.tasks_changed();
-    state.companion.broadcast(json!({ "type": "resync" }));
+    announce_deleted(&app, &state.manager, &state.companion, &[id]);
     Ok(())
+}
+
+/// Retention (PRD FR-62), run at start, every hour, and when Settings shortens it.
+fn prune(app: &AppHandle, manager: &session::Manager, companion: &Companion, db: &Db) {
+    let keep = db.settings().map(|s| s.keep_days).unwrap_or(0);
+    let gone = manager.prune(keep);
+    announce_deleted(app, manager, companion, &gone);
 }
 
 #[tauri::command]
@@ -475,6 +499,10 @@ async fn save_settings(app: AppHandle, state: State<'_, AppState>, settings: Set
     if before.text_size != settings.text_size {
         apply_text_size(&app, &settings);
     }
+    if before.keep_days != settings.keep_days {
+        let (handle, manager, companion, db) = (app.clone(), Arc::clone(&state.manager), Arc::clone(&state.companion), Arc::clone(&state.db));
+        tauri::async_runtime::spawn_blocking(move || prune(&handle, &manager, &companion, &db));
+    }
     let companion = Arc::clone(&state.companion);
     let restart = settings.companion_enabled
         && (!before.companion_enabled || before.companion_port != settings.companion_port || !companion.status().running);
@@ -579,6 +607,13 @@ pub fn run() {
                 });
             }
             apply_text_size(app.handle(), &db.settings()?);
+            {
+                let (handle, manager, companion, db) = (app.handle().clone(), Arc::clone(&manager), Arc::clone(&companion), Arc::clone(&db));
+                std::thread::spawn(move || loop {
+                    prune(&handle, &manager, &companion, &db);
+                    std::thread::sleep(std::time::Duration::from_secs(3600));
+                });
+            }
             app.manage(AppState {
                 db,
                 manager,

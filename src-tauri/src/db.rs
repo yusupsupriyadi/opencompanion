@@ -239,6 +239,8 @@ pub struct Settings {
     /// What answers in Chat: the chosen CLI, or the model in `planner_api`.
     pub planner_source: PlannerSource,
     pub planner_api: PlannerApi,
+    /// Days a finished session is kept before retention deletes it with its logs; 0 keeps it.
+    pub keep_days: u32,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -315,6 +317,7 @@ impl Default for Settings {
             chat_models: HashMap::new(),
             planner_source: PlannerSource::Cli,
             planner_api: PlannerApi::default(),
+            keep_days: 0,
         }
     }
 }
@@ -593,23 +596,43 @@ impl Db {
         })
     }
 
-    pub fn delete_history(&self) -> R<()> {
+    /// Ids of finished sessions: all of them, or those that ended before `before` (Unix ms).
+    pub fn finished_sessions(&self, before: Option<i64>) -> R<Vec<String>> {
         self.with(|c| {
-            c.execute_batch(
-                "DELETE FROM session_events WHERE session_id IN
-                   (SELECT id FROM sessions WHERE status IN ('done', 'error', 'stopped'));
-                 DELETE FROM sessions WHERE status IN ('done', 'error', 'stopped');",
-            )
+            let mut st = c.prepare(
+                "SELECT id FROM sessions WHERE status IN ('done', 'error', 'stopped')
+                   AND COALESCE(ended_at, started_at) < ?1",
+            )?;
+            let rows = st.query_map([before.unwrap_or(i64::MAX)], |r| r.get(0))?;
+            rows.collect()
         })
     }
 
-    /// Removes one session and its events. A board card that ran it stays, without the link.
+    /// Removes one session and its events. A board card or chat card that ran it stays, without
+    /// the link, so neither offers to open a session that is gone.
     pub fn delete_session(&self, id: &str) -> R<()> {
         self.with(|c| {
             let tx = c.unchecked_transaction()?;
             tx.execute("DELETE FROM session_events WHERE session_id = ?1", [id])?;
             tx.execute("DELETE FROM sessions WHERE id = ?1", [id])?;
             tx.execute("UPDATE tasks SET session_id = NULL WHERE session_id = ?1", [id])?;
+            let linked: Vec<(String, String)> = {
+                let mut st = tx.prepare("SELECT id, cards FROM chat_messages WHERE instr(cards, ?1) > 0")?;
+                let rows = st.query_map([id], |r| Ok((r.get(0)?, r.get(1)?)))?;
+                rows.collect::<rusqlite::Result<_>>()?
+            };
+            for (message, cards) in linked {
+                let Ok(mut cards) = serde_json::from_str::<Vec<DispatchCard>>(&cards) else { continue };
+                let mut changed = false;
+                for card in cards.iter_mut().filter(|c| c.session_id.as_deref() == Some(id)) {
+                    card.session_id = None;
+                    changed = true;
+                }
+                if changed {
+                    let json = serde_json::to_string(&cards).unwrap_or_else(|_| "[]".into());
+                    tx.execute("UPDATE chat_messages SET cards = ?2 WHERE id = ?1", params![message, json])?;
+                }
+            }
             tx.commit()
         })
     }
@@ -1085,11 +1108,57 @@ mod tests {
             updated_at: 1,
         })
         .unwrap();
+        let card = |id: &str, session: &str| DispatchCard {
+            id: id.into(),
+            cli: CliKind::Claude,
+            title: "x".into(),
+            folder: "C:/w".into(),
+            prompt: "p".into(),
+            mode: Mode::Headless,
+            reason: String::new(),
+            problem: None,
+            state: "started".into(),
+            session_id: Some(session.into()),
+            task_id: None,
+        };
+        db.add_chat(&ChatMessage {
+            id: "m1".into(),
+            thread_id: "t".into(),
+            role: "planner".into(),
+            text: String::new(),
+            cards: vec![card("c1", "a"), card("c2", "b")],
+            created_at: 1,
+        })
+        .unwrap();
         db.delete_session("a").unwrap();
         assert!(db.session("a").unwrap().is_none());
         assert!(db.events("a", 10).unwrap().is_empty());
         assert_eq!(db.events("b", 10).unwrap().len(), 1);
         assert!(db.session("b").unwrap().is_some());
         assert_eq!(db.task("t1").unwrap().unwrap().session_id, None);
+        let cards = db.chat_message("m1").unwrap().unwrap().cards;
+        assert_eq!(cards[0].session_id, None);
+        assert_eq!(cards[1].session_id.as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn finished_sessions_are_listed_by_when_they_ended() {
+        let db = Db::open_in_memory().unwrap();
+        let mut old = session("old", Status::Done);
+        old.ended_at = Some(1_000);
+        let mut recent = session("recent", Status::Error);
+        recent.ended_at = Some(9_000);
+        let mut stopped = session("stopped", Status::Stopped);
+        stopped.started_at = 500;
+        db.upsert_session(&old).unwrap();
+        db.upsert_session(&recent).unwrap();
+        db.upsert_session(&stopped).unwrap();
+        db.upsert_session(&session("live", Status::Running)).unwrap();
+        let mut all = db.finished_sessions(None).unwrap();
+        all.sort();
+        assert_eq!(all, ["old", "recent", "stopped"]);
+        let mut before = db.finished_sessions(Some(5_000)).unwrap();
+        before.sort();
+        assert_eq!(before, ["old", "stopped"]);
     }
 }

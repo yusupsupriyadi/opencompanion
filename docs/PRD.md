@@ -166,7 +166,7 @@ Prioritas: **P0** wajib untuk MVP, **P1** penting setelah MVP, **P2** nanti.
 |---|---|---|---|
 | FR-60 | P0 | Riwayat sesi dan tugas. | Sesi dan dispatch tersimpan di SQLite lokal: prompt, CLI, folder, status akhir, waktu. |
 | FR-61 | P0 | Tema Siang / Senja. | Toggle tema berfungsi penuh di kedua mode; default mengikuti tema OS. |
-| FR-62 | P1 | Retensi data. | Pengguna menentukan berapa lama output sesi disimpan, dan bisa menghapus riwayat. |
+| FR-62 | P1 | Retensi data. | Pengguna menentukan berapa lama output sesi disimpan, dan bisa menghapus riwayat. Settings › History: "Keep finished sessions for" Forever (default), 90, 30, 7 atau 1 hari, dicek saat app dibuka dan tiap jam; sesi selesai yang lebih lama dihapus bersama event, log terminal, dan file hook-nya. "Delete finished sessions" menghapus semua sesi selesai dengan file yang sama. Kartu Board dan kartu Chat yang menjalankannya tetap ada tanpa tautan sesi. File yang diubah CLI di project tidak disentuh. |
 | FR-63 | P1 | Bahasa UI. | UI bisa diganti Inggris / Indonesia. |
 | FR-64 | P2 | Mulai saat login. | Opsi menjalankan OpenCompanion saat login OS. |
 | FR-65 | P1 | Mode izin sesi: Ask me, Plan, Auto, Bypass. | Settings menyimpan mode default untuk sesi baru; New session dan Run dari Board bisa memilih mode lain untuk satu sesi. Tiap mode diteruskan sebagai flag resmi masing-masing CLI, dan tabelnya tampil di Settings. Bypass baru tersimpan setelah konfirmasi kedua, dan form sesi memberi peringatan saat Bypass dipilih. Planner Chat tidak terpengaruh dan tetap read-only. |
