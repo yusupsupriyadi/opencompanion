@@ -57,6 +57,12 @@ export function duration(ms: number): string {
   return `${h} h ${mins % 60} min`;
 }
 
+/** Memory as Task Manager words it: MB below a gigabyte, then GB with one decimal. */
+export function memory(bytes: number): string {
+  const mb = bytes / 1048576;
+  return mb < 1024 ? `${Math.round(mb)} MB` : `${(mb / 1024).toFixed(1)} GB`;
+}
+
 export function ago(at: number, now = Date.now()): string {
   const mins = Math.floor((now - at) / 60000);
   if (mins < 1) return "just now";

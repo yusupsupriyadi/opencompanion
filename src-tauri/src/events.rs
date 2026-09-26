@@ -59,7 +59,7 @@ fn s(v: &Value) -> String {
 }
 
 /// A short, single-line description of a tool input: a path or command when there is one.
-fn input_summary(input: &Value) -> String {
+pub(crate) fn input_summary(input: &Value) -> String {
     for key in ["file_path", "filePath", "path", "command", "pattern", "url", "description"] {
         if let Some(text) = input.get(key).and_then(Value::as_str) {
             return one_line(text, 160);
@@ -68,7 +68,7 @@ fn input_summary(input: &Value) -> String {
     one_line(&input.to_string(), 160)
 }
 
-fn one_line(text: &str, max: usize) -> String {
+pub(crate) fn one_line(text: &str, max: usize) -> String {
     let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
     if flat.chars().count() <= max {
         return flat;

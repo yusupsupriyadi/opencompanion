@@ -26,6 +26,29 @@ export interface ExternalSession {
   memoryBytes: number;
 }
 
+/** Mirrors `monitor::Usage`: a session's CLI and every process it started. */
+export interface Usage {
+  /** Share of the whole machine, as Task Manager counts it. */
+  cpuPercent: number;
+  memoryBytes: number;
+  children: number;
+}
+
+/** Mirrors `transcript::Line`. */
+export interface TranscriptLine {
+  speaker: "you" | "cli" | "tool";
+  text: string;
+  at: number | null;
+}
+
+/** Mirrors `transcript::Transcript`: the last messages a CLI opened outside OpenCompanion wrote to its own history. */
+export interface Transcript {
+  source: string | null;
+  lines: TranscriptLine[];
+  /** Why there are no lines, in words for the owner. */
+  note: string | null;
+}
+
 /** Mirrors `skills::SkillRoot`. */
 export interface SkillRoot {
   id: string;
@@ -296,9 +319,12 @@ export function errorText(e: unknown): string {
 export const api = {
   detectClis: () => invoke<CliInstall[]>("detect_clis"),
   scanExternal: () => invoke<ExternalSession[]>("scan_external"),
+  outsideDetail: (pid: number) => invoke<{ session: ExternalSession; transcript: Transcript }>("outside_detail", { pid }),
   scanSkills: () => invoke<SkillScan>("scan_skills"),
   listSessions: (limit?: number) => invoke<SessionView[]>("list_sessions", { limit }),
   getSession: (id: string) => invoke<SessionDetail>("get_session", { id }),
+  /** Null when the session is not running. */
+  sessionUsage: (id: string) => invoke<Usage | null>("session_usage", { id }),
   startSession: (req: StartRequest) => invoke<SessionInfo>("start_session", { req }),
   sendInput: (id: string, text: string) => invoke<SessionInfo>("send_input", { id, text }),
   resizeSession: (id: string, cols: number, rows: number) => invoke<void>("resize_session", { id, cols, rows }),

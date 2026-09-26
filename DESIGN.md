@@ -249,9 +249,9 @@ Status di file `design/ai-remote.pen`: ✓ = sudah ada, ✗ = belum dibuat.
 - Tujuan: melihat dan mengendalikan satu sesi. Fokus: terminal.
 - Header: breadcrumb "Overview / ai-remote", CliMark + judul 24/800 + chip, meta "Codex CLI 0.153.4 · interactive · ~/Project/ai-remote · started 12 min ago", tombol Restart dan Stop.
 - Baris Activity: label pixel + Horizon + "Commands, file edits and approvals in the last 12 min".
-- Body: terminal (lebar sisa) + kolom kanan 300: "Files changed" (path mono + diff mono), "Process" (PID, CPU, Memory, Child processes), "Needs-you signal" (metode deteksi: event stream, hooks, atau pola teks, sesuai FR-16).
+- Body: terminal (lebar sisa) + kolom kanan 300: "Files changed" (path mono + diff mono), "Process" (PID, CPU, Memory, Child processes; diukur tiap 3 detik selama sesi berjalan, "Measuring CPU and memory…" sebelum hasil pertama), "Needs-you signal" (metode deteksi: event stream, hooks, atau pola teks, sesuai FR-16).
 - State Waiting for you: panel Needs you versi ringkas muncul di atas terminal, input bar dinonaktifkan dengan teks "Answer the approval above first".
-- State eksternal: tombol Stop dan Restart tidak ada, input bar diganti "This session was opened outside OpenCompanion. Showing its transcript, read-only."
+- State eksternal (`/outside?pid=`, dibuka dari baris "Opened outside OpenCompanion" di Overview): tombol Stop dan Restart tidak ada, judul "{CLI} in {folder}" (atau nama CLI saja bila folder tidak terbaca) dengan chip Read-only, meta "Opened outside OpenCompanion · {mode} · path · started 09:12". Panel terminal berisi transcript dari riwayat CLI itu sendiri (pesan Anda `term-green` diawali "›", jawaban CLI `term-text`, tool `term-dim` diawali "•"), dibaca ulang tiap 5 detik dan hanya mengikuti baris baru bila pembaca sudah di ujung; tanpa transcript tampil alasannya dalam `term-dim`. Input bar diganti "This session was opened outside OpenCompanion. Showing its transcript, read-only." Kolom kanan: "Process" (PID, Running for, Memory, CPU dari scan berkala), "Transcript" (path file mono + "Last entry 3 min ago"), "Input" (hanya terminal asalnya yang bisa menjawab). Proses yang sudah berhenti: "This session has ended" + "Back to Overview".
 
 ### D5 CLIs ✓
 - Tujuan: tahu CLI apa yang siap dipakai. Fokus: tabel.

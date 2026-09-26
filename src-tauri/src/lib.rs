@@ -12,6 +12,7 @@ pub mod projects;
 pub mod pty;
 pub mod session;
 pub mod skills;
+pub mod transcript;
 pub mod waiting;
 
 use std::collections::{HashMap, HashSet};
@@ -33,7 +34,7 @@ struct AppState {
     db: Arc<Db>,
     manager: Arc<session::Manager>,
     companion: Arc<Companion>,
-    monitor: Mutex<monitor::Monitor>,
+    monitor: Arc<Mutex<monitor::Monitor>>,
     data_dir: PathBuf,
 }
 
@@ -102,10 +103,28 @@ async fn detect_clis(state: State<'_, AppState>) -> Res<Vec<CliInstall>> {
 }
 
 #[tauri::command]
-fn scan_external(state: State<'_, AppState>) -> Res<Vec<monitor::ExternalSession>> {
+async fn scan_external(state: State<'_, AppState>) -> Res<Vec<monitor::ExternalSession>> {
     let own: HashSet<u32> = state.manager.own_pids().into_iter().collect();
-    let mut monitor = state.monitor.lock().map_err(|e| e.to_string())?;
-    Ok(monitor.scan(&own))
+    let monitor = Arc::clone(&state.monitor);
+    blocking(move || Ok(monitor.lock().map_err(|e| e.to_string())?.scan(&own))).await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OutsideDetail {
+    session: monitor::ExternalSession,
+    transcript: transcript::Transcript,
+}
+
+/// A CLI opened outside OpenCompanion, with the last messages of the history it keeps (PRD FR-32).
+#[tauri::command]
+async fn outside_detail(pid: u32) -> Res<OutsideDetail> {
+    blocking(move || {
+        let session = monitor::find(pid).ok_or("This process has ended.")?;
+        let transcript = transcript::read(session.kind, session.cwd.as_deref(), session.started_at);
+        Ok(OutsideDetail { session, transcript })
+    })
+    .await
 }
 
 #[tauri::command]
@@ -161,6 +180,16 @@ fn get_session(state: State<'_, AppState>, id: String) -> Res<SessionDetail> {
         output,
         task,
     })
+}
+
+/// CPU and memory of a running session's CLI and the processes it started (PRD FR-34).
+#[tauri::command]
+async fn session_usage(state: State<'_, AppState>, id: String) -> Res<Option<monitor::Usage>> {
+    let Some(pid) = state.db.session(&id)?.filter(|s| s.status.is_live()).and_then(|s| s.pid) else {
+        return Ok(None);
+    };
+    let monitor = Arc::clone(&state.monitor);
+    blocking(move || Ok(monitor.lock().map_err(|e| e.to_string())?.usage(pid))).await
 }
 
 #[tauri::command]
@@ -549,7 +578,7 @@ pub fn run() {
                 db,
                 manager,
                 companion,
-                monitor: Mutex::new(monitor::Monitor::new()),
+                monitor: Arc::new(Mutex::new(monitor::Monitor::new())),
                 data_dir,
             });
             Ok(())
@@ -557,9 +586,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             detect_clis,
             scan_external,
+            outside_detail,
             scan_skills,
             list_sessions,
             get_session,
+            session_usage,
             start_session,
             send_input,
             resize_session,

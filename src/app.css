@@ -233,6 +233,28 @@ a.srow:hover { background: var(--surface-2); }
 .kv b { font-weight: 700; }
 .kv .mono { font-size: 12px; }
 
+/* Detail pages (a session, a session opened outside): output on the left, a 300 side panel that folds away below 1280. */
+.main.detail { gap: 18px; padding: 24px 40px 28px; }
+.head-stack { display: flex; flex-direction: column; gap: 6px; }
+.crumb { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.crumb a:hover, .link:hover { text-decoration: underline; text-underline-offset: 2px; }
+.link { font-weight: 700; }
+.title-row h1 { font-size: 24px; min-width: 0; overflow-wrap: anywhere; }
+.detail-body { flex: 1; min-height: 380px; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; }
+.detail-side { display: flex; flex-direction: column; gap: 22px; overflow-y: auto; }
+.detail-side p { margin: 0; font-size: 13px; color: var(--ink-2); line-height: 1.45; }
+.not-found { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; max-width: 520px; }
+.side-toggle { display: none; margin-left: auto; }
+@media (max-width: 1279px) {
+  .detail-body { grid-template-columns: minmax(0, 1fr); }
+  .detail-side { display: none; }
+  .detail-side.open { display: flex; }
+  .side-toggle { display: inline-flex; }
+}
+@media (max-width: 720px) {
+  .main.detail { padding: 20px 16px; }
+}
+
 /* Forms */
 .field { display: flex; flex-direction: column; gap: 8px; }
 .field > .label { font-size: 14px; font-weight: 800; }

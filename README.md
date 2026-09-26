@@ -38,18 +38,19 @@ The integration tests drive a stand-in CLI (`src-tauri/src/bin/fake-cli.rs`) tha
 | `src-tauri/src/models.rs` | Planner models and thinking levels per CLI (Claude Code's own model catalog cache, `codex debug models`, `opencode models --verbose`) and the flags that pass them |
 | `src-tauri/src/companion.rs` | Phone companion: HTTP + WebSocket on the LAN, pairing codes, hashed device tokens |
 | `src-tauri/src/actions.rs` | Chat, dispatch card and Board work shared by the desktop commands and the phone API |
-| `src-tauri/src/monitor.rs`, `cli.rs`, `db.rs`, `projects.rs` | Outside-session scan, CLI detection, SQLite store, project folder discovery |
+| `src-tauri/src/monitor.rs`, `cli.rs`, `db.rs`, `projects.rs` | Outside-session scan and CPU/memory per session, CLI detection, SQLite store, project folder discovery |
+| `src-tauri/src/transcript.rs` | Transcripts of sessions opened outside OpenCompanion, read from each CLI's own history (Claude Code and Codex JSONL, OpenCode's SQLite database opened read-only) |
 | `src-tauri/src/skills.rs` | Skills screen: reads the user skill folders of each CLI (`~/.claude/skills`, `~/.codex/skills`, `~/.agents/skills`, `~/.config/opencode/skills`, `~/.gemini/skills`) and compares them by content hash. Read-only |
 | `src/routes` | Desktop screens (Overview, Session, Chat, Board, CLIs, Skills, Settings, Onboarding) and the phone app under `/m` |
 
 ## Status
 
-Built: the P0 requirements of PRD sections A to G, most P1 ones (install commands, custom CLI paths, resume, waiting detection, Approve/Deny, planner context, activity track, device list, offline screen, permission modes Ask me / Plan / Auto / Bypass, text size, planner model and thinking level, `@` folder mentions in Chat), and the Board (section H, including Add to board from Chat). Outside the PRD: the Skills screen, which shows which skill is missing from a CLI's folder or has different content there, with a copy command to run yourself.
+Built: the P0 requirements of PRD sections A to G, most P1 ones (install commands, custom CLI paths, resume, waiting detection, Approve/Deny, planner context, activity track, device list, offline screen, permission modes Ask me / Plan / Auto / Bypass, text size, planner model and thinking level, `@` folder mentions in Chat, CPU and memory per session, transcripts of sessions opened outside OpenCompanion), and the Board (section H, including Add to board from Chat). Outside the PRD: the Skills screen, which shows which skill is missing from a CLI's folder or has different content there, with a copy command to run yourself.
 
 Known limits:
 
 - Approve/Deny works for Claude Code (headless through its stdio control protocol, interactive through hooks). Codex and OpenCode prompts are answered in their own terminal; OpenCode's headless `run` refuses prompts by itself.
 - Codex success-path events are parsed from its documentation; on the development machine Codex could not authenticate, so only its failure path was observed.
 - Clicking a desktop notification does not open the session yet (part of FR-40): the Tauri notification plugin has no click action on desktop.
-- Not built yet: sending a task to a running session from Chat (FR-25), CPU for app sessions (FR-34), per-CLI or per-project notification choices (FR-41), automatic retention (FR-62 has manual delete only), UI language switch (FR-63), transcripts of sessions opened outside OpenCompanion (FR-32), tray mode (FR-18) and Web Push to the phone (FR-42).
+- Not built yet: sending a task to a running session from Chat (FR-25), per-CLI or per-project notification choices (FR-41), automatic retention (FR-62 has manual delete only), UI language switch (FR-63), tray mode (FR-18) and Web Push to the phone (FR-42).
 - Windows 11 is the tested platform. macOS and Linux build from the same code but are untested.

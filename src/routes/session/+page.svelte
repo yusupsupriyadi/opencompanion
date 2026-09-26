@@ -4,7 +4,7 @@
   import Play from "phosphor-svelte/lib/Play";
   import Stop from "phosphor-svelte/lib/Stop";
   import { onMount } from "svelte";
-  import { api, errorText, type EventRow, type SessionDetail, type SessionInfo } from "$lib/api";
+  import { api, errorText, type EventRow, type SessionDetail, type SessionInfo, type Usage } from "$lib/api";
   import CliMark from "$lib/CliMark.svelte";
   import Dialog from "$lib/Dialog.svelte";
   import Horizon from "$lib/Horizon.svelte";
@@ -12,7 +12,7 @@
   import StatusChip from "$lib/StatusChip.svelte";
   import Terminal from "$lib/Terminal.svelte";
   import Timeline from "$lib/Timeline.svelte";
-  import { CLI_LABEL, SIGNAL_TEXT, clock, duration, folderName, isLive, modeLabel, shortPath } from "$lib/format";
+  import { CLI_LABEL, SIGNAL_TEXT, clock, duration, folderName, isLive, memory, modeLabel, shortPath } from "$lib/format";
   import { app, showToast } from "$lib/store.svelte";
 
   const id = $derived(page.url.searchParams.get("id") ?? "");
@@ -79,6 +79,34 @@
     const counts = new Map<string, number>();
     for (const e of events) if (e.event.kind === "file_changed") counts.set(e.event.path, (counts.get(e.event.path) ?? 0) + 1);
     return [...counts.entries()];
+  });
+
+  // CPU and memory of the CLI and everything it started (PRD FR-34), measured while it runs.
+  let usage = $state<Usage | null>(null);
+  let measuring = $state(false);
+
+  $effect(() => {
+    const target = id;
+    usage = null;
+    measuring = live;
+    if (!live) return;
+    let gone = false;
+    const measure = async () => {
+      try {
+        const u = await api.sessionUsage(target);
+        if (gone) return;
+        usage = u;
+        measuring = false;
+      } catch {
+        if (!gone) measuring = false;
+      }
+    };
+    measure();
+    const t = setInterval(measure, 3000);
+    return () => {
+      gone = true;
+      clearInterval(t);
+    };
   });
 
   const canFollowUp = $derived.by(() => {
@@ -225,6 +253,13 @@
           <h3>Process</h3>
           <div class="kv"><span>Status</span><b>{s.status}</b></div>
           {#if s.pid && live}<div class="kv"><span>PID</span><b class="mono">{s.pid}</b></div>{/if}
+          {#if live && usage}
+            <div class="kv"><span>CPU</span><b class="mono">{usage.cpuPercent}%</b></div>
+            <div class="kv"><span>Memory</span><b class="mono">{memory(usage.memoryBytes)}</b></div>
+            <div class="kv"><span>Child processes</span><b class="mono">{usage.children}</b></div>
+          {:else if measuring}
+            <p>Measuring CPU and memory…</p>
+          {/if}
           <div class="kv"><span>Running for</span><b>{duration((s.endedAt ?? app.now) - s.startedAt)}</b></div>
           {#if s.exitCode !== null}<div class="kv"><span>Exit code</span><b class="mono">{s.exitCode}</b></div>{/if}
           {#if s.cliSessionId}<div class="kv"><span>CLI session</span><b class="mono" title={s.cliSessionId}>{s.cliSessionId.slice(0, 12)}</b></div>{/if}
@@ -267,33 +302,6 @@
 </Dialog>
 
 <style>
-  .main.detail {
-    gap: 18px;
-    padding: 24px 40px 28px;
-  }
-  .head-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .crumb {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--ink-2);
-  }
-  .crumb a:hover,
-  .link:hover {
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
-  .link {
-    font-weight: 700;
-  }
-  .title-row h1 {
-    font-size: 24px;
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
   .activity {
     display: flex;
     align-items: center;
@@ -307,54 +315,7 @@
     white-space: nowrap;
     min-width: 0;
   }
-  .detail-body {
-    flex: 1;
-    min-height: 380px;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 300px;
-    gap: 20px;
-  }
-  .detail-side {
-    display: flex;
-    flex-direction: column;
-    gap: 22px;
-    overflow-y: auto;
-  }
-  .detail-side p {
-    margin: 0;
-    font-size: 13px;
-    color: var(--ink-2);
-    line-height: 1.45;
-  }
-  .not-found {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    align-items: flex-start;
-    max-width: 520px;
-  }
-  .side-toggle {
-    display: none;
-    margin-left: auto;
-  }
-  @media (max-width: 1279px) {
-    .detail-body {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    .detail-side {
-      display: none;
-    }
-    .detail-side.open {
-      display: flex;
-    }
-    .side-toggle {
-      display: inline-flex;
-    }
-  }
   @media (max-width: 720px) {
-    .main.detail {
-      padding: 20px 16px;
-    }
     .activity .legend {
       display: none;
     }

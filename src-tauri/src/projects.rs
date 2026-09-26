@@ -50,7 +50,7 @@ const ROOT_NAMES: [&str; 11] = [
     "Documents/GitHub",
 ];
 
-fn home() -> Option<PathBuf> {
+pub(crate) fn home() -> Option<PathBuf> {
     std::env::var_os("USERPROFILE")
         .or_else(|| std::env::var_os("HOME"))
         .map(PathBuf::from)
@@ -73,12 +73,12 @@ fn same_path(a: &Path, b: &Path) -> bool {
     norm(&a.display().to_string()) == norm(&b.display().to_string())
 }
 
-fn norm(p: &str) -> String {
+pub(crate) fn norm(p: &str) -> String {
     p.trim_end_matches(['\\', '/']).replace('/', "\\").to_lowercase()
 }
 
 /// Claude Code names a project folder by replacing every non-alphanumeric character with `-`.
-fn claude_encode(name: &str) -> String {
+pub(crate) fn claude_encode(name: &str) -> String {
     name.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect()
 }
 

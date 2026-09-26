@@ -6,7 +6,7 @@
   import CliMark from "$lib/CliMark.svelte";
   import NeedsYou from "$lib/NeedsYou.svelte";
   import SessionRow from "$lib/SessionRow.svelte";
-  import { CLI_LABEL, clock, duration, isLive, isToday, shortPath } from "$lib/format";
+  import { CLI_LABEL, clock, duration, isLive, isToday, memory, shortPath } from "$lib/format";
   import { app, askNewSession, refreshSessions } from "$lib/store.svelte";
 
   onMount(() => {
@@ -93,7 +93,7 @@
       <p class="hint">No Claude Code, Codex CLI, OpenCode or Gemini CLI is running in another terminal.</p>
     {:else}
       {#each app.outside as x (x.pid)}
-        <div class="srow ext">
+        <a class="srow ext" href="/outside?pid={x.pid}">
           <CliMark kind={x.kind} />
           <span style="min-width:0">
             <span class="task">{CLI_LABEL[x.kind]} · {x.mode}</span>
@@ -101,13 +101,13 @@
           </span>
           <span class="track">
             <span>Started {clock(x.startedAt * 1000)} · {duration(app.now - x.startedAt * 1000)}</span>
-            <span>PID {x.pid} · {Math.round(x.memoryBytes / 1048576)} MB</span>
+            <span>PID {x.pid} · {memory(x.memoryBytes)}</span>
           </span>
           <span class="status-col"><span class="chip ro">Read-only</span></span>
-        </div>
+        </a>
       {/each}
       {#if app.outside.length}
-        <p class="hint">Found in the running process list. Only the terminal it was opened in can send it input.</p>
+        <p class="hint">Found in the running process list. You can read its transcript here, but only the terminal it was opened in can send it input.</p>
       {/if}
     {/if}
   </section>
