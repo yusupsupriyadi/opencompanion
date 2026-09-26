@@ -1,5 +1,5 @@
 use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -43,15 +43,6 @@ fn count_cursor_queries(carry: &mut Vec<u8>, chunk: &[u8]) -> usize {
     count
 }
 
-/// npm shims are batch files, and a batch file needs cmd.exe as its host process.
-fn needs_cmd_host(program: &Path) -> bool {
-    cfg!(windows)
-        && program
-            .extension()
-            .and_then(|e| e.to_str())
-            .is_some_and(|e| e.eq_ignore_ascii_case("cmd") || e.eq_ignore_ascii_case("bat"))
-}
-
 impl PtySession {
     pub fn spawn(spec: PtySpec, mut sink: OutputSink) -> Result<Self, String> {
         let size = PtySize {
@@ -64,14 +55,24 @@ impl PtySession {
             .openpty(size)
             .map_err(|e| format!("openpty: {e}"))?;
 
-        let mut cmd = if needs_cmd_host(&spec.program) {
+        // An npm shim runs as `node <script>`. Any other batch file needs cmd.exe as its host,
+        // which reads `&`, `%` and quotes in the arguments as its own syntax.
+        let (program, lead) = crate::proc::launcher(&spec.program);
+        let mut cmd = if crate::proc::is_batch(&program) {
+            if spec.args.iter().any(|a| crate::proc::cmd_unsafe(a)) {
+                return Err(format!(
+                    "{} is a batch file, so cmd.exe would run parts of this text as commands or cut it at a line break.                      Set the CLI's .exe or .js file as its path on the CLIs screen, or leave out & | < > ^ % ! and quotes.",
+                    program.display()
+                ));
+            }
             let mut c = CommandBuilder::new("cmd.exe");
             c.args(["/d", "/c"]);
-            c.arg(&spec.program);
+            c.arg(&program);
             c
         } else {
-            CommandBuilder::new(&spec.program)
+            CommandBuilder::new(&program)
         };
+        cmd.args(&lead);
         cmd.args(&spec.args);
         cmd.cwd(&spec.cwd);
         for var in crate::proc::INHERITED_SESSION_VARS {
@@ -213,6 +214,10 @@ impl PtySession {
                 return Some(code);
             }
             thread::sleep(Duration::from_millis(50));
+        }
+        // The whole tree: the CLI's own children would outlive it otherwise.
+        if let Some(pid) = self.child.process_id() {
+            crate::proc::kill_tree(pid);
         }
         let _ = self.child.kill();
         let _ = self.child.wait();

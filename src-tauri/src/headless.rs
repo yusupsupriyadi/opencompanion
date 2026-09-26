@@ -356,7 +356,9 @@ impl HeadlessRun {
         self.child.try_wait().ok().flatten().map(|s| s.code().unwrap_or(-1))
     }
 
+    /// Ends the CLI and everything it started, then reaps it.
     pub fn kill(&mut self) {
+        crate::proc::kill_tree(self.child.id());
         let _ = self.child.kill();
         let _ = self.child.wait();
     }

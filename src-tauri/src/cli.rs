@@ -95,7 +95,8 @@ pub fn resolve(kind: CliKind) -> Option<PathBuf> {
 }
 
 /// An npm `.cmd` shim that only forwards to a native exe is replaced by that exe, so prompts
-/// never pass through cmd.exe quoting. Shims that start a node script are kept as they are.
+/// never pass through cmd.exe quoting. Shims that start a node script stay the CLI's path and
+/// are started as `node <script>` (`proc::launcher`).
 fn unwrap_shim(path: PathBuf) -> PathBuf {
     let is_cmd = path
         .extension()
