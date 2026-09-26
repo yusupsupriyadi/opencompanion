@@ -53,8 +53,9 @@ fn pairing_tokens_and_the_session_api() {
         _ => None,
     });
     let companion = Companion::new(Arc::clone(&db), manager, assets);
-    let port = 40_000 + (std::process::id() % 20_000) as u16;
-    let status = tauri::async_runtime::block_on(companion.start(port));
+    // Port 0: the system picks a free one, so a port taken on this machine cannot fail the test.
+    let status = tauri::async_runtime::block_on(companion.start(0));
+    let port = status.port;
     assert!(status.running, "server did not start: {:?}", status.error);
 
     // Nothing without a device token.
@@ -108,8 +109,9 @@ fn too_many_wrong_codes_end_the_pairing() {
     let data = std::env::temp_dir().join(format!("air-companion-b-{}", std::process::id()));
     let manager = Manager::new(Arc::clone(&db), Arc::new(Quiet), data);
     let companion = Companion::new(Arc::clone(&db), manager, Arc::new(|_: &str| None));
-    let port = 40_000 + ((std::process::id() + 7) % 20_000) as u16;
-    assert!(tauri::async_runtime::block_on(companion.start(port)).running);
+    let status = tauri::async_runtime::block_on(companion.start(0));
+    assert!(status.running);
+    let port = status.port;
     let pairing = companion.start_pairing().unwrap();
     let wrong = if pairing.code == "000000" { "111111" } else { "000000" };
     let mut last = 0;
@@ -158,8 +160,9 @@ fn the_phone_starts_sessions_sends_messages_and_works_the_board() {
     let cwd = work.display().to_string().replace('\\', "\\\\");
     let manager = Manager::new(Arc::clone(&db), Arc::new(Quiet), base.join("data"));
     let companion = Companion::new(Arc::clone(&db), Arc::clone(&manager), Arc::new(|_: &str| None));
-    let port = 40_000 + ((std::process::id() + 13) % 20_000) as u16;
-    assert!(tauri::async_runtime::block_on(companion.start(port)).running);
+    let status = tauri::async_runtime::block_on(companion.start(0));
+    assert!(status.running);
+    let port = status.port;
 
     // Every new endpoint needs a paired phone.
     let start = r#"{"cli":"opencode","cwd":".","mode":"headless"}"#;
@@ -364,8 +367,9 @@ fn a_removed_phone_loses_its_live_updates() {
     let data = std::env::temp_dir().join(format!("air-companion-d-{}", std::process::id()));
     let manager = Manager::new(Arc::clone(&db), Arc::new(Quiet), data);
     let companion = Companion::new(Arc::clone(&db), manager, Arc::new(|_: &str| None));
-    let port = 40_000 + ((std::process::id() + 19) % 20_000) as u16;
-    assert!(tauri::async_runtime::block_on(companion.start(port)).running);
+    let status = tauri::async_runtime::block_on(companion.start(0));
+    assert!(status.running);
+    let port = status.port;
 
     let first = paired(port, &companion);
     let second = paired(port, &companion);

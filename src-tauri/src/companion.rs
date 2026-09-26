@@ -170,6 +170,8 @@ impl Companion {
                 return st;
             }
         };
+        // Port 0 lets the system pick one; the status reports the port actually bound.
+        let port = listener.local_addr().map(|a| a.port()).unwrap_or(port);
         let (stop_tx, stop_rx) = oneshot::channel::<()>();
         if let Ok(mut s) = self.shutdown.lock() {
             *s = Some(stop_tx);
