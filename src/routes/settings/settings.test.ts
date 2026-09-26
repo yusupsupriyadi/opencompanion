@@ -29,6 +29,7 @@ const base: Settings = {
   notifyProjects: {},
   closeToTray: true,
   trayHintShown: false,
+  startAtLogin: false,
 };
 
 let stored: Settings;
@@ -164,6 +165,28 @@ test("finished sessions are kept for the time picked, and Delete history refresh
   await user.click(screen.getByRole("button", { name: "Press again to delete finished sessions" }));
   expect(calls.calls("delete_history")).toHaveLength(1);
   expect(calls.calls("list_sessions")).toHaveLength(1);
+});
+
+test("the start at sign-in is offered where the platform has it, and saved when picked", async () => {
+  api();
+  backend({
+    get_settings: () => stored,
+    save_settings: (a) => {
+      stored = a?.settings as Settings;
+      return stored;
+    },
+    companion_status: () => ({ running: false, address: null, port: 8765, error: null }),
+    list_devices: () => [],
+    app_info: () => ({ version: "0.1.0", dataDir: String.raw`C:\data`, counts: { sessions: 0, devices: 0 }, canStartAtLogin: true }),
+    default_project_roots: () => [],
+    project_folders: () => [],
+  });
+  const user = userEvent.setup();
+  render(SettingsPage);
+  const start = await screen.findByRole("checkbox", { name: "Start in the tray when I sign in to Windows" });
+  expect(start).not.toBeChecked();
+  await user.click(start);
+  expect(stored.startAtLogin).toBe(true);
 });
 
 test("closing the window keeps the app in the tray until that is turned off", async () => {

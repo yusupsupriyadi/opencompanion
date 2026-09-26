@@ -233,6 +233,8 @@ export interface Settings {
   closeToTray: boolean;
   /** The one-time "still running in the tray" notice was shown. */
   trayHintShown: boolean;
+  /** Start at sign-in, into the tray (Windows); read from Windows each time. */
+  startAtLogin: boolean;
 }
 
 /** Mirrors `db::NotifyRule`: which notifications one CLI or one folder sends. */
@@ -311,6 +313,8 @@ export interface AppInfo {
   version: string;
   dataDir: string;
   counts: Record<string, number>;
+  /** Settings can offer the start at sign-in (Windows only for now). */
+  canStartAtLogin: boolean;
 }
 
 export interface StartRequest {

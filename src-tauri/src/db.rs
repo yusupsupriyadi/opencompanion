@@ -254,6 +254,8 @@ pub struct Settings {
     pub close_to_tray: bool,
     /// The one-time notice that the app is still in the tray was shown.
     pub tray_hint_shown: bool,
+    /// Start at sign-in, into the tray (PRD FR-64). Windows keeps the real answer; this mirrors it.
+    pub start_at_login: bool,
 }
 
 /// The kinds of notification a session sends.
@@ -390,6 +392,7 @@ impl Default for Settings {
             notify_projects: HashMap::new(),
             close_to_tray: true,
             tray_hint_shown: false,
+            start_at_login: false,
         }
     }
 }

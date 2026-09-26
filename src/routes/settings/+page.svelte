@@ -622,7 +622,7 @@
       </section>
 
       <section class="card" id="closing" aria-labelledby="close-title">
-        <h2 id="close-title">Closing the window</h2>
+        <h2 id="close-title">Window and sign-in</h2>
         <label class="check-row">
           <input
             type="checkbox"
@@ -637,6 +637,21 @@
             ? "Sessions keep running and your phone can still reach them. Click the tray icon to open the window again; quit from its menu to stop the sessions."
             : "Closing the window quits OpenCompanion and stops every session it started."}
         </p>
+        {#if info?.canStartAtLogin}
+          <label class="check-row">
+            <input
+              type="checkbox"
+              checked={settings.startAtLogin}
+              onchange={(e) =>
+                saveControl(
+                  e.currentTarget,
+                  { startAtLogin: e.currentTarget.checked },
+                  e.currentTarget.checked ? "OpenCompanion starts in the tray when you sign in." : "OpenCompanion no longer starts when you sign in.",
+                )}
+            />
+            <span>Start in the tray when I sign in to Windows</span>
+          </label>
+        {/if}
       </section>
 
       <section class="card" aria-labelledby="scan-title">

@@ -1,4 +1,5 @@
 pub mod actions;
+pub mod autostart;
 pub mod cli;
 pub mod companion;
 pub mod db;
@@ -600,9 +601,12 @@ async fn run_task(state: State<'_, AppState>, input: RunTaskInput) -> Res<Sessio
 
 // Settings and phone access
 
+/// Settings, with the start at sign-in read from Windows, where it can be changed outside the app.
 #[tauri::command]
 fn get_settings(state: State<'_, AppState>) -> Res<Settings> {
-    state.db.settings()
+    let mut settings = state.db.settings()?;
+    settings.start_at_login = autostart::enabled();
+    Ok(settings)
 }
 
 /// Settings' text size is the webview zoom (PRD FR-66). The phone page is untouched: it follows the phone.
@@ -615,6 +619,11 @@ fn apply_text_size(app: &AppHandle, settings: &Settings) {
 #[tauri::command]
 async fn save_settings(app: AppHandle, state: State<'_, AppState>, settings: Settings) -> Res<Settings> {
     let before = state.db.settings()?;
+    // Windows is asked first, so a refused change is never stored as done.
+    if settings.start_at_login != autostart::enabled() {
+        let on = settings.start_at_login;
+        blocking(move || autostart::set(on)).await?;
+    }
     state.db.save_settings(&settings)?;
     if before.text_size != settings.text_size {
         apply_text_size(&app, &settings);
@@ -663,6 +672,8 @@ struct AppInfo {
     version: String,
     data_dir: String,
     counts: HashMap<String, usize>,
+    /// Whether Settings can offer the start at sign-in on this platform.
+    can_start_at_login: bool,
 }
 
 #[tauri::command]
@@ -674,6 +685,7 @@ fn app_info(app: AppHandle, state: State<'_, AppState>) -> Res<AppInfo> {
         version: app.package_info().version.to_string(),
         data_dir: state.data_dir.display().to_string(),
         counts,
+        can_start_at_login: autostart::supported(),
     })
 }
 
@@ -701,6 +713,12 @@ pub fn run() {
         })
         .setup(|app| {
             tray(app)?;
+            // Started at sign-in: straight into the tray, without a window in the way.
+            if std::env::args().any(|a| a == autostart::HIDDEN_ARG) {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.hide();
+                }
+            }
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
             let db = Arc::new(Db::open(&data_dir.join("opencompanion.db"))?);
