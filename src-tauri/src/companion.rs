@@ -5,7 +5,6 @@
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 use axum::extract::ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path as UrlPath, Query, State};
@@ -504,13 +503,7 @@ async fn input(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<
             (Mode::Interactive, Some(key)) => manager.send_input(&id, key_bytes(key).ok_or("Unknown key.")?)?,
             (Mode::Headless, Some(_)) => return Err("Keys only work in an interactive terminal.".into()),
             (_, None) if text.is_empty() => return Err("Write a message first.".into()),
-            (Mode::Interactive, None) => {
-                // A terminal UI can read text and Enter that arrive together as a paste, so Enter follows on its own.
-                manager.send_input(&id, &text.replace(['\r', '\n'], " "))?;
-                std::thread::sleep(Duration::from_millis(150));
-                manager.send_input(&id, "\r")?
-            }
-            (Mode::Headless, None) => manager.send_input(&id, text)?,
+            (_, None) => manager.send_message(&id, text)?,
         };
         Ok(json!({ "session": info }))
     })

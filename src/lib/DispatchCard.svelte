@@ -1,5 +1,6 @@
 <script lang="ts">
   import Kanban from "phosphor-svelte/lib/Kanban";
+  import PaperPlaneTilt from "phosphor-svelte/lib/PaperPlaneTilt";
   import PencilSimple from "phosphor-svelte/lib/PencilSimple";
   import Play from "phosphor-svelte/lib/Play";
   import TerminalWindow from "phosphor-svelte/lib/TerminalWindow";
@@ -20,6 +21,8 @@
 
   const session = $derived(card.sessionId ? app.sessions.find((s) => s.id === card.sessionId) : undefined);
   const labelId = $derived(`card-${card.id}`);
+  // A follow-up goes to a session that already runs (PRD FR-25); it starts nothing.
+  const follow = $derived(Boolean(card.target));
 
   function edit() {
     draft = { cli: card.cli, title: card.title, folder: card.folder, prompt: card.prompt, mode: card.mode };
@@ -42,7 +45,11 @@
     }
   }
 
-  const run = () => act(() => api.chatRunCard(messageId, card.id), `Started ${CLI_LABEL[card.cli]} in ${folderName(card.folder)}.`);
+  const run = () =>
+    act(
+      () => api.chatRunCard(messageId, card.id),
+      follow ? `Sent to ${CLI_LABEL[card.cli]} in ${folderName(card.folder)}.` : `Started ${CLI_LABEL[card.cli]} in ${folderName(card.folder)}.`,
+    );
   const save = () =>
     act(async () => {
       const m = await api.chatUpdateCard(messageId, { ...card, ...draft });
@@ -66,13 +73,18 @@
     <div class="row" style="gap:10px">
       <CliMark kind={editing ? draft.cli : card.cli} />
       <div class="target grow">
-        <b id={labelId}>{card.title || `${CLI_LABEL[card.cli]} · ${card.mode}`}</b>
+        <b id={labelId}>{follow ? `Follow-up for ${card.title}` : card.title || `${CLI_LABEL[card.cli]} · ${card.mode}`}</b>
         <span>{#if card.title}{CLI_LABEL[card.cli]} · {card.mode} · {/if}<span class="mono" title={card.folder}>{shortPath(card.folder)}</span></span>
       </div>
-      {#if session}<StatusChip status={session.status} />{:else if card.state === "started"}<span class="chip idle">Started</span>{:else}<span class="chip idle">Ready</span>{/if}
+      {#if session}<StatusChip status={session.status} />{:else if card.state === "started"}<span class="chip idle">{follow ? "Sent" : "Started"}</span>{:else}<span class="chip idle">{follow ? "Follow-up" : "Ready"}</span>{/if}
     </div>
 
-    {#if editing}
+    {#if editing && follow}
+      <label class="field">
+        <span class="label">Message for the session</span>
+        <textarea class="prompt" bind:value={draft.prompt}></textarea>
+      </label>
+    {:else if editing}
       <div class="edit-grid">
         <label class="field span">
           <span class="label">Title</span>
@@ -115,16 +127,18 @@
         {#if card.sessionId}
           <a class="btn secondary" href="/session?id={card.sessionId}"><TerminalWindow size={16} aria-hidden="true" />Open session</a>
         {/if}
-        {#if session}<span class="meta">Started {ago(session.startedAt, app.now)}</span>{/if}
+        {#if follow}<span class="meta">Sent to this session.</span>{:else if session}<span class="meta">Started {ago(session.startedAt, app.now)}</span>{/if}
       {:else if editing}
         <button class="btn primary" type="button" disabled={busy} onclick={save}>Save card</button>
         <button class="btn ghost" type="button" onclick={() => (editing = false)}>Cancel</button>
       {:else}
         <button class="btn primary" type="button" disabled={busy || Boolean(card.problem)} onclick={run}>
-          <Play size={16} aria-hidden="true" />Run in {folderName(card.folder) || "…"}
+          {#if follow}<PaperPlaneTilt size={16} weight="fill" aria-hidden="true" />Send to session{:else}<Play size={16} aria-hidden="true" />Run in {folderName(card.folder) || "…"}{/if}
         </button>
         <button class="btn secondary" type="button" disabled={busy} onclick={edit}><PencilSimple size={16} aria-hidden="true" />Edit</button>
-        {#if card.taskId}
+        {#if follow}
+          <!-- A follow-up belongs to its session, so it has no Board card. -->
+        {:else if card.taskId}
           <a class="btn secondary" href="/board"><Kanban size={16} aria-hidden="true" />On the Board</a>
         {:else}
           <button class="btn secondary" type="button" disabled={busy} onclick={toBoard}><Kanban size={16} aria-hidden="true" />Add to board</button>

@@ -143,6 +143,10 @@ pub struct DispatchCard {
     /// The Board card made from this card, so Add to board makes only one.
     #[serde(default)]
     pub task_id: Option<String>,
+    /// A follow-up for a session that already exists (PRD FR-25): Run sends `prompt` to it
+    /// instead of starting a session. `cli`, `folder` and `mode` are that session's.
+    #[serde(default)]
+    pub target: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1206,6 +1210,7 @@ mod tests {
             state: "started".into(),
             session_id: Some(session.into()),
             task_id: None,
+            target: None,
         };
         db.add_chat(&ChatMessage {
             id: "m1".into(),

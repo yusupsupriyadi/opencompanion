@@ -213,6 +213,42 @@ fn the_phone_starts_sessions_sends_messages_and_works_the_board() {
     wait_for(&db, &id, "second turn", |_| said("done: again"));
     assert_eq!(http(port, "POST", "/api/sessions/nope/input", t, Some(r#"{"text":"hi"}"#)).0, 404);
 
+    // A Chat follow-up for that session (PRD FR-25): Send continues it instead of starting one.
+    wait_for(&db, &id, "second turn to end", |s| !s.status.is_live());
+    let chat = db.create_thread("More on that").unwrap();
+    let follow = DispatchCard {
+        id: "card-f".into(),
+        cli: CliKind::Opencode,
+        title: "add hello".into(),
+        folder: work.display().to_string(),
+        prompt: "also say bye".into(),
+        mode: Mode::Headless,
+        reason: String::new(),
+        problem: None,
+        state: "proposed".into(),
+        session_id: None,
+        task_id: None,
+        target: Some(id.clone()),
+    };
+    db.add_chat(&ChatMessage {
+        id: "msg-f".into(),
+        thread_id: chat.id.clone(),
+        role: "planner".into(),
+        text: "One follow-up.".into(),
+        cards: vec![follow],
+        created_at: 1,
+    })
+    .unwrap();
+    let sessions_before = db.sessions(100).unwrap().len();
+    let (code, body) = http(port, "POST", "/api/chat/cards/board", t, Some(r#"{"messageId":"msg-f","cardId":"card-f"}"#));
+    assert_eq!(code, 409, "{body}");
+    let (code, body) = http(port, "POST", "/api/chat/cards/run", t, Some(r#"{"messageId":"msg-f","cardId":"card-f"}"#));
+    assert_eq!(code, 200, "{body}");
+    assert_eq!(json(&body)["message"]["cards"][0]["sessionId"], id.as_str());
+    wait_for(&db, &id, "follow-up turn", |_| said("done: also say bye"));
+    assert_eq!(db.sessions(100).unwrap().len(), sessions_before, "a follow-up starts no new session");
+    db.delete_thread(&chat.id).unwrap();
+
     // In a terminal the text is typed, then entered.
     let req = format!(r#"{{"cli":"opencode","cwd":"{cwd}","mode":"interactive"}}"#);
     let (code, body) = http(port, "POST", "/api/sessions", t, Some(&req));
@@ -251,6 +287,7 @@ fn the_phone_starts_sessions_sends_messages_and_works_the_board() {
         state: "proposed".into(),
         session_id: None,
         task_id: None,
+        target: None,
     };
     let reply = ChatMessage {
         id: "msg-a".into(),

@@ -40,9 +40,22 @@ pub fn schema() -> Value {
                     },
                     "required": ["cli", "title", "folder", "prompt", "mode", "reason"]
                 }
+            },
+            "follow_ups": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "session": { "type": "string" },
+                        "prompt": { "type": "string" },
+                        "reason": { "type": "string" }
+                    },
+                    "required": ["session", "prompt", "reason"]
+                }
             }
         },
-        "required": ["reply", "dispatches"]
+        "required": ["reply", "dispatches", "follow_ups"]
     })
 }
 
@@ -75,7 +88,13 @@ the user said in earlier messages about this task. It tells the CLI to look at t
 likely need to ask the user things, or the user wants to watch and type.\n\
 - `reason` is one sentence on why this CLI and mode.\n\
 - For a question about what is running, answer from the sessions lists with `dispatches` empty.\n\
-- Propose several cards only for several independent tasks.";
+- Propose several cards only for several independent tasks.\n\
+Follow-ups:\n\
+- To add to work a session in OpenCompanion is already doing (\"tell it to also...\", \"ask the Codex session \
+to...\"), put a card under `follow_ups` instead of `dispatches`: `session` is the session's id exactly as listed, \
+`prompt` the message to send it, in English, and `reason` one sentence. The user presses Send on it first.\n\
+- Only use a session whose line says `takes a message: yes`. Never invent an id. Otherwise propose a new session.\n\
+- `follow_ups` is empty when there is nothing to send to a session.";
 
 const READ_HINT: &str = "You may use the Read, Glob and Grep tools to look inside the known folders \
 when it helps you pick the right folder or write a sharper prompt (for example to see the framework \
@@ -122,13 +141,15 @@ pub fn prompt_text(input: &PlanInput) -> String {
     }
     for s in input.sessions.iter().take(12) {
         out.push_str(&format!(
-            "- {} in {} ({}): {} · status {} · last: {}\n",
+            "- id {}: {} in {} ({}): {} · status {} · last: {} · takes a message: {}\n",
+            s.id,
             s.cli.label(),
             s.cwd,
             if s.mode == Mode::Headless { "headless" } else { "interactive" },
             s.title,
             s.status.as_str(),
-            s.last_event.as_deref().unwrap_or("nothing yet")
+            s.last_event.as_deref().unwrap_or("nothing yet"),
+            if session_problem(s).is_none() { "yes" } else { "no" }
         ));
     }
     if !input.outside.is_empty() {
@@ -149,8 +170,12 @@ pub fn prompt_text(input: &PlanInput) -> String {
             let who = if m.role == "user" { "User" } else { "Planner" };
             out.push_str(&format!("{who}: {}\n", m.text.trim()));
             for c in &m.cards {
+                let kind = match &c.target {
+                    Some(id) => format!("follow-up for session {id}"),
+                    None => "card".to_string(),
+                };
                 out.push_str(&format!(
-                    "  (card: {} in {} · {} · {})\n",
+                    "  ({kind}: {} in {} · {} · {})\n",
                     c.cli.bin(),
                     c.folder,
                     c.prompt.lines().next().unwrap_or_default(),
@@ -210,6 +235,36 @@ pub fn extract_plan(text: &str) -> Option<Value> {
         .filter(|v| v.get("reply").is_some())
 }
 
+/// Why a message cannot go to `s` right now (PRD FR-25), or `None` when it can: a running
+/// terminal takes typed text, a running Claude Code turn takes a message, and a finished headless
+/// session continues its conversation.
+pub fn session_problem(s: &SessionInfo) -> Option<String> {
+    let who = s.cli.label();
+    match (s.mode, s.status.is_live()) {
+        (_, true) if s.status == crate::db::Status::Waiting => {
+            Some(format!("{who} is waiting for an answer in this session. Answer it first, then send this."))
+        }
+        (Mode::Interactive, true) => None,
+        (Mode::Interactive, false) => Some("This terminal has closed. Resume the session, then send this card.".into()),
+        (Mode::Headless, true) if s.cli == CliKind::Claude => None,
+        (Mode::Headless, true) => Some(format!("{who} is still on this session's turn. Send this card when it is done.")),
+        (Mode::Headless, false) if s.cli_session_id.is_some() => None,
+        (Mode::Headless, false) => Some(format!("{who} did not report a session id, so this conversation cannot continue.")),
+    }
+}
+
+/// A follow-up card is checked against its session: it has to exist and take a message now.
+pub fn validate_target(card: &mut DispatchCard, clis: &[CliInstall], session: Option<&SessionInfo>) {
+    validate(card, clis);
+    if card.problem.is_some() || card.target.is_none() {
+        return;
+    }
+    card.problem = match session {
+        None => Some("This session is no longer in OpenCompanion.".into()),
+        Some(s) => session_problem(s),
+    };
+}
+
 /// FR-23: a card can only run when its CLI is installed and its folder exists.
 pub fn validate(card: &mut DispatchCard, clis: &[CliInstall]) {
     let installed = clis.iter().any(|c| c.kind == card.cli && c.path.is_some());
@@ -224,6 +279,35 @@ pub fn validate(card: &mut DispatchCard, clis: &[CliInstall]) {
     } else {
         None
     };
+}
+
+/// Follow-ups for sessions the planner was shown. An id it made up names no session and is dropped.
+fn follow_ups_from(v: &Value, clis: &[CliInstall], sessions: &[SessionInfo]) -> Vec<DispatchCard> {
+    v["follow_ups"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|f| {
+            let id = f["session"].as_str()?.trim();
+            let s = sessions.iter().find(|s| s.id == id)?;
+            let mut card = DispatchCard {
+                id: db::new_id(),
+                cli: s.cli,
+                title: s.title.clone(),
+                folder: s.cwd.clone(),
+                prompt: f["prompt"].as_str().unwrap_or_default().trim().to_string(),
+                mode: s.mode,
+                reason: f["reason"].as_str().unwrap_or_default().trim().to_string(),
+                problem: None,
+                state: "proposed".into(),
+                session_id: None,
+                task_id: None,
+                target: Some(s.id.clone()),
+            };
+            validate_target(&mut card, clis, Some(s));
+            Some(card)
+        })
+        .collect()
 }
 
 fn cards_from(v: &Value, clis: &[CliInstall], known: &[ProjectFolder]) -> Vec<DispatchCard> {
@@ -247,6 +331,7 @@ fn cards_from(v: &Value, clis: &[CliInstall], known: &[ProjectFolder]) -> Vec<Di
                 state: "proposed".into(),
                 session_id: None,
                 task_id: None,
+                target: None,
             };
             validate(&mut card, clis);
             Some(card)
@@ -255,9 +340,11 @@ fn cards_from(v: &Value, clis: &[CliInstall], known: &[ProjectFolder]) -> Vec<Di
 }
 
 fn plan_from(v: &Value, input: &PlanInput) -> Plan {
+    let mut cards = cards_from(v, input.clis, input.folders);
+    cards.extend(follow_ups_from(v, input.clis, input.sessions));
     Plan {
         reply: v["reply"].as_str().unwrap_or_default().trim().to_string(),
-        cards: cards_from(v, input.clis, input.folders),
+        cards,
     }
 }
 
@@ -551,6 +638,82 @@ mod tests {
         }
     }
 
+    fn session(id: &str, mode: Mode, status: crate::db::Status, cwd: &Path) -> SessionInfo {
+        SessionInfo {
+            id: id.into(),
+            cli: CliKind::Claude,
+            cwd: cwd.display().to_string(),
+            mode,
+            title: format!("Task {id}"),
+            prompt: String::new(),
+            status,
+            pid: None,
+            cli_session_id: None,
+            started_at: 1,
+            ended_at: None,
+            exit_code: None,
+            last_event: None,
+            waiting: None,
+            source: "manual".into(),
+            task_id: None,
+            permission_mode: None,
+            updated_at: 1,
+        }
+    }
+
+    #[test]
+    fn follow_ups_go_only_to_listed_sessions_and_say_when_one_cannot_take_them() {
+        use crate::db::Status;
+        let c = clis();
+        let cwd = std::env::temp_dir();
+        let sessions = [
+            session("s-run", Mode::Headless, Status::Running, &cwd),
+            session("s-term", Mode::Interactive, Status::Idle, &cwd),
+            session("s-closed", Mode::Interactive, Status::Done, &cwd),
+        ];
+        let mut inp = input(&c, &[]);
+        inp.sessions = &sessions;
+        let v = serde_json::json!({
+            "reply": "Sending it on.",
+            "dispatches": [],
+            "follow_ups": [
+                { "session": "s-run", "prompt": "Also add tests.", "reason": "It is on this task." },
+                { "session": "s-term", "prompt": "Run the linter", "reason": "Same folder." },
+                { "session": "s-closed", "prompt": "More", "reason": "x" },
+                { "session": "made-up", "prompt": "More", "reason": "x" }
+            ]
+        });
+        let p = plan_from(&v, &inp);
+        let targets: Vec<_> = p.cards.iter().map(|c| c.target.as_deref().unwrap()).collect();
+        assert_eq!(targets, ["s-run", "s-term", "s-closed"]);
+        let first = &p.cards[0];
+        assert_eq!((first.title.as_str(), first.mode, first.prompt.as_str()), ("Task s-run", Mode::Headless, "Also add tests."));
+        assert_eq!(first.folder, cwd.display().to_string());
+        assert!(first.problem.is_none() && p.cards[1].problem.is_none());
+        assert!(p.cards[2].problem.as_deref().unwrap().contains("terminal has closed"));
+
+        // The planner sees each session's id and whether it takes a message now.
+        let text = prompt_text(&inp);
+        assert!(text.contains("- id s-run: Claude Code in"));
+        assert!(text.contains("takes a message: yes") && text.contains("takes a message: no"));
+        assert!(schema()["required"].as_array().unwrap().iter().any(|r| r == "follow_ups"));
+    }
+
+    #[test]
+    fn a_session_takes_a_message_when_its_cli_can_hear_it() {
+        use crate::db::Status;
+        let cwd = std::env::temp_dir();
+        let mut s = session("a", Mode::Headless, Status::Done, &cwd);
+        assert!(session_problem(&s).unwrap().contains("did not report a session id"));
+        s.cli_session_id = Some("c1".into());
+        assert_eq!(session_problem(&s), None);
+        s.status = Status::Running;
+        s.cli = CliKind::Codex;
+        assert!(session_problem(&s).unwrap().contains("still on this session's turn"));
+        s.status = Status::Waiting;
+        assert!(session_problem(&s).unwrap().contains("waiting for an answer"));
+    }
+
     #[test]
     fn plain_text_answers_stay_text() {
         let c = clis();
@@ -607,6 +770,7 @@ mod tests {
             state: "proposed".into(),
             session_id: None,
             task_id: None,
+            target: None,
         };
         validate(&mut card, &clis());
         assert!(card.problem.unwrap().contains("does not exist"));

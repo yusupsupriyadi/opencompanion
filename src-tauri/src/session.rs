@@ -1038,6 +1038,21 @@ impl Manager {
         self.follow_up(id, text)
     }
 
+    /// A message for the session as a person would send it: typed into a terminal and then
+    /// entered, or as the next turn of a headless conversation.
+    pub fn send_message(self: &Arc<Self>, id: &str, text: &str) -> Result<SessionInfo, String> {
+        let info = self.db.session(id)?.ok_or("Session not found.")?;
+        match info.mode {
+            Mode::Interactive => {
+                // A terminal UI can read text and Enter that arrive together as a paste, so Enter follows on its own.
+                self.send_input(id, &text.replace(['\r', '\n'], " "))?;
+                thread::sleep(Duration::from_millis(150));
+                self.send_input(id, "\r")
+            }
+            Mode::Headless => self.send_input(id, text),
+        }
+    }
+
     fn follow_up(self: &Arc<Self>, id: &str, text: &str) -> Result<SessionInfo, String> {
         let info = self.db.session(id)?.ok_or("Session not found.")?;
         if info.mode != Mode::Headless {

@@ -246,12 +246,26 @@ pub fn run_card(db: &Db, manager: &Arc<Manager>, message_id: &str, card_id: &str
     let clis = detect_with_settings(db);
     let msg = db.chat_message(message_id)?.ok_or("Message not found.")?;
     let mut card = msg.cards.iter().find(|c| c.id == card_id).cloned().ok_or("Card not found.")?;
+    if card.state != "proposed" {
+        return Err("This card already ran or was discarded.".into());
+    }
+    // A follow-up goes to its session (PRD FR-25) instead of starting one.
+    if let Some(target) = card.target.clone() {
+        let session = db.session(&target)?;
+        orchestrator::validate_target(&mut card, &clis, session.as_ref());
+        if let Some(problem) = card.problem {
+            return Err(problem);
+        }
+        manager.send_message(&target, &card.prompt)?;
+        return with_card(db, message_id, card_id, |c| {
+            c.state = "started".into();
+            c.session_id = Some(target);
+            Ok(())
+        });
+    }
     orchestrator::validate(&mut card, &clis);
     if let Some(problem) = card.problem {
         return Err(problem);
-    }
-    if card.state != "proposed" {
-        return Err("This card already ran or was discarded.".into());
     }
     let session = manager.start(StartRequest {
         cli: card.cli,
@@ -277,6 +291,9 @@ pub fn run_card(db: &Db, manager: &Arc<Manager>, message_id: &str, card_id: &str
 pub fn card_to_board(db: &Db, message_id: &str, card_id: &str) -> Res<(Task, ChatMessage)> {
     let msg = db.chat_message(message_id)?.ok_or("Message not found.")?;
     let card = msg.cards.iter().find(|c| c.id == card_id).ok_or("Card not found.")?;
+    if card.target.is_some() {
+        return Err("A follow-up goes to its session; it cannot become a Board card.".into());
+    }
     if card.task_id.as_deref().is_some_and(|t| db.task(t).ok().flatten().is_some()) {
         return Err("This card is on the Board already.".into());
     }

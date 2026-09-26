@@ -87,6 +87,35 @@ test("a card already on the Board links there instead of adding a second one", (
   expect(screen.queryByRole("button", { name: "Add to board" })).toBeNull();
 });
 
+test("a follow-up card sends its message to the session and never becomes a Board card", async () => {
+  const follow = card({ target: "s1", title: "Add a dark mode toggle", prompt: "Also add a test for the toggle." });
+  const sent = { ...follow, state: "started" as const, sessionId: "s1" };
+  const api = backend({ chat_run_card: () => msg(sent), chat_update_card: () => msg(follow) });
+  const onchange = vi.fn();
+  const user = userEvent.setup();
+  render(DispatchCard, { card: follow, messageId: "m1", onchange });
+  expect(screen.getByRole("article", { name: "Follow-up for Add a dark mode toggle" })).toBeInTheDocument();
+  expect(screen.getByText("Follow-up")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Add to board" })).toBeNull();
+
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  expect(screen.getByLabelText("Message for the session")).toHaveValue("Also add a test for the toggle.");
+  expect(screen.queryByLabelText("Folder")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+  await user.click(screen.getByRole("button", { name: "Send to session" }));
+  expect(api.calls("chat_run_card")).toEqual([{ messageId: "m1", cardId: "c1" }]);
+  expect(onchange).toHaveBeenCalledWith(msg(sent));
+});
+
+test("a sent follow-up says so and links to its session", () => {
+  backend({});
+  render(DispatchCard, { card: card({ target: "s1", state: "started", sessionId: "s1" }), messageId: "m1", onchange: vi.fn() });
+  expect(screen.getByText("Sent")).toBeInTheDocument();
+  expect(screen.getByText("Sent to this session.")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Open session" })).toHaveAttribute("href", "/session?id=s1");
+});
+
 test("a discarded card offers Undo", async () => {
   const api = backend({ chat_discard_card: () => msg(card()) });
   render(DispatchCard, { card: card({ state: "discarded" }), messageId: "m1", onchange: vi.fn() });

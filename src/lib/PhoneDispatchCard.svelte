@@ -1,5 +1,6 @@
 <script lang="ts">
   import Kanban from "phosphor-svelte/lib/Kanban";
+  import PaperPlaneTilt from "phosphor-svelte/lib/PaperPlaneTilt";
   import Play from "phosphor-svelte/lib/Play";
   import TerminalWindow from "phosphor-svelte/lib/TerminalWindow";
   import type { ChatMessage, DispatchCard } from "./api";
@@ -17,6 +18,7 @@
 
   const session = $derived(card.sessionId ? phone.sessions.find((s) => s.id === card.sessionId) : undefined);
   const labelId = $derived(`pcard-${card.id}`);
+  const follow = $derived(Boolean(card.target));
 
   async function post<T>(path: string, extra: Record<string, unknown> = {}) {
     busy = true;
@@ -38,7 +40,8 @@
     if (done) notify(done);
   }
 
-  const run = () => update("/api/chat/cards/run", {}, `Started ${CLI_LABEL[card.cli]} in ${folderName(card.folder)}.`);
+  const run = () =>
+    update("/api/chat/cards/run", {}, follow ? `Sent to ${CLI_LABEL[card.cli]} in ${folderName(card.folder)}.` : `Started ${CLI_LABEL[card.cli]} in ${folderName(card.folder)}.`);
   const discard = () => update("/api/chat/cards/discard");
   const undo = () => update("/api/chat/cards/discard", { undo: true });
 
@@ -56,10 +59,10 @@
     <div class="row" style="gap:10px;align-items:flex-start">
       <CliMark kind={card.cli} />
       <div class="target grow">
-        <b id={labelId}>{card.title || `${CLI_LABEL[card.cli]} · ${card.mode}`}</b>
+        <b id={labelId}>{follow ? `Follow-up for ${card.title}` : card.title || `${CLI_LABEL[card.cli]} · ${card.mode}`}</b>
         <span>{#if card.title}{CLI_LABEL[card.cli]} · {card.mode} · {/if}<span class="mono">{shortPath(card.folder)}</span></span>
       </div>
-      {#if session}<StatusChip status={session.status} />{:else if card.state === "started"}<span class="chip idle">Started</span>{:else}<span class="chip idle">Ready</span>{/if}
+      {#if session}<StatusChip status={session.status} />{:else if card.state === "started"}<span class="chip idle">{follow ? "Sent" : "Started"}</span>{:else}<span class="chip idle">{follow ? "Follow-up" : "Ready"}</span>{/if}
     </div>
     <p class="prompt">{card.prompt}</p>
     {#if card.reason}<p class="why">{card.reason}</p>{/if}
@@ -73,9 +76,11 @@
         {/if}
       {:else}
         <button class="btn primary wide" type="button" disabled={busy || Boolean(card.problem)} onclick={run}>
-          <Play size={16} aria-hidden="true" />Run in {folderName(card.folder) || "…"}
+          {#if follow}<PaperPlaneTilt size={16} weight="fill" aria-hidden="true" />Send to session{:else}<Play size={16} aria-hidden="true" />Run in {folderName(card.folder) || "…"}{/if}
         </button>
-        {#if card.taskId}
+        {#if follow}
+          <!-- A follow-up belongs to its session, so it has no Board card. -->
+        {:else if card.taskId}
           <a class="btn secondary" href="/m/board"><Kanban size={16} aria-hidden="true" />On the Board</a>
         {:else}
           <button class="btn secondary" type="button" disabled={busy} onclick={toBoard}><Kanban size={16} aria-hidden="true" />Add to board</button>

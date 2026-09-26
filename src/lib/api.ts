@@ -181,6 +181,8 @@ export interface DispatchCard {
   sessionId: string | null;
   /** The Board card made from this card, if any. */
   taskId?: string | null;
+  /** A follow-up for this existing session: Send gives it the prompt instead of starting one. */
+  target?: string | null;
 }
 
 export interface ChatMessage {

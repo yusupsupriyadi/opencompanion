@@ -366,10 +366,16 @@ async fn chat_update_card(state: State<'_, AppState>, message_id: String, card: 
             if c.state != "proposed" {
                 return Err("This card already ran or was discarded.".into());
             }
+            c.prompt = card.prompt.trim().to_string();
+            // A follow-up keeps its session's CLI, folder and mode; only the message changes.
+            if let Some(target) = c.target.clone() {
+                let session = db.session(&target)?;
+                orchestrator::validate_target(c, &clis, session.as_ref());
+                return Ok(());
+            }
             c.cli = card.cli;
             c.title = card.title.trim().to_string();
             c.folder = card.folder.trim().to_string();
-            c.prompt = card.prompt.trim().to_string();
             c.mode = card.mode;
             orchestrator::validate(c, &clis);
             Ok(())
