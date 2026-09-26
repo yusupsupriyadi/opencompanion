@@ -223,6 +223,17 @@ export interface Settings {
   plannerApi: PlannerApi;
   /** Days a finished session is kept before it is deleted with its logs; 0 keeps it. */
   keepDays: number;
+  /** Notifications per CLI, keyed by CLI. A CLI without a rule sends all. */
+  notifyClis: Record<string, NotifyRule>;
+  /** Notifications per project folder, keyed by path; folders inside it follow it too. */
+  notifyProjects: Record<string, NotifyRule>;
+}
+
+/** Mirrors `db::NotifyRule`: which notifications one CLI or one folder sends. */
+export interface NotifyRule {
+  waiting: boolean;
+  done: boolean;
+  error: boolean;
 }
 
 /** Mirrors `db::PlannerApi`: an OpenAI-compatible chat completions endpoint. */

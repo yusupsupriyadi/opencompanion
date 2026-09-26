@@ -241,6 +241,48 @@ pub struct Settings {
     pub planner_api: PlannerApi,
     /// Days a finished session is kept before retention deletes it with its logs; 0 keeps it.
     pub keep_days: u32,
+    /// Notifications per CLI (PRD FR-41), keyed by `CliKind::bin()`. A CLI without a rule sends all.
+    pub notify_clis: HashMap<String, NotifyRule>,
+    /// Notifications per project folder, keyed by the folder's path. Sessions in a folder inside it
+    /// follow the rule too.
+    pub notify_projects: HashMap<String, NotifyRule>,
+}
+
+/// The kinds of notification a session sends.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Notice {
+    Waiting,
+    Done,
+    Error,
+}
+
+/// Which notifications one CLI or one project folder sends.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct NotifyRule {
+    pub waiting: bool,
+    pub done: bool,
+    pub error: bool,
+}
+
+impl Default for NotifyRule {
+    fn default() -> Self {
+        Self {
+            waiting: true,
+            done: true,
+            error: true,
+        }
+    }
+}
+
+impl NotifyRule {
+    fn allows(&self, notice: Notice) -> bool {
+        match notice {
+            Notice::Waiting => self.waiting,
+            Notice::Done => self.done,
+            Notice::Error => self.error,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -289,6 +331,24 @@ pub struct ChatModel {
 pub const TEXT_SIZES: [u16; 5] = [90, 100, 110, 125, 150];
 
 impl Settings {
+    /// Whether `notice` goes out for a session of `cli` in `cwd`: only when the switch in Settings,
+    /// the CLI's rule and every rule for a folder holding `cwd` all allow it.
+    pub fn notifies(&self, notice: Notice, cli: CliKind, cwd: &str) -> bool {
+        let global = match notice {
+            Notice::Waiting => self.notify_waiting,
+            Notice::Done => self.notify_done,
+            Notice::Error => self.notify_error,
+        };
+        let here = crate::projects::norm(cwd);
+        let inside = |folder: &str| {
+            let f = crate::projects::norm(folder);
+            here == f || here.starts_with(&format!("{f}\\"))
+        };
+        global
+            && self.notify_clis.get(cli.bin()).is_none_or(|r| r.allows(notice))
+            && self.notify_projects.iter().filter(|(f, _)| inside(f)).all(|(_, r)| r.allows(notice))
+    }
+
     /// Text size as a webview zoom factor, so text and the controls around it scale together.
     /// A value Settings does not offer falls back to 100%.
     pub fn zoom(&self) -> f64 {
@@ -318,6 +378,8 @@ impl Default for Settings {
             planner_source: PlannerSource::Cli,
             planner_api: PlannerApi::default(),
             keep_days: 0,
+            notify_clis: HashMap::new(),
+            notify_projects: HashMap::new(),
         }
     }
 }
@@ -1072,6 +1134,30 @@ mod tests {
         assert_eq!(db.task("t1").unwrap().unwrap().cli, Some(CliKind::Codex));
         let s = db.settings().unwrap();
         assert!(s.notify_waiting && !s.companion_enabled);
+    }
+
+    #[test]
+    fn notifications_follow_the_switch_the_cli_and_every_folder_rule_that_fits() {
+        let mut s = Settings::default();
+        let cwd = r"C:\Users\me\Project\uninote\web";
+        assert!(s.notifies(Notice::Done, CliKind::Codex, cwd));
+
+        s.notify_clis.insert("codex".into(), NotifyRule { done: false, ..NotifyRule::default() });
+        assert!(!s.notifies(Notice::Done, CliKind::Codex, cwd));
+        assert!(s.notifies(Notice::Waiting, CliKind::Codex, cwd));
+        assert!(s.notifies(Notice::Done, CliKind::Claude, cwd));
+
+        // A rule for a folder covers the folders inside it, whatever the case or slashes.
+        s.notify_projects.insert("c:/users/me/project/uninote/".into(), NotifyRule { error: false, ..NotifyRule::default() });
+        assert!(!s.notifies(Notice::Error, CliKind::Claude, cwd));
+        assert!(s.notifies(Notice::Error, CliKind::Claude, r"C:\Users\me\Project\uninote-docs"));
+
+        s.notify_waiting = false;
+        assert!(!s.notifies(Notice::Waiting, CliKind::Claude, r"C:\elsewhere"));
+
+        // Settings saved before these rules existed load with none.
+        let old: Settings = serde_json::from_str(r#"{"notifyDone":false}"#).unwrap();
+        assert!(old.notify_clis.is_empty() && !old.notifies(Notice::Done, CliKind::Claude, "C:/w"));
     }
 
     #[test]

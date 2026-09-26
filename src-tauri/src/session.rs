@@ -14,7 +14,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::cli::{self, CliKind};
-use crate::db::{self, Db, EventRow, Mode, SessionInfo, Status, Waiting};
+use crate::db::{self, Db, EventRow, Mode, Notice, SessionInfo, Status, Waiting};
 use crate::events::{self, SessionEvent};
 use crate::headless::{self, HeadlessRun, PermMode, Stream, TurnOptions};
 use crate::pty::{PtySession, PtySpec};
@@ -426,7 +426,7 @@ impl Manager {
         let place = folder_name(&info.cwd);
         let who = info.cli.label();
         match info.status {
-            Status::Waiting if settings.notify_waiting => {
+            Status::Waiting if settings.notifies(Notice::Waiting, info.cli, &info.cwd) => {
                 let what = info
                     .waiting
                     .as_ref()
@@ -439,10 +439,10 @@ impl Manager {
                     .unwrap_or_else(|| format!("{who} is waiting for you"));
                 self.emit.notify(&what, &format!("{place} · {}", info.title), &info.id);
             }
-            Status::Done if settings.notify_done && before != Status::Done => {
+            Status::Done if settings.notifies(Notice::Done, info.cli, &info.cwd) && before != Status::Done => {
                 self.emit.notify(&format!("{who} finished"), &format!("{place} · {}", info.title), &info.id);
             }
-            Status::Error if settings.notify_error => {
+            Status::Error if settings.notifies(Notice::Error, info.cli, &info.cwd) => {
                 let why = info.last_event.clone().unwrap_or_default();
                 self.emit.notify(&format!("{who} stopped with an error"), &format!("{place} · {why}"), &info.id);
             }

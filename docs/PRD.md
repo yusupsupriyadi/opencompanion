@@ -142,7 +142,7 @@ Prioritas: **P0** wajib untuk MVP, **P1** penting setelah MVP, **P2** nanti.
 | ID | Prio | Requirement | Acceptance criteria |
 |---|---|---|---|
 | FR-40 | P0 | Notifikasi desktop. | Notifikasi OS muncul saat sesi Waiting for you, Done, atau Error. Isinya menyebut CLI dan folder. Klik membuka detail sesi. |
-| FR-41 | P1 | Pengaturan notifikasi. | Pengguna bisa mematikan jenis notifikasi tertentu per CLI atau per project. |
+| FR-41 | P1 | Pengaturan notifikasi. | Pengguna bisa mematikan jenis notifikasi tertentu per CLI atau per project. Settings › Notifications: tiga saklar umum, tabel "By CLI" (Waiting, Done, Error per CLI terpasang), dan tabel "By project folder" (folder dipilih dari folder project yang dikenal atau lewat Browse, bisa dihapus). Notifikasi keluar hanya bila saklar umum, aturan CLI-nya, dan setiap aturan folder yang memuat folder sesi (termasuk subfolder) mengizinkan. HP mengikuti aturan yang sama. |
 | FR-42 | P1 | Notifikasi ke HP. | Perangkat yang dipasangkan menerima notifikasi yang sama lewat companion (Web Push bila tersedia di koneksi HTTPS, selain itu tampil saat halaman terbuka). |
 
 ### F. Mobile companion (web dulu)

@@ -6,8 +6,20 @@
   import Warning from "phosphor-svelte/lib/Warning";
   import QRCode from "qrcode";
   import { onMount } from "svelte";
-  import { api, errorText, type AppInfo, type Device, type Pairing, type PermMode, type PlannerApi, type Settings } from "$lib/api";
-  import { MODES, TEXT_SIZES, ago, modeLabel } from "$lib/format";
+  import {
+    api,
+    errorText,
+    type AppInfo,
+    type CliKind,
+    type Device,
+    type NotifyRule,
+    type Pairing,
+    type PermMode,
+    type PlannerApi,
+    type ProjectFolder,
+    type Settings,
+  } from "$lib/api";
+  import { MODES, TEXT_SIZES, ago, folderName, modeLabel, shortPath } from "$lib/format";
   import { app, loadSettings, refreshSessions, saveSettings, showToast } from "$lib/store.svelte";
 
   let settings = $state<Settings | null>(null);
@@ -96,14 +108,64 @@
 
   let defaultRoots = $state<string[]>([]);
   let projectCount = $state<number | null>(null);
+  let knownFolders = $state<ProjectFolder[]>([]);
   const shownRoots = $derived(settings?.projectRoots.length ? settings.projectRoots : defaultRoots);
 
   async function countProjects() {
     try {
-      projectCount = (await api.projectFolders()).length;
+      knownFolders = await api.projectFolders();
+      projectCount = knownFolders.length;
     } catch {
       projectCount = null;
     }
+  }
+
+  // Notification rules per CLI and per project folder (PRD FR-41). No rule means all three go out.
+  const NOTICES = [
+    { key: "waiting", label: "Waiting" },
+    { key: "done", label: "Done" },
+    { key: "error", label: "Error" },
+  ] as const;
+  const ALL: NotifyRule = { waiting: true, done: true, error: true };
+  const ruleClis = $derived(app.clis.filter((c) => c.path || settings?.notifyClis[c.kind]));
+  const ruleFolders = $derived(Object.keys(settings?.notifyProjects ?? {}).sort((a, b) => folderName(a).localeCompare(folderName(b))));
+  const addable = $derived(knownFolders.filter((f) => !ruleFolders.some((r) => r.toLowerCase() === f.path.toLowerCase())));
+  let folderPick = $state("");
+
+  async function setCliRule(el: HTMLInputElement, kind: CliKind, key: keyof NotifyRule) {
+    if (!settings) return;
+    const next = { ...(settings.notifyClis[kind] ?? ALL), [key]: el.checked };
+    const rules = { ...settings.notifyClis };
+    // A rule that sends everything is the same as none.
+    if (next.waiting && next.done && next.error) delete rules[kind];
+    else rules[kind] = next;
+    await saveControl(el, { notifyClis: rules });
+  }
+
+  async function setFolderRule(el: HTMLInputElement, folder: string, key: keyof NotifyRule) {
+    if (!settings) return;
+    await saveControl(el, { notifyProjects: { ...settings.notifyProjects, [folder]: { ...settings.notifyProjects[folder], [key]: el.checked } } });
+  }
+
+  async function addFolderRule(folder: string) {
+    if (!settings || !folder) return;
+    const ok = await save(
+      { notifyProjects: { ...settings.notifyProjects, [folder]: { ...ALL } } },
+      `Added ${folderName(folder)}. Turn off what it should not send.`,
+    );
+    if (ok) folderPick = "";
+  }
+
+  async function browseFolderRule() {
+    const picked = await openDialog({ directory: true, multiple: false, title: "Choose a project folder" });
+    if (typeof picked === "string") addFolderRule(picked);
+  }
+
+  async function removeFolderRule(folder: string) {
+    if (!settings) return;
+    const rules = { ...settings.notifyProjects };
+    delete rules[folder];
+    await save({ notifyProjects: rules }, `${folderName(folder)} sends every notification again.`);
   }
 
   async function addRoot() {
@@ -485,13 +547,60 @@
         <button class="btn secondary" type="button" style="align-self:flex-start" onclick={addRoot}>Add folder</button>
       </section>
 
-      <section class="card" aria-labelledby="notif-title">
+      <section class="card" id="notifications" aria-labelledby="notif-title">
         <h2 id="notif-title">Notifications</h2>
         <div class="checks">
           <label><input type="checkbox" checked={settings.notifyWaiting} onchange={(e) => saveControl(e.currentTarget, { notifyWaiting: e.currentTarget.checked })} />A session is waiting for you</label>
           <label><input type="checkbox" checked={settings.notifyDone} onchange={(e) => saveControl(e.currentTarget, { notifyDone: e.currentTarget.checked })} />A session is done</label>
           <label><input type="checkbox" checked={settings.notifyError} onchange={(e) => saveControl(e.currentTarget, { notifyError: e.currentTarget.checked })} />A session stopped with an error</label>
         </div>
+        <table class="rules" id="notify-by-cli">
+          <caption>By CLI</caption>
+          <thead><tr><th scope="col"><span class="sr-only">CLI</span></th>{#each NOTICES as n (n.key)}<th scope="col">{n.label}</th>{/each}</tr></thead>
+          <tbody>
+            {#each ruleClis as c (c.kind)}
+              {@const rule = settings.notifyClis[c.kind] ?? ALL}
+              <tr>
+                <th scope="row">{c.label}</th>
+                {#each NOTICES as n (n.key)}
+                  <td><input type="checkbox" aria-label="{c.label}: {n.label}" checked={rule[n.key]} onchange={(e) => setCliRule(e.currentTarget, c.kind, n.key)} /></td>
+                {/each}
+              </tr>
+            {:else}
+              <tr><td colspan="4" class="meta">No CLI is installed yet.</td></tr>
+            {/each}
+          </tbody>
+        </table>
+        <table class="rules" id="notify-by-folder">
+          <caption>By project folder</caption>
+          {#if ruleFolders.length}
+            <thead><tr><th scope="col"><span class="sr-only">Folder</span></th>{#each NOTICES as n (n.key)}<th scope="col">{n.label}</th>{/each}<th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+          {/if}
+          <tbody>
+            {#each ruleFolders as f (f)}
+              {@const rule = settings.notifyProjects[f]}
+              <tr>
+                <th scope="row"><span class="mono" title={f}>{folderName(f)}</span></th>
+                {#each NOTICES as n (n.key)}
+                  <td><input type="checkbox" aria-label="{folderName(f)}: {n.label}" checked={rule[n.key]} onchange={(e) => setFolderRule(e.currentTarget, f, n.key)} /></td>
+                {/each}
+                <td><button class="btn ghost sm" type="button" aria-label="Remove the rule for {folderName(f)}" onclick={() => removeFolderRule(f)}>Remove</button></td>
+              </tr>
+            {:else}
+              <tr><td colspan="5" class="meta">Every project folder sends all of them.</td></tr>
+            {/each}
+          </tbody>
+        </table>
+        <div class="add-rule">
+          <label class="sr-only" for="notify-folder">Project folder to add a rule for</label>
+          <select class="select" id="notify-folder" bind:value={folderPick}>
+            <option value="">Choose a project folder…</option>
+            {#each addable as f (f.path)}<option value={f.path}>{f.name} · {shortPath(f.path)}</option>{/each}
+          </select>
+          <button class="btn secondary sm" type="button" disabled={!folderPick} onclick={() => addFolderRule(folderPick)}>Add</button>
+          <button class="btn ghost sm" type="button" onclick={browseFolderRule}>Browse…</button>
+        </div>
+        <p class="meta" style="margin:0">A notification goes out only when the switch above, its CLI and its folder all allow it. The phone follows the same rules.</p>
       </section>
 
       <section class="card" id="text-size" aria-labelledby="text-title">
@@ -683,10 +792,59 @@
     min-height: 32px;
     cursor: pointer;
   }
-  .checks input {
+  .checks input,
+  .rules input {
     width: 18px;
     height: 18px;
     accent-color: var(--forest);
+  }
+  .rules {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    min-width: 0;
+  }
+  .rules caption {
+    text-align: left;
+    font-weight: 800;
+    font-size: 14px;
+    padding-bottom: 6px;
+  }
+  .rules th,
+  .rules td {
+    padding: 6px 8px;
+    border-top: 1px solid var(--line);
+  }
+  .rules thead th {
+    border-top: 0;
+    background: none;
+    color: var(--ink-2);
+    font-weight: 700;
+    text-align: center;
+  }
+  .rules tbody th {
+    text-align: left;
+    font-weight: 700;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rules td {
+    text-align: center;
+  }
+  .rules td.meta {
+    text-align: left;
+  }
+  .add-rule {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .add-rule .select {
+    flex: 1;
+    min-width: 180px;
   }
   .select {
     appearance: auto;

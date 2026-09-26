@@ -25,6 +25,8 @@ const base: Settings = {
   plannerSource: "cli",
   plannerApi: { baseUrl: "", model: "", apiKey: "" },
   keepDays: 0,
+  notifyClis: {},
+  notifyProjects: {},
 };
 
 let stored: Settings;
@@ -169,7 +171,7 @@ test("a setting that could not be saved shows the stored value again", async () 
     save_settings: () => new Error("The database is locked."),
     companion_status: () => ({ running: false, address: null, port: 8765, error: null }),
     list_devices: () => [],
-    app_info: () => ({ version: "0.1.0", dataDir: "C:\data", counts: { sessions: 0, devices: 0 } }),
+    app_info: () => ({ version: "0.1.0", dataDir: String.raw`C:\data`, counts: { sessions: 0, devices: 0 } }),
     default_project_roots: () => [],
     project_folders: () => [],
   });
@@ -184,4 +186,37 @@ test("a setting that could not be saved shows the stored value again", async () 
   await user.selectOptions(scan, "60");
   await vi.waitFor(() => expect(scan).toHaveValue("10"));
   expect(toast.text).toBe("The database is locked.");
+});
+
+test("each CLI and each project folder can turn off some notifications", async () => {
+  const uninote = String.raw`C:\Users\me\Project\uninote`;
+  api();
+  backend({
+    get_settings: () => stored,
+    save_settings: (a) => {
+      stored = a?.settings as Settings;
+      return stored;
+    },
+    companion_status: () => ({ running: false, address: null, port: 8765, error: null }),
+    list_devices: () => [],
+    app_info: () => ({ version: "0.1.0", dataDir: String.raw`C:\data`, counts: { sessions: 0, devices: 0 } }),
+    default_project_roots: () => [],
+    project_folders: () => [{ path: uninote, name: "uninote", markers: [], source: "recent" }],
+  });
+  const user = userEvent.setup();
+  render(SettingsPage);
+
+  const codexDone = await screen.findByRole("checkbox", { name: "Codex CLI: Done" });
+  await user.click(codexDone);
+  expect(stored.notifyClis).toEqual({ codex: { waiting: true, done: false, error: true } });
+  await user.click(screen.getByRole("checkbox", { name: "Codex CLI: Done" }));
+  expect(stored.notifyClis).toEqual({});
+
+  await user.selectOptions(screen.getByLabelText("Project folder to add a rule for"), uninote);
+  await user.click(screen.getByRole("button", { name: "Add" }));
+  expect(stored.notifyProjects).toEqual({ [uninote]: { waiting: true, done: true, error: true } });
+  await user.click(screen.getByRole("checkbox", { name: "uninote: Error" }));
+  expect(stored.notifyProjects[uninote].error).toBe(false);
+  await user.click(screen.getByRole("button", { name: "Remove the rule for uninote" }));
+  expect(stored.notifyProjects).toEqual({});
 });
