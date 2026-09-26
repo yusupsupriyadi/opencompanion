@@ -31,6 +31,7 @@ const base: Settings = {
   trayHintShown: false,
   startAtLogin: false,
   autoRunFolders: [],
+  language: "en",
 };
 
 let stored: Settings;

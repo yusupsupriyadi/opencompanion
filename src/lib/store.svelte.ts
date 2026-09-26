@@ -11,6 +11,7 @@ import {
   type SessionView,
   type Settings,
 } from "./api";
+import { setLang } from "./i18n.svelte";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -95,12 +96,14 @@ export function forgetModelLists() {
 
 export async function loadSettings() {
   app.settings = await api.getSettings();
+  setLang(app.settings?.language);
   app.companion = await api.companionStatus();
   return app.settings;
 }
 
 export async function saveSettings(next: Settings) {
   app.settings = await api.saveSettings(next);
+  setLang(app.settings?.language);
   app.companion = await api.companionStatus();
   restartScanTimer();
   return app.settings;

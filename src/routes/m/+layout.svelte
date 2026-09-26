@@ -8,6 +8,7 @@
   import Kanban from "phosphor-svelte/lib/Kanban";
   import { onMount } from "svelte";
   import "$lib/phone.css";
+  import { setLang } from "$lib/i18n.svelte";
   import { connect, getToken, loadSessions, phone, reconnectNow } from "$lib/phone.svelte";
 
   let { children } = $props();
@@ -25,6 +26,11 @@
   const offline = $derived(phone.connection === "offline" && !onPair);
 
   onMount(() => {
+    // The phone speaks the desktop's UI language; asking needs no pairing.
+    fetch("/api/hello")
+      .then((r) => r.json())
+      .then((h) => setLang(h.language))
+      .catch(() => undefined);
     if (!getToken()) {
       if (!onPair) goto(`/m/pair${page.url.search}`);
       return;

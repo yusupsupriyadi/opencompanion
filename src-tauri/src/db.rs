@@ -275,6 +275,8 @@ pub struct Settings {
     pub start_at_login: bool,
     /// Folders whose Chat cards start without Run (PRD FR-26), with folders inside them.
     pub auto_run_folders: Vec<String>,
+    /// UI language, `en` or `id` (PRD FR-63). The phone follows it too.
+    pub language: String,
 }
 
 /// The kinds of notification a session sends.
@@ -417,6 +419,7 @@ impl Default for Settings {
             tray_hint_shown: false,
             start_at_login: false,
             auto_run_folders: Vec::new(),
+            language: "en".into(),
         }
     }
 }

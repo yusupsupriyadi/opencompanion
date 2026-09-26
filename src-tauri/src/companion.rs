@@ -326,8 +326,10 @@ fn authed(ctx: &Ctx, headers: &HeaderMap) -> Result<Device, Response> {
         .ok_or_else(|| fail(StatusCode::UNAUTHORIZED, "This phone is not paired, or it was removed on the desktop."))
 }
 
-async fn hello() -> Json<Value> {
-    Json(json!({ "app": "OpenCompanion" }))
+/// Open to any caller: the app's name and its UI language, so the pairing screen speaks it too.
+async fn hello(State(ctx): State<Ctx>) -> Json<Value> {
+    let language = ctx.db.settings().map(|s| s.language).unwrap_or_else(|_| "en".into());
+    Json(json!({ "app": "OpenCompanion", "language": language }))
 }
 
 #[derive(Deserialize)]

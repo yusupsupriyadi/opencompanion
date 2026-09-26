@@ -250,6 +250,8 @@ export interface Settings {
   startAtLogin: boolean;
   /** Folders whose Chat cards start without Run, with the folders inside them. */
   autoRunFolders: string[];
+  /** UI language; the phone follows it too. */
+  language: "en" | "id";
 }
 
 /** Mirrors `db::NotifyRule`: which notifications one CLI or one folder sends. */
