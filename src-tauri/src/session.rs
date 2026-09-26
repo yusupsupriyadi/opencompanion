@@ -425,26 +425,26 @@ impl Manager {
         let settings = self.db.settings().unwrap_or_default();
         let place = folder_name(&info.cwd);
         let who = info.cli.label();
+        // The OS shows these itself, so they follow Settings' UI language here (PRD FR-63).
+        let id = settings.language == "id";
+        let say = |en: String, idn: String| if id { idn } else { en };
         match info.status {
             Status::Waiting if settings.notifies(Notice::Waiting, info.cli, &info.cwd) => {
-                let what = info
-                    .waiting
-                    .as_ref()
-                    .map(|w| match w.reason.as_str() {
-                        "permission" => format!("{who} needs your permission"),
-                        "trust_folder" => format!("{who} asks whether you trust this folder"),
-                        "update_offer" => format!("{who} is asking about an update"),
-                        _ => format!("{who} is waiting for you"),
-                    })
-                    .unwrap_or_else(|| format!("{who} is waiting for you"));
+                let what = match info.waiting.as_ref().map(|w| w.reason.as_str()) {
+                    Some("permission") => say(format!("{who} needs your permission"), format!("{who} butuh izin Anda")),
+                    Some("trust_folder") => say(format!("{who} asks whether you trust this folder"), format!("{who} bertanya apakah Anda memercayai folder ini")),
+                    Some("update_offer") => say(format!("{who} is asking about an update"), format!("{who} menawarkan pembaruan")),
+                    _ => say(format!("{who} is waiting for you"), format!("{who} menunggu Anda")),
+                };
                 self.emit.notify(&what, &format!("{place} · {}", info.title), &info.id);
             }
             Status::Done if settings.notifies(Notice::Done, info.cli, &info.cwd) && before != Status::Done => {
-                self.emit.notify(&format!("{who} finished"), &format!("{place} · {}", info.title), &info.id);
+                self.emit.notify(&say(format!("{who} finished"), format!("{who} selesai")), &format!("{place} · {}", info.title), &info.id);
             }
             Status::Error if settings.notifies(Notice::Error, info.cli, &info.cwd) => {
                 let why = info.last_event.clone().unwrap_or_default();
-                self.emit.notify(&format!("{who} stopped with an error"), &format!("{place} · {why}"), &info.id);
+                let title = say(format!("{who} stopped with an error"), format!("{who} berhenti karena error"));
+                self.emit.notify(&title, &format!("{place} · {why}"), &info.id);
             }
             _ => {}
         }

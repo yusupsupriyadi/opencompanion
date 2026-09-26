@@ -99,14 +99,24 @@ fn open_session(app: &AppHandle, id: &str) {
     }
 }
 
+/// The tray's menu in the UI language: open the window, or quit and stop the sessions.
+fn tray_menu<R: tauri::Runtime, M: tauri::Manager<R>>(app: &M, lang: &str) -> tauri::Result<tauri::menu::Menu<R>> {
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+    let (open, quit) = if lang == "id" {
+        ("Buka OpenCompanion", "Keluar dari OpenCompanion dan hentikan sesinya")
+    } else {
+        ("Open OpenCompanion", "Quit OpenCompanion and stop its sessions")
+    };
+    let open = MenuItem::with_id(app, "open", open, true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", quit, true, None::<&str>)?;
+    Menu::with_items(app, &[&open, &PredefinedMenuItem::separator(app)?, &quit])
+}
+
 /// The tray icon (PRD FR-18): a click opens the window; its menu opens it or quits, and quitting
 /// is what stops the sessions.
-fn tray(app: &tauri::App) -> tauri::Result<()> {
-    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+fn tray(app: &tauri::App, lang: &str) -> tauri::Result<()> {
     use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-    let open = MenuItem::with_id(app, "open", "Open OpenCompanion", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit OpenCompanion and stop its sessions", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &PredefinedMenuItem::separator(app)?, &quit])?;
+    let menu = tray_menu(app, lang)?;
     let mut icon = TrayIconBuilder::with_id("main")
         .tooltip("OpenCompanion")
         .menu(&menu)
@@ -147,12 +157,12 @@ fn on_close(window: &tauri::Window, api: &tauri::CloseRequestApi) {
     if !settings.tray_hint_shown {
         settings.tray_hint_shown = true;
         let _ = state.db.save_settings(&settings);
-        show_notification(
-            app,
-            "OpenCompanion is still running",
-            "Sessions keep going in the tray. Click its icon to open the window, or quit from its menu.",
-            "",
-        );
+        let (title, body) = if settings.language == "id" {
+            ("OpenCompanion masih berjalan", "Sesi tetap berjalan di tray. Klik ikonnya untuk membuka jendela, atau keluar dari menunya.")
+        } else {
+            ("OpenCompanion is still running", "Sessions keep going in the tray. Click its icon to open the window, or quit from its menu.")
+        };
+        show_notification(app, title, body, "");
     }
 }
 
@@ -645,6 +655,13 @@ async fn save_settings(app: AppHandle, state: State<'_, AppState>, settings: Set
     if before.text_size != settings.text_size {
         apply_text_size(&app, &settings);
     }
+    if before.language != settings.language {
+        if let Some(tray) = app.tray_by_id("main") {
+            if let Ok(menu) = tray_menu(&app, &settings.language) {
+                let _ = tray.set_menu(Some(menu));
+            }
+        }
+    }
     if before.keep_days != settings.keep_days {
         let (handle, manager, companion, db) = (app.clone(), Arc::clone(&state.manager), Arc::clone(&state.companion), Arc::clone(&state.db));
         tauri::async_runtime::spawn_blocking(move || prune(&handle, &manager, &companion, &db));
@@ -729,7 +746,6 @@ pub fn run() {
             }
         })
         .setup(|app| {
-            tray(app)?;
             // Started at sign-in: straight into the tray, without a window in the way.
             if std::env::args().any(|a| a == autostart::HIDDEN_ARG) {
                 if let Some(w) = app.get_webview_window("main") {
@@ -740,6 +756,7 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir)?;
             let db = Arc::new(Db::open(&data_dir.join("opencompanion.db"))?);
             db.close_orphans()?;
+            tray(app, &db.settings()?.language)?;
             let emit = Arc::new(TauriEmit {
                 app: app.handle().clone(),
                 companion: OnceLock::new(),
