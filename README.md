@@ -51,6 +51,6 @@ Known limits:
 
 - Approve/Deny works for Claude Code (headless through its stdio control protocol, interactive through hooks). Codex and OpenCode prompts are answered in their own terminal; OpenCode's headless `run` refuses prompts by itself.
 - Codex success-path events are parsed from its documentation; on the development machine Codex could not authenticate, so only its failure path was observed.
-- Clicking a desktop notification does not open the session yet (part of FR-40): the Tauri notification plugin has no click action on desktop.
+- On Windows, clicking a notification while it is on screen opens its session (FR-40); one clicked later from the notification center only brings OpenCompanion forward. On macOS and Linux a click does not open the session yet: the Tauri notification plugin has no click action there.
 - Not built yet: UI language switch (FR-63), tray mode (FR-18) and Web Push to the phone (FR-42).
 - Windows 11 is the tested platform. macOS and Linux build from the same code but are untested.

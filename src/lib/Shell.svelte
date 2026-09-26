@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
+  import { listen } from "@tauri-apps/api/event";
   import type { Snippet } from "svelte";
   import { onMount } from "svelte";
   import DeleteSessionDialog from "./DeleteSessionDialog.svelte";
@@ -19,6 +20,11 @@
     startDesktop().then(() => {
       if (app.settings && !app.settings.onboarded && page.url.pathname !== "/onboarding") goto("/onboarding");
     });
+    // A click on a desktop notification opens the session it is about (PRD FR-40).
+    const un = listen<string>("open-session", (e) => goto(`/session?id=${encodeURIComponent(e.payload)}`));
+    return () => {
+      un.then((f) => f());
+    };
   });
 </script>
 

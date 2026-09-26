@@ -22,6 +22,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager as _, RunEvent, State};
+#[cfg(not(windows))]
 use tauri_plugin_notification::NotificationExt;
 
 use crate::actions::{cli_args, detect_with_settings, ChatTurn, RunTaskInput};
@@ -73,17 +74,56 @@ impl Emit for TauriEmit {
         }
     }
     fn notify(&self, title: &str, body: &str, session_id: &str) {
-        let _ = self
-            .app
-            .notification()
-            .builder()
-            .title(title)
-            .body(body)
-            .show();
+        show_notification(&self.app, title, body, session_id);
         if let Some(c) = self.companion.get() {
             c.broadcast(json!({ "type": "notify", "title": title, "body": body, "sessionId": session_id }));
         }
     }
+}
+
+/// Brings the window forward on the session a notification was about.
+fn open_session(app: &AppHandle, id: &str) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+    let _ = app.emit("open-session", id);
+}
+
+/// An OS notification whose click opens its session (PRD FR-40). A Windows toast reports the
+/// click while it is on screen, so it comes straight from notify-rust; the notification plugin
+/// has no click on desktop and shows the others.
+#[cfg(windows)]
+fn show_notification(app: &AppHandle, title: &str, body: &str, session_id: &str) {
+    use notify_rust::{Notification, NotificationResponse};
+    let mut toast = Notification::new();
+    toast.summary(title).body(body).auto_icon();
+    // As the plugin does: only the installed app's id is registered with Windows. A build run
+    // from `target` shows its toasts under PowerShell's id instead.
+    let from_build = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|d| d.to_path_buf()))
+        .is_some_and(|dir| dir.ends_with("target/debug") || dir.ends_with("target/release"));
+    if !from_build {
+        toast.app_id(&app.config().identifier);
+    }
+    let (app, id) = (app.clone(), session_id.to_string());
+    std::thread::spawn(move || {
+        let Ok(shown) = toast.show() else { return };
+        // Waits until the toast is clicked or leaves the screen; a toast that already left has
+        // nothing more to report.
+        let _ = shown.wait_for_response(|response: &NotificationResponse| {
+            if matches!(response, NotificationResponse::Default | NotificationResponse::Action(_)) {
+                open_session(&app, &id);
+            }
+        });
+    });
+}
+
+#[cfg(not(windows))]
+fn show_notification(app: &AppHandle, title: &str, body: &str, _session_id: &str) {
+    let _ = app.notification().builder().title(title).body(body).show();
 }
 
 type Res<T> = Result<T, String>;

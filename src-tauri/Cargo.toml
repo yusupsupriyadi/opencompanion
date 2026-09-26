@@ -41,6 +41,11 @@ ureq = "3"
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"
 
+# Windows toasts report a click, which opens the session (PRD FR-40). Already in the tree
+# through tauri-plugin-notification.
+[target.'cfg(windows)'.dependencies]
+notify-rust = "4.11"
+
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
