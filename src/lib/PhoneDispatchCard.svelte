@@ -42,9 +42,7 @@
   const discard = () => update("/api/chat/cards/discard");
   const undo = () => update("/api/chat/cards/discard", { undo: true });
 
-  async function toBoard() {
-    if (await post("/api/chat/cards/board")) notify("Added to the Board in Todo.");
-  }
+  const toBoard = () => update("/api/chat/cards/board", {}, "Added to the Board in Todo.");
 </script>
 
 {#if card.state === "discarded"}
@@ -77,7 +75,11 @@
         <button class="btn primary wide" type="button" disabled={busy || Boolean(card.problem)} onclick={run}>
           <Play size={16} aria-hidden="true" />Run in {folderName(card.folder) || "…"}
         </button>
-        <button class="btn secondary" type="button" disabled={busy} onclick={toBoard}><Kanban size={16} aria-hidden="true" />Add to board</button>
+        {#if card.taskId}
+          <a class="btn secondary" href="/m/board"><Kanban size={16} aria-hidden="true" />On the Board</a>
+        {:else}
+          <button class="btn secondary" type="button" disabled={busy} onclick={toBoard}><Kanban size={16} aria-hidden="true" />Add to board</button>
+        {/if}
         <button class="btn ghost" type="button" disabled={busy} onclick={discard}>Discard</button>
       {/if}
     </div>

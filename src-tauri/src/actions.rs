@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
@@ -182,8 +182,34 @@ pub fn discard_card(db: &Db, message_id: &str, card_id: &str, undo: bool) -> Res
     })
 }
 
+/// Cards whose session is being started, so a press on the phone and one on the desktop at the
+/// same moment start one session, not two.
+static STARTING: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+struct Starting(String);
+
+impl Starting {
+    fn claim(card_id: &str) -> Res<Self> {
+        let mut list = STARTING.lock().map_err(|e| e.to_string())?;
+        if list.iter().any(|c| c == card_id) {
+            return Err("This card is starting its session already.".into());
+        }
+        list.push(card_id.to_string());
+        Ok(Self(card_id.to_string()))
+    }
+}
+
+impl Drop for Starting {
+    fn drop(&mut self) {
+        if let Ok(mut list) = STARTING.lock() {
+            list.retain(|c| *c != self.0);
+        }
+    }
+}
+
 /// Starts the session a card proposes. Nothing runs from Chat without this.
 pub fn run_card(db: &Db, manager: &Arc<Manager>, message_id: &str, card_id: &str) -> Res<ChatMessage> {
+    let _claim = Starting::claim(card_id)?;
     let clis = detect_with_settings(db);
     let msg = db.chat_message(message_id)?.ok_or("Message not found.")?;
     let mut card = msg.cards.iter().find(|c| c.id == card_id).cloned().ok_or("Card not found.")?;
@@ -213,10 +239,14 @@ pub fn run_card(db: &Db, manager: &Arc<Manager>, message_id: &str, card_id: &str
     })
 }
 
-/// A card from Chat becomes a Todo card on the Board.
-pub fn card_to_board(db: &Db, message_id: &str, card_id: &str) -> Res<Task> {
+/// A card from Chat becomes a Todo card on the Board, once: the chat card remembers it.
+/// Returns the Board card and the chat message that now links to it.
+pub fn card_to_board(db: &Db, message_id: &str, card_id: &str) -> Res<(Task, ChatMessage)> {
     let msg = db.chat_message(message_id)?.ok_or("Message not found.")?;
     let card = msg.cards.iter().find(|c| c.id == card_id).ok_or("Card not found.")?;
+    if card.task_id.as_deref().is_some_and(|t| db.task(t).ok().flatten().is_some()) {
+        return Err("This card is on the Board already.".into());
+    }
     let now = db::now_ms();
     let task = Task {
         id: db::new_id(),
@@ -237,7 +267,11 @@ pub fn card_to_board(db: &Db, message_id: &str, card_id: &str) -> Res<Task> {
         updated_at: now,
     };
     db.save_task(&task)?;
-    Ok(task)
+    let message = with_card(db, message_id, card_id, |c| {
+        c.task_id = Some(task.id.clone());
+        Ok(())
+    })?;
+    Ok((task, message))
 }
 
 /// Moves a card to `column`, before the card `before` when it is in that column, else to the end.

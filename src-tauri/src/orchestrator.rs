@@ -246,6 +246,7 @@ fn cards_from(v: &Value, clis: &[CliInstall], known: &[ProjectFolder]) -> Vec<Di
                 problem: None,
                 state: "proposed".into(),
                 session_id: None,
+                task_id: None,
             };
             validate(&mut card, clis);
             Some(card)
@@ -605,6 +606,7 @@ mod tests {
             problem: None,
             state: "proposed".into(),
             session_id: None,
+            task_id: None,
         };
         validate(&mut card, &clis());
         assert!(card.problem.unwrap().contains("does not exist"));

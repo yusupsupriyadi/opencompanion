@@ -68,13 +68,23 @@ test("Edit saves the new title and prompt through validation", async () => {
 });
 
 test("Discard and Add to board call the backend", async () => {
-  const api = backend({ chat_discard_card: () => msg(card({ state: "discarded" })), chat_card_to_board: () => ({}) });
+  const onBoard = msg(card({ taskId: "t7" }));
+  const api = backend({ chat_discard_card: () => msg(card({ state: "discarded" })), chat_card_to_board: () => onBoard });
+  const onchange = vi.fn();
   const user = userEvent.setup();
-  render(DispatchCard, { card: card(), messageId: "m1", onchange: vi.fn() });
+  render(DispatchCard, { card: card(), messageId: "m1", onchange });
   await user.click(screen.getByRole("button", { name: "Add to board" }));
+  expect(onchange).toHaveBeenCalledWith(onBoard);
   await user.click(screen.getByRole("button", { name: "Discard" }));
   expect(api.calls("chat_card_to_board")).toEqual([{ messageId: "m1", cardId: "c1" }]);
   expect(api.calls("chat_discard_card")).toEqual([{ messageId: "m1", cardId: "c1", undo: false }]);
+});
+
+test("a card already on the Board links there instead of adding a second one", () => {
+  backend({});
+  render(DispatchCard, { card: card({ taskId: "t7" }), messageId: "m1", onchange: vi.fn() });
+  expect(screen.getByRole("link", { name: "On the Board" })).toHaveAttribute("href", "/board");
+  expect(screen.queryByRole("button", { name: "Add to board" })).toBeNull();
 });
 
 test("a discarded card offers Undo", async () => {

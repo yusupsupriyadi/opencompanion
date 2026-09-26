@@ -247,6 +247,7 @@ fn the_phone_starts_sessions_sends_messages_and_works_the_board() {
         problem: None,
         state: "proposed".into(),
         session_id: None,
+        task_id: None,
     };
     let reply = ChatMessage {
         id: "msg-a".into(),

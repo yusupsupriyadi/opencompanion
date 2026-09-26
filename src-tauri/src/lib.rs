@@ -364,11 +364,13 @@ async fn chat_run_card(state: State<'_, AppState>, message_id: String, card_id: 
         .inspect(|m| chat_changed(&state, m))
 }
 
+/// Returns the chat message, whose card now names the Board card it became.
 #[tauri::command]
-fn chat_card_to_board(state: State<'_, AppState>, message_id: String, card_id: String) -> Res<Task> {
-    let task = actions::card_to_board(&state.db, &message_id, &card_id)?;
+fn chat_card_to_board(state: State<'_, AppState>, message_id: String, card_id: String) -> Res<ChatMessage> {
+    let (_, message) = actions::card_to_board(&state.db, &message_id, &card_id)?;
     state.manager.tasks_changed();
-    Ok(task)
+    chat_changed(&state, &message);
+    Ok(message)
 }
 
 #[tauri::command]

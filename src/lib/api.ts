@@ -180,6 +180,8 @@ export interface DispatchCard {
   problem: string | null;
   state: "proposed" | "started" | "discarded";
   sessionId: string | null;
+  /** The Board card made from this card, if any. */
+  taskId?: string | null;
 }
 
 export interface ChatMessage {
@@ -348,7 +350,8 @@ export const api = {
   chatDiscardCard: (messageId: string, cardId: string, undo = false) =>
     invoke<ChatMessage>("chat_discard_card", { messageId, cardId, undo }),
   chatRunCard: (messageId: string, cardId: string) => invoke<ChatMessage>("chat_run_card", { messageId, cardId }),
-  chatCardToBoard: (messageId: string, cardId: string) => invoke<Task>("chat_card_to_board", { messageId, cardId }),
+  /** Returns the message, whose card then names the Board card it became. */
+  chatCardToBoard: (messageId: string, cardId: string) => invoke<ChatMessage>("chat_card_to_board", { messageId, cardId }),
   chatModels: (cli: CliKind) => invoke<ModelList>("chat_models", { cli }),
   chatSetModel: (cli: CliKind, model: string, effort: string) => invoke<Settings>("chat_set_model", { cli, model, effort }),
 

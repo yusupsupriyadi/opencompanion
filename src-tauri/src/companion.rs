@@ -613,9 +613,10 @@ async fn card_board(State(ctx): State<Ctx>, headers: HeaderMap, Json(body): Json
         return r;
     }
     match actions::card_to_board(&ctx.db, &body.message_id, &body.card_id) {
-        Ok(task) => {
+        Ok((task, message)) => {
             ctx.manager.tasks_changed();
-            Json(json!({ "task": task })).into_response()
+            ctx.manager.chat_changed(&message.thread_id);
+            Json(json!({ "task": task, "message": message })).into_response()
         }
         Err(e) => fail(StatusCode::CONFLICT, e),
     }

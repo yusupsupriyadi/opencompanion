@@ -140,6 +140,9 @@ pub struct DispatchCard {
     /// `proposed`, `started`, `discarded`.
     pub state: String,
     pub session_id: Option<String>,
+    /// The Board card made from this card, so Add to board makes only one.
+    #[serde(default)]
+    pub task_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
