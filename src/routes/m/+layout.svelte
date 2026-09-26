@@ -22,6 +22,7 @@
   const path = $derived(page.url.pathname.replace(/\/$/, "") || "/m");
   const tabbed = $derived(TABS.some((t) => t.href === path));
   const waiting = $derived(phone.sessions.filter((s) => s.status === "waiting").length);
+  const offline = $derived(phone.connection === "offline" && !onPair);
 
   onMount(() => {
     if (!getToken()) {
@@ -39,8 +40,25 @@
 
 <svelte:head><meta name="theme-color" content="#FBF3CF" /></svelte:head>
 
-<div class="phone" class:has-tabs={tabbed && phone.connection !== "offline"}>
-  {#if phone.connection === "offline" && !onPair}
+<!-- The screen underneath stays mounted while the desktop is away, so a half-written form or chat survives. -->
+<div class="phone" class:has-tabs={tabbed} inert={offline}>
+  {@render children()}
+  {#if tabbed}
+    <nav class="tabs" id="phone-tabs" aria-label="Phone sections">
+      <div>
+        {#each TABS as t (t.href)}
+          <a href={t.href} aria-current={path === t.href ? "page" : undefined}>
+            <t.icon size={22} weight={path === t.href ? "fill" : "regular"} aria-hidden="true" />
+            {t.label}
+            {#if t.href === "/m" && waiting > 0}<span class="tab-count">{waiting}<span class="sr-only"> waiting for you</span></span>{/if}
+          </a>
+        {/each}
+      </div>
+    </nav>
+  {/if}
+</div>
+{#if offline}
+  <div class="phone offline-layer" id="phone-offline-layer">
     <header class="bar"><span class="brand grow">OpenCompanion <Cloud size={20} aria-hidden="true" /></span></header>
     <main class="content" id="phone-offline">
       <img class="art" src="/meadow-day.png" alt="" aria-hidden="true" />
@@ -52,23 +70,9 @@
         <li>This phone is on the same Wi-Fi, or on your VPN.</li>
       </ol>
       <button class="btn primary block" type="button" onclick={reconnectNow}><ArrowClockwise size={16} aria-hidden="true" />Try again</button>
-      <p class="small" style="margin:0">Trying again by itself every few seconds.</p>
+      <p class="small" style="margin:0">Trying again by itself every few seconds. What you were typing is kept.</p>
     </main>
-  {:else}
-    {@render children()}
-    {#if tabbed}
-      <nav class="tabs" id="phone-tabs" aria-label="Phone sections">
-        <div>
-          {#each TABS as t (t.href)}
-            <a href={t.href} aria-current={path === t.href ? "page" : undefined}>
-              <t.icon size={22} weight={path === t.href ? "fill" : "regular"} aria-hidden="true" />
-              {t.label}
-              {#if t.href === "/m" && waiting > 0}<span class="tab-count">{waiting}<span class="sr-only"> waiting for you</span></span>{/if}
-            </a>
-          {/each}
-        </div>
-      </nav>
-    {/if}
-  {/if}
-</div>
-{#if phone.notice}<div class="toast show" role="status" aria-live="polite">{phone.notice}</div>{/if}
+  </div>
+{/if}
+<!-- Always in the page, so screen readers hear the text when it arrives. -->
+<div class="toast" class:show={phone.notice} role="status" aria-live="polite">{phone.notice}</div>

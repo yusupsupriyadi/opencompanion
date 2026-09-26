@@ -7,7 +7,7 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::extract::ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path as UrlPath, Query, State};
 use axum::http::{header, HeaderMap, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
@@ -26,6 +26,9 @@ use crate::{monitor, orchestrator};
 
 const PAIR_TTL_MS: i64 = 120_000;
 const PAIR_ATTEMPTS: u32 = 5;
+/// Close codes the phone reads: removed on the desktop (pair again), or phone access turned off.
+pub const CLOSE_REMOVED: u16 = 4401;
+pub const CLOSE_OFF: u16 = 4403;
 
 pub type AssetLookup = Arc<dyn Fn(&str) -> Option<(Vec<u8>, String)> + Send + Sync>;
 
@@ -60,6 +63,9 @@ pub struct Companion {
     shutdown: Mutex<Option<oneshot::Sender<()>>>,
     status: Mutex<CompanionStatus>,
     pairing: Mutex<Option<PairState>>,
+    /// Ends open live connections: `Some(device id)` for one phone, `None` for every phone. A
+    /// socket outlives the server's graceful shutdown, so stopping the server alone would not.
+    revoke: broadcast::Sender<Option<String>>,
 }
 
 pub fn hash_token(token: &str) -> String {
@@ -109,6 +115,7 @@ pub fn render_screen(raw: &str) -> String {
 impl Companion {
     pub fn new(db: Arc<Db>, manager: Arc<Manager>, assets: AssetLookup) -> Arc<Self> {
         let (tx, _) = broadcast::channel(256);
+        let (revoke, _) = broadcast::channel(16);
         let port = db.settings().map(|s| s.companion_port).unwrap_or(8765);
         Arc::new(Self {
             db,
@@ -123,7 +130,13 @@ impl Companion {
                 error: None,
             }),
             pairing: Mutex::new(None),
+            revoke,
         })
+    }
+
+    /// Closes the live connection of a removed phone, or of every phone (`None`).
+    pub fn revoke(&self, device_id: Option<&str>) {
+        let _ = self.revoke.send(device_id.map(str::to_owned));
     }
 
     pub fn broadcast(&self, message: Value) {
@@ -182,6 +195,7 @@ impl Companion {
     }
 
     pub fn stop(&self) {
+        self.revoke(None);
         if let Ok(mut s) = self.shutdown.lock() {
             if let Some(tx) = s.take() {
                 let _ = tx.send(());
@@ -665,16 +679,35 @@ struct WsQuery {
 }
 
 async fn ws(State(ctx): State<Ctx>, Query(q): Query<WsQuery>, upgrade: WebSocketUpgrade) -> Response {
-    if ctx.device_for(&q.token).is_none() {
+    let Some(device) = ctx.device_for(&q.token) else {
         return fail(StatusCode::UNAUTHORIZED, "This phone is not paired.");
-    }
+    };
     let rx = ctx.tx.subscribe();
-    upgrade.on_upgrade(move |socket| pump(socket, rx))
+    let revoked = ctx.revoke.subscribe();
+    upgrade.on_upgrade(move |socket| pump(socket, rx, revoked, device.id))
 }
 
-async fn pump(mut socket: WebSocket, mut rx: broadcast::Receiver<String>) {
+async fn close(socket: &mut WebSocket, code: u16, reason: &str) {
+    let frame = CloseFrame {
+        code,
+        reason: reason.into(),
+    };
+    let _ = socket.send(Message::Close(Some(frame))).await;
+}
+
+async fn pump(mut socket: WebSocket, mut rx: broadcast::Receiver<String>, mut revoked: broadcast::Receiver<Option<String>>, device: String) {
     loop {
         tokio::select! {
+            gone = revoked.recv() => match gone {
+                Ok(Some(id)) if id == device => {
+                    return close(&mut socket, CLOSE_REMOVED, "This phone was removed on the desktop.").await;
+                }
+                Ok(Some(_)) => {}
+                Ok(None) => return close(&mut socket, CLOSE_OFF, "Phone access is off.").await,
+                // A missed message could have been this phone's removal: it reconnects and is checked again.
+                Err(broadcast::error::RecvError::Lagged(_)) => return close(&mut socket, 1012, "Reconnect.").await,
+                Err(broadcast::error::RecvError::Closed) => return,
+            },
             msg = rx.recv() => match msg {
                 Ok(text) => {
                     if socket.send(Message::Text(text.into())).await.is_err() {

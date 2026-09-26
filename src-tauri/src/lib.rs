@@ -499,9 +499,12 @@ fn list_devices(state: State<'_, AppState>) -> Res<Vec<db::Device>> {
     state.db.devices()
 }
 
+/// The phone's live connection closes at once, not only its next request.
 #[tauri::command]
 fn remove_device(state: State<'_, AppState>, id: String) -> Res<()> {
-    state.db.remove_device(&id)
+    state.db.remove_device(&id)?;
+    state.companion.revoke(Some(&id));
+    Ok(())
 }
 
 #[derive(Serialize)]

@@ -1,5 +1,7 @@
 /* Phone companion (DESIGN.md section 10). Ported from the phone prototype. */
 .phone { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
+/* Covers the screen it pauses; that screen stays in the page underneath, inert. */
+.offline-layer { position: fixed; inset: 0; z-index: 20; overflow-y: auto; }
 .bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; min-height: 56px; border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; z-index: 2; }
 .bar .brand { padding: 0; font-size: 18px; }
 .back { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 8px 0 0; border: 0; background: transparent; font-weight: 700; cursor: pointer; color: var(--ink); }

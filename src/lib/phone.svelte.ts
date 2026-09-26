@@ -55,7 +55,8 @@ export async function call<T>(path: string, init: RequestInit = {}): Promise<T> 
       },
     });
   } catch {
-    phone.connection = "offline";
+    // One failed request while the live connection is up is a blip, not a desktop that went away.
+    if (socket?.readyState !== WebSocket.OPEN) phone.connection = "offline";
     throw new PhoneError("Can't reach your desktop.", 0);
   }
   phone.connection = "online";
@@ -107,6 +108,30 @@ let socket: WebSocket | null = null;
 let retry: ReturnType<typeof setTimeout> | undefined;
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 
+/** Close codes the desktop sends (`companion::CLOSE_REMOVED`, `CLOSE_OFF`). */
+const CLOSE_REMOVED = 4401;
+const RETRY_FIRST = 3000;
+const RETRY_MOST = 10000;
+let delay = RETRY_FIRST;
+
+function scheduleRetry() {
+  clearTimeout(retry);
+  retry = setTimeout(reconnect, delay);
+  delay = Math.min(delay * 2, RETRY_MOST);
+}
+
+/** One reconnect try. A request goes first: a phone removed on the desktop gets a 401 there and
+ * goes back to pairing, instead of retrying a socket the desktop will never accept. */
+async function reconnect() {
+  if (phone.unpaired || !token()) return;
+  try {
+    await loadSessions();
+    connect();
+  } catch {
+    if (!phone.unpaired) scheduleRetry();
+  }
+}
+
 /** A short line in the toast at the bottom of the phone screen. */
 export function notify(text: string) {
   phone.notice = text;
@@ -122,6 +147,7 @@ export function connect() {
   const ws = new WebSocket(`${proto}://${location.host}/api/ws?token=${encodeURIComponent(t)}`);
   socket = ws;
   ws.onopen = () => {
+    delay = RETRY_FIRST;
     phone.connection = "online";
     loadSessions().catch(() => undefined);
   };
@@ -141,21 +167,27 @@ export function connect() {
     if (msg.type === "notify") notify(`${msg.title}. ${msg.body}`);
     listeners.forEach((l) => l(msg));
   };
-  ws.onclose = () => {
+  ws.onclose = (e) => {
+    // A socket replaced by a newer one closes late; the newer one is in charge.
+    if (socket !== ws) return;
     socket = null;
+    if (e.code === CLOSE_REMOVED) {
+      phone.unpaired = true;
+      setToken(null);
+      return;
+    }
     if (phone.unpaired || !token()) return;
     phone.connection = "offline";
-    clearTimeout(retry);
-    retry = setTimeout(connect, 4000);
+    scheduleRetry();
   };
 }
 
 export function reconnectNow() {
   clearTimeout(retry);
+  delay = RETRY_FIRST;
   phone.connection = "connecting";
-  socket?.close();
+  const old = socket;
   socket = null;
-  loadSessions()
-    .then(connect)
-    .catch(() => undefined);
+  old?.close();
+  reconnect();
 }

@@ -303,3 +303,86 @@ fn the_phone_starts_sessions_sends_messages_and_works_the_board() {
     manager.kill_all();
     companion.stop();
 }
+
+/// Opens the live connection the phone keeps, with a plain WebSocket handshake.
+fn ws_connect(port: u16, token: &str) -> TcpStream {
+    let mut s = TcpStream::connect(("127.0.0.1", port)).expect("server is listening");
+    s.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    let req = format!(
+        "GET /api/ws?token={token} HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n"
+    );
+    s.write_all(req.as_bytes()).unwrap();
+    // Byte by byte, so no frame after the headers is swallowed.
+    let mut head = Vec::new();
+    let mut byte = [0u8; 1];
+    while !head.ends_with(b"\r\n\r\n") {
+        s.read_exact(&mut byte).unwrap();
+        head.push(byte[0]);
+    }
+    assert!(String::from_utf8_lossy(&head).starts_with("HTTP/1.1 101"), "{}", String::from_utf8_lossy(&head));
+    s
+}
+
+/// One unmasked frame from the server: its opcode and payload.
+fn ws_frame(s: &mut TcpStream) -> (u8, Vec<u8>) {
+    let mut h = [0u8; 2];
+    s.read_exact(&mut h).unwrap();
+    let len = match h[1] & 0x7F {
+        126 => {
+            let mut b = [0u8; 2];
+            s.read_exact(&mut b).unwrap();
+            u16::from_be_bytes(b) as usize
+        }
+        127 => {
+            let mut b = [0u8; 8];
+            s.read_exact(&mut b).unwrap();
+            u64::from_be_bytes(b) as usize
+        }
+        n => n as usize,
+    };
+    let mut payload = vec![0u8; len];
+    s.read_exact(&mut payload).unwrap();
+    (h[0] & 0x0F, payload)
+}
+
+/// The close code of the next close frame, skipping any updates still on their way.
+fn close_code(s: &mut TcpStream) -> u16 {
+    loop {
+        let (op, payload) = ws_frame(s);
+        if op == 0x8 {
+            return u16::from_be_bytes([payload[0], payload[1]]);
+        }
+    }
+}
+
+/// PRD FR-55: removing a phone on the desktop ends its live updates at once, and turning phone
+/// access off ends every phone's.
+#[test]
+fn a_removed_phone_loses_its_live_updates() {
+    let db = Arc::new(Db::open_in_memory().unwrap());
+    let data = std::env::temp_dir().join(format!("air-companion-d-{}", std::process::id()));
+    let manager = Manager::new(Arc::clone(&db), Arc::new(Quiet), data);
+    let companion = Companion::new(Arc::clone(&db), manager, Arc::new(|_: &str| None));
+    let port = 40_000 + ((std::process::id() + 19) % 20_000) as u16;
+    assert!(tauri::async_runtime::block_on(companion.start(port)).running);
+
+    let first = paired(port, &companion);
+    let second = paired(port, &companion);
+    let mut a = ws_connect(port, &first);
+    let mut b = ws_connect(port, &second);
+    std::thread::sleep(Duration::from_millis(200));
+    companion.broadcast(serde_json::json!({ "type": "tasks" }));
+    assert_eq!(ws_frame(&mut a), (0x1, br#"{"type":"tasks"}"#.to_vec()));
+    assert_eq!(ws_frame(&mut b).0, 0x1);
+
+    let removed = db.devices().unwrap().into_iter().find(|d| d.token_hash == hash_token(&first)).unwrap();
+    db.remove_device(&removed.id).unwrap();
+    companion.revoke(Some(&removed.id));
+    assert_eq!(close_code(&mut a), opencompanion_lib::companion::CLOSE_REMOVED);
+
+    // The other phone still hears updates, until phone access is turned off.
+    companion.broadcast(serde_json::json!({ "type": "tasks" }));
+    assert_eq!(ws_frame(&mut b).0, 0x1);
+    companion.stop();
+    assert_eq!(close_code(&mut b), opencompanion_lib::companion::CLOSE_OFF);
+}
