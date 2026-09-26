@@ -42,6 +42,7 @@ The integration tests drive a stand-in CLI (`src-tauri/src/bin/fake-cli.rs`) tha
 | `src-tauri/src/transcript.rs` | Transcripts of sessions opened outside OpenCompanion, read from each CLI's own history (Claude Code and Codex JSONL, OpenCode's SQLite database opened read-only) |
 | `src-tauri/src/skills.rs` | Skills screen: reads the user skill folders of each CLI (`~/.claude/skills`, `~/.codex/skills`, `~/.agents/skills`, `~/.config/opencode/skills`, `~/.gemini/skills`) and compares them by content hash. Read-only |
 | `src/routes` | Desktop screens (Overview, Session, Chat, Board, CLIs, Skills, Settings, Onboarding) and the phone app under `/m` |
+| `landing/` | The scroll-driven landing page: one `index.html` that opens by double-click, plus the meadow painting split into sky, clouds and ground |
 
 ## Status
 

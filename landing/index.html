@@ -1,0 +1,1192 @@
+<!doctype html>
+<html lang="en" class="no-js">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenCompanion</title>
+<meta name="description" content="OpenCompanion is a desktop app that starts and watches Claude Code, Codex CLI and OpenCode on your computer, and tells you when a session needs you.">
+<meta name="theme-color" content="#2F5A36">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Crect width='256' height='256' rx='56' fill='%23FBF3CF'/%3E%3Cpath transform='translate(26 30) scale(.8)' fill='%232F5A36' d='M160,40A88.09,88.09,0,0,0,81.29,88.67,64,64,0,1,0,72,216h88a88,88,0,0,0,0-176Zm0,160H72a48,48,0,0,1,0-96c1.1,0,2.2,0,3.29.11A88,88,0,0,0,72,128a8,8,0,0,0,16,0,72,72,0,1,1,72,72Z'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Nunito:wght@600;700;800&family=Pixelify+Sans:wght@400;500&display=swap">
+<script>
+  /* Cinematic scroll only when the reader allows motion; everything else reads as a plain page. */
+  (function () {
+    var h = document.documentElement;
+    h.classList.remove("no-js");
+    var still = /[?&]static=1/.test(location.search) || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+    if (!still) h.classList.add("motion");
+  })();
+</script>
+<style>
+/* Tokens mirror the app's DESIGN.md: Day for the working hours, Dusk for the evening and the facts after it. */
+:root {
+  --bg: #FBF3CF; --surface: #FFFAE6; --surface-2: #F4E7B0; --line: #E4D69E; --line-strong: #8C8A5E;
+  --ink: #33361F; --ink-2: #5B5D3E; --forest: #2F5A36; --on-forest: #FBF3CF; --accent: #2C5A8C; --on-accent: #FFF8E1;
+  --st-run: #B5D07A; --st-run-ink: #33361F; --st-wait: #F2C94C; --st-wait-ink: #33361F; --st-idle: #EFE3AE; --st-idle-ink: #5B5D3E;
+  --term-bg: #1E2B1F; --term-text: #EDE6C4; --term-dim: #A9B38F; --term-green: #A6CF6A;
+  --glass: #FFFAE6D1; --glass-2: #F4E7B0E6; --glass-bg: #FBF3CFD9; --glass-toast: #33361FD9;
+  --glass-rim: inset 0 1px 0 #FFFFFFB3, inset 0 0 0 1px #FFFFFF4D; --glass-blur: blur(24px) saturate(1.4);
+  --font-ui: "Nunito", system-ui, sans-serif; --font-mono: "IBM Plex Mono", ui-monospace, monospace; --font-pixel: "Pixelify Sans", "Nunito", sans-serif;
+  /* Plates that sit on the painting (nav, headings, clock). The scroll tweens these from Day to Dusk at sunset. */
+  --p-bg: rgba(255, 250, 230, .84); --p-ink: #33361F; --rim1: .7; --rim2: .3; --p-btn: #2F5A36; --p-btn-ink: #FBF3CF; --p-mark: #8C8A5E;
+  --sun-core: #FFFDF2; --sun-mid: rgba(255, 248, 215, .85); --sun-glow: rgba(255, 244, 205, .36);
+  --g1: #4f8a34; --g2: #356d2a; --g3: #25531f;
+  color-scheme: light;
+}
+/* After dark the facts and the footer take the app's Dusk theme; the plain page keeps Day. */
+.dusk, .motion .facts, .motion .foot {
+  --bg: #1B1F1A; --surface: #242A22; --surface-2: #2E3529; --line: #343C30; --line-strong: #6E7862;
+  --ink: #F3EBC8; --ink-2: #BDB895; --forest: #9CC45A; --on-forest: #1B1F1A; --accent: #7FAEDD; --on-accent: #1B1F1A;
+  --st-run: #9CC45A; --st-run-ink: #1B1F1A; --st-wait: #E9B92E; --st-wait-ink: #1B1F1A; --st-idle: #2E3529; --st-idle-ink: #BDB895;
+  --term-bg: #121710;
+  --glass: #242A2273; --glass-2: #2E35298C; --glass-bg: #1B1F1A66; --glass-toast: #F3EBC8D9;
+  --glass-rim: inset 0 1px 0 #FFFFFF2E, inset 0 0 0 1px #FFFFFF14;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { background: #1B1F1A; scroll-behavior: smooth; }
+html.motion { scroll-behavior: auto; }
+body { margin: 0; color: var(--ink); font: 600 16px/1.5 var(--font-ui); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+a { color: inherit; }
+h1, h2, p { margin: 0; }
+button { font: inherit; }
+:focus-visible { outline: 2px solid var(--forest); outline-offset: 2px; border-radius: 4px; }
+.mono { font-family: var(--font-mono); }
+.ic { width: 16px; height: 16px; fill: currentColor; flex: none; display: block; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.skip { position: fixed; left: 16px; top: -80px; z-index: 20; min-height: 44px; display: inline-flex; align-items: center; padding: 10px 16px; border-radius: 8px; background: var(--forest); color: var(--on-forest); font-weight: 800; text-decoration: none; }
+.skip:focus { top: 12px; }
+
+/* ---------- The world: the owner's meadow painting, split into sky, clouds and ground ---------- */
+#world { position: fixed; inset: 0; z-index: 0; overflow: hidden; background: #2c7cd6; pointer-events: none; }
+.plane { position: absolute; width: max(100vw, 177.7vh); aspect-ratio: 1672 / 941; left: 50%; bottom: 0; translate: -50% 0; transform-origin: 0 0; }
+.cam-on .plane { translate: none; bottom: auto; aspect-ratio: auto; will-change: transform; }
+.plane > img, .plane > canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; user-select: none; }
+#sky-ext { position: absolute; left: 0; width: 100%; top: -90%; height: 91%; background: linear-gradient(#1b69c8, #2a7ad5 88%, #2c7cd6); }
+.skyg { position: absolute; left: 0; width: 100%; top: -90%; height: 190%; opacity: 0; }
+/* Golden hour and dusk come from the brand palette: flower yellow #F2C94C, bark #A8472E, jacket blue. */
+#sky-gold { background: linear-gradient(180deg, rgba(38, 96, 186, 0) 0%, rgba(92, 140, 205, .22) 50%, rgba(242, 201, 76, .5) 74%, rgba(246, 168, 92, .85) 80%, rgba(232, 146, 88, .85) 100%); }
+#sky-dusk { background: linear-gradient(180deg, #131c31 0%, #26305a 28%, #56467a 50%, #a24f6c 64%, #dc744f 73%, #f2b25c 79.5%, #e58f55 86%, #a8472e 100%); }
+/* Night follows DESIGN.md's dusk painting: deep green-black sky with a thin warm band on the horizon. */
+#sky-night { background: linear-gradient(180deg, #0b100b 0%, #121710 34%, #1b1f1a 58%, #2e3529 73%, #4b4530 78.5%, #6b5a3a 80.2%, #2e3529 83%, #1b1f1a 100%); }
+#stars { position: absolute; left: 0; top: -90%; width: 100%; height: 190%; opacity: 0; }
+#stars circle { fill: #F3EBC8; }
+#stars .s1 { animation: twinkle 5s ease-in-out infinite; }
+#stars .s2 { animation: twinkle 7s ease-in-out -2.5s infinite; }
+@keyframes twinkle { 50% { opacity: .35; } }
+#sun { position: absolute; left: 84.6%; top: 19.7%; width: 26%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%;
+  background: radial-gradient(circle, var(--sun-core) 0 4.2%, var(--sun-mid) 6.6%, var(--sun-glow) 15%, transparent 60%); }
+#p-clouds { -webkit-mask-image: linear-gradient(transparent, #000 10%); mask-image: linear-gradient(transparent, #000 10%); }
+#lantern { position: absolute; left: 80.3%; top: 76.4%; width: 1.5%; aspect-ratio: 3 / 5; translate: -50% -100%; opacity: 0; }
+#lantern svg { width: 100%; height: 100%; display: block; overflow: visible; }
+#lantern .glow { position: absolute; left: 50%; top: 55%; width: 2200%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 214, 140, .62), rgba(255, 170, 90, .26) 26%, rgba(255, 150, 80, .08) 46%, transparent 64%); mix-blend-mode: screen; }
+#flies { position: absolute; inset: 0; opacity: 0; }
+#flies i { position: absolute; width: .28%; aspect-ratio: 1; border-radius: 50%; background: #FFE7A0; box-shadow: 0 0 6px 2px rgba(255, 214, 120, .7); }
+#vignette { position: absolute; inset: 0; background: radial-gradient(120% 90% at 50% 45%, transparent 55%, rgba(18, 23, 16, .45)); opacity: .5; }
+/* Foreground grass, out of focus, in front of the story panels so the phone can rise out of it. */
+#fore { position: fixed; left: -10vw; bottom: 0; width: 120vw; height: 50vh; z-index: 3; pointer-events: none; transform-origin: 50% 100%; translate: 0 38vh; }
+.cam-on ~ #fore { translate: none; will-change: transform; }
+html:not(.motion) #fore { z-index: 1; }
+#fore svg { width: 100%; height: 100%; display: block; filter: blur(7px); }
+#fore .gl0 { fill: var(--g1); } #fore .gl1 { fill: var(--g2); } #fore .gl2 { fill: var(--g3); }
+
+/* ---------- Glass plates: DESIGN.md puts every block of text over the painting on one ---------- */
+.plate { background: var(--p-bg); color: var(--p-ink); border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, var(--rim1)), inset 0 0 0 1px rgba(255, 255, 255, var(--rim2));
+  -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 9px 14px; min-height: 38px; border-radius: 8px; border: 1px solid transparent; font: 700 14px/1.2 var(--font-ui); cursor: pointer; white-space: nowrap; text-decoration: none; }
+.btn.primary { background: var(--forest); color: var(--on-forest); }
+.btn.accent { background: var(--accent); color: var(--on-accent); }
+.btn.secondary { background: var(--surface); border-color: var(--line-strong); color: var(--ink); box-shadow: var(--glass-rim); }
+.btn.ghost { background: transparent; color: var(--ink-2); }
+.btn.sm { padding: 6px 10px; min-height: 32px; font-size: 13px; }
+.btn.lg { min-height: 48px; padding: 12px 20px; font-size: 16px; }
+.btn.lg .ic { width: 18px; height: 18px; }
+a.btn.primary:hover, button.btn.primary:hover { filter: brightness(1.08); }
+button.btn.secondary:hover, a.btn.secondary:hover { background: var(--surface-2); }
+.plate .btn.primary { background: var(--p-btn); color: var(--p-btn-ink); }
+
+/* ---------- Navigation ---------- */
+#site-nav { position: fixed; left: 0; right: 0; top: 0; z-index: 6; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 12px 16px; pointer-events: none; }
+#site-nav > * { pointer-events: auto; }
+.brand { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 14px; font-size: 18px; font-weight: 800; text-decoration: none; }
+.brand .ic { width: 20px; height: 20px; }
+.links { display: flex; align-items: center; gap: 4px; padding: 4px; }
+.links a { display: inline-flex; align-items: center; min-height: 44px; padding: 6px 12px; border-radius: 8px; font-size: 14px; font-weight: 700; text-decoration: none; }
+.links a:not(.btn):hover { background: rgba(255, 255, 255, .22); }
+.links .btn { min-height: 44px; }
+.plate :focus-visible, .plate:focus-visible { outline-color: var(--p-ink); }
+
+/* ---------- Story beats (static layout first: a plain page for reduced motion or no script) ---------- */
+#story { position: relative; z-index: 2; }
+.beat { position: relative; max-width: 1180px; margin: 0 auto; padding: 96px 16px 32px; display: grid; gap: 24px; align-items: center; }
+.txt { padding: 22px 26px 24px; max-width: 560px; }
+.txt h2 { font-size: clamp(30px, 3.4vw, 52px); font-weight: 800; line-height: 1.08; letter-spacing: -.012em; }
+.txt p { margin-top: 12px; font-size: clamp(16px, 1.25vw, 19px); line-height: 1.45; max-width: 36ch; }
+.txt h2 .w, .hero-plate h1 .w { display: inline-block; }
+.hero-plate { padding: 28px 32px 30px; max-width: 760px; }
+.hero-plate h1 { font-size: clamp(42px, 6.4vw, 100px); font-weight: 800; line-height: 1.0; letter-spacing: -.022em; }
+.hero-plate p { margin: 18px 0 24px; font-size: clamp(17px, 1.45vw, 21px); line-height: 1.45; max-width: 40ch; }
+.cue { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; font-size: 14px; font-weight: 700; justify-self: start; }
+.mockbox { min-width: 0; }
+.mock { position: relative; }
+html:not(.motion) .m-only { display: none !important; }
+@media (min-width: 900px) {
+  .beat:not(#beat-hero) { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+  .beat.flip:not(#beat-hero) { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+  .beat.flip .txt { order: 2; }
+  .beat[data-b="phone"] .mockbox { justify-self: center; }
+}
+#beat-hero { min-height: 100vh; min-height: 100svh; align-content: center; justify-items: start; }
+
+/* ---------- Cinematic layout: one sticky stage, the camera and the day move with the scroll ---------- */
+.motion #story { height: 1050vh; }
+.motion #stage { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; }
+.motion:not(.ready) .beat, .motion:not(.ready) #hud { visibility: hidden; }
+.motion .beat { position: absolute; inset: 0; max-width: none; margin: 0; padding: 0; display: block; perspective: 1400px; pointer-events: none; }
+.motion .beat a, .motion .beat button { pointer-events: auto; }
+.motion.past-hero #beat-hero a { pointer-events: none; }
+.motion .txt, .motion .mockbox, .motion .cue, .motion .toasts { position: absolute; }
+.motion .beat:not(#beat-hero) .txt, .motion .mockbox, .motion .toasts .ntf { opacity: 0; }
+.motion .mockbox { display: grid; place-items: center; }
+.motion #beat-hero .txt { left: 6vw; top: 17vh; }
+.motion #beat-hero .cue { left: 6vw; bottom: 84px; }
+.motion [data-b="chat"] .txt { left: 6vw; top: 18vh; width: min(440px, 36vw); }
+.motion [data-b="chat"] .mockbox { right: 4vw; top: 11vh; width: clamp(420px, 44vw, 820px); height: 76vh; }
+.motion [data-b="sessions"] .txt { right: 6vw; top: 13vh; width: min(460px, 38vw); }
+.motion [data-b="sessions"] .mockbox { left: 4vw; top: 38vh; width: clamp(560px, 58vw, 1080px); height: 52vh; place-items: start; }
+.motion [data-b="phone"] .txt { left: 7vw; top: 25vh; width: min(440px, 38vw); }
+.motion [data-b="phone"] .mockbox { left: max(40vw, calc(7vw + 480px)); bottom: 9vh; width: 40vh; height: 78vh; }
+.motion [data-b="board"] .txt { left: 0; right: 0; margin: 0 auto; top: 11vh; width: fit-content; max-width: min(720px, 86vw); text-align: center; }
+.motion [data-b="board"] .txt p { margin-inline: auto; }
+.motion [data-b="board"] .mockbox { left: 0; right: 0; margin: 0 auto; top: 36vh; width: min(90vw, 1360px); height: 52vh; }
+.motion [data-b="dusk"] .txt { left: 7vw; top: 14vh; width: min(520px, 42vw); }
+.motion [data-b="dusk"] .toasts { right: 4vw; top: 12vh; width: 360px; }
+@media (max-width: 1023px), (max-aspect-ratio: 1/1) {
+  .motion .beat .txt { left: 16px !important; right: 16px !important; top: 76px !important; bottom: auto !important; width: auto !important; max-width: none; margin: 0 !important; text-align: left !important; padding: 16px 18px 18px; }
+  .motion .txt h2 { font-size: clamp(26px, 6.6vw, 40px); }
+  .motion .txt p { font-size: 15px; margin-top: 8px; margin-inline: 0 !important; }
+  .motion #beat-hero .txt { top: 84px !important; }
+  .motion .hero-plate h1 { font-size: clamp(38px, 11vw, 72px); }
+  .motion .hero-plate p { font-size: 16px; margin: 12px 0 18px; }
+  .motion #beat-hero .cue { left: 16px; bottom: 78px; }
+  .motion .mockbox { left: 16px !important; right: 16px !important; top: var(--below, 260px) !important; bottom: 76px !important; width: auto !important; height: auto !important; margin: 0 !important; place-items: start center !important; }
+  .motion [data-b="phone"] .mockbox { place-items: end center !important; bottom: 0 !important; }
+  .motion [data-b="dusk"] .toasts { left: 16px; right: 16px; top: var(--below, 260px); bottom: auto; width: auto; }
+}
+
+/* ---------- Mockups: rebuilt from the app's own components, sizes in the app's pixels ---------- */
+.frame { position: relative; overflow: hidden; border-radius: 14px; background: var(--glass); border: 1px solid var(--line); box-shadow: var(--glass-rim); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); color: var(--ink); font: 400 14px/1.45 var(--font-ui); }
+.mock .ic { width: 16px; height: 16px; }
+.mock .btn { cursor: default; }
+.meta { font-size: 13px; color: var(--ink-2); font-weight: 600; }
+.chip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px; font: 400 12px/1.25 var(--font-pixel); white-space: nowrap; }
+.chip.run { background: var(--st-run); color: var(--st-run-ink); }
+.chip.wait { background: var(--st-wait); color: var(--st-wait-ink); }
+.chip.idle { background: var(--st-idle); color: var(--st-idle-ink); }
+.chip.ro { border: 1px solid var(--line-strong); color: var(--ink-2); padding: 2px 7px; }
+.climark { flex: none; width: 30px; height: 30px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); display: grid; place-items: center; font: 600 11px var(--font-mono); color: var(--ink); }
+.climark svg { width: 62%; height: 62%; display: block; }
+.climark.sm { width: 24px; height: 24px; font-size: 10px; }
+.stack1 { display: grid; } .stack1 > * { grid-area: 1 / 1; }
+.grow { flex: 1; min-width: 0; }
+.horizon { position: relative; display: block; height: 16px; width: 220px; max-width: 100%; }
+.horizon::before { content: ""; position: absolute; left: 0; right: 0; top: 11px; height: 1px; background: var(--line-strong); }
+.horizon i { position: absolute; display: block; }
+.horizon .sp { width: 2px; height: 1px; background: var(--line-strong); }
+.horizon .ev { top: 7px; width: 4px; height: 4px; background: var(--ink-2); }
+.horizon .ev.w { background: var(--st-wait); }
+.horizon .now { right: 3px; top: 3px; width: 3px; height: 8px; background: var(--forest); }
+.horizon.full { width: 100%; }
+
+/* Chat (DESIGN.md D3) */
+.mock-chat { --dw: 560; --dh: 660; width: 560px; height: 660px; }
+.mock-chat .frame { height: 100%; }
+.ui { position: absolute; inset: 0; transform-origin: 0 0; display: flex; flex-direction: column; }
+.thread { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 14px; padding: 20px 20px 14px; }
+.me { align-self: flex-end; max-width: 420px; padding: 12px 16px; border-radius: 14px 14px 4px 14px; background: var(--surface-2); font-size: 14px; font-weight: 600; }
+.who { display: block; font: 400 12px var(--font-pixel); color: var(--ink-2); margin-bottom: 4px; }
+.planner p { font-size: 14px; font-weight: 600; max-width: 480px; }
+.think-line { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ink-2); }
+.dcard { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+.dc-top { display: flex; gap: 10px; align-items: center; }
+.dc-top b { display: block; font-size: 14px; font-weight: 800; }
+.dc-top .path { display: block; font-size: 12px; color: var(--ink-2); }
+.dc-prompt { padding: 8px 10px; border-radius: 6px; background: var(--bg); font: 400 13px/1.45 var(--font-mono); }
+.dc-acts, .dc-started { display: flex; gap: 8px; align-items: center; }
+.composer { margin: 0 16px 16px; padding: 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--glass-rim); }
+.c-text { position: relative; min-height: 42px; font-size: 14px; font-weight: 600; }
+.c-text .ph { color: var(--ink-2); }
+.c-text .typed { position: absolute; inset: 0; color: var(--ink); }
+.c-text .typed::after { content: ""; display: inline-block; width: 2px; height: 1.1em; margin-left: 1px; vertical-align: -3px; background: var(--forest); }
+.c-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.c-pick { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.c-pick .ic { width: 12px; height: 12px; }
+.c-pick .ic.b { width: 14px; height: 14px; }
+.c-row .spacer { flex: 1; }
+.send { width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; background: var(--forest); color: var(--on-forest); }
+.cursor { position: absolute; left: 0; top: 0; width: 26px; height: 26px; z-index: 5; filter: drop-shadow(0 2px 3px rgba(20, 30, 20, .35)); }
+
+/* Overview rows (DESIGN.md D2) */
+.mock-sessions { --dw: 780; --dh: 400; width: 780px; }
+.pad { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.sec-head { display: flex; gap: 10px; align-items: baseline; }
+.sec-head b { font-size: 16px; font-weight: 800; }
+.sec-head.second { margin-top: 8px; }
+.srow { display: grid; grid-template-columns: 30px minmax(0, 1fr) 220px 124px; gap: 14px; align-items: center; padding: 14px 16px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+.srow.ext { background: var(--bg); }
+.srow .task { display: block; font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srow .where { display: block; font-size: 13px; color: var(--ink-2); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srow .where .mono { font-size: 12px; font-weight: 400; }
+.track { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--ink-2); min-width: 0; }
+.track .lines span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.status-col { display: flex; justify-content: flex-end; }
+.status-col .stack1 { justify-items: end; }
+.ring { position: absolute; inset: -1px; border-radius: 10px; border: 1.5px solid var(--accent); pointer-events: none; }
+.srow { position: relative; }
+@media (max-width: 719px) {
+  .mock-sessions { --dw: 420; --dh: 470; width: 420px; }
+  .srow { grid-template-columns: 30px minmax(0, 1fr) auto; row-gap: 8px; }
+  .srow .track { grid-column: 2 / -1; grid-row: 2; }
+  .srow .horizon { width: 100%; }
+  .srow .status-col { grid-column: 3; grid-row: 1; }
+}
+
+/* Phone companion (DESIGN.md section 10) */
+.mock-phone { --dw: 312; --dh: 640; width: 312px; height: 640px; }
+.device { position: absolute; inset: 0; padding: 10px; border-radius: 44px; background: #1E2B1F; box-shadow: 0 30px 60px rgba(20, 30, 20, .38), inset 0 0 0 2px #34452f; }
+.screen { position: relative; height: 100%; border-radius: 34px; overflow: hidden; background: var(--bg); display: flex; flex-direction: column; font: 400 14px/1.45 var(--font-ui); color: var(--ink); }
+.notch { position: absolute; left: 50%; top: 18px; width: 86px; height: 22px; translate: -50% 0; border-radius: 12px; background: #1E2B1F; }
+.m-bar { display: flex; align-items: center; gap: 10px; padding: 44px 16px 10px; border-bottom: 1px solid var(--line); }
+.m-brand { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 800; flex: 1; }
+.m-brand .ic { width: 18px; height: 18px; }
+.m-content { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 12px 14px; overflow: hidden; }
+.m-content > *, .thread > * { flex-shrink: 0; }
+.m-conn { font-size: 12px; color: var(--ink-2); font-weight: 600; }
+.m-headrow { display: flex; align-items: center; gap: 8px; }
+.m-h1 { flex: 1; font-size: 22px; font-weight: 800; }
+.m-needs { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 14px; background: var(--surface); border: 1.5px solid var(--accent); overflow: hidden; }
+.m-needs b { font-size: 16px; font-weight: 800; line-height: 1.3; }
+.cmd { background: var(--term-bg); border-radius: 8px; padding: 10px 12px; }
+.cmd small { display: block; font: 12px var(--font-mono); color: var(--term-dim); }
+.cmd code { font: 13px/1.45 var(--font-mono); color: var(--term-text); }
+.m-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.m-acts .btn { min-height: 44px; }
+.m-resolved { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; font-weight: 700; overflow: hidden; }
+.m-resolved .ic { color: var(--forest); width: 18px; height: 18px; }
+.m-sec { display: flex; flex-direction: column; gap: 8px; }
+.m-sec > b { font-size: 15px; font-weight: 800; }
+.m-card { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+.m-card .row { display: flex; gap: 10px; align-items: flex-start; }
+.m-card .task { display: block; font-size: 15px; font-weight: 700; line-height: 1.3; }
+.m-card .meta { display: block; font-size: 12px; }
+.m-tabs { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); background: var(--bg); padding-bottom: 12px; }
+.tab { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding-top: 8px; min-height: 56px; font-size: 12px; font-weight: 700; color: var(--ink-2); }
+.tab .ic { width: 22px; height: 22px; }
+.tab.on { color: var(--ink); } .tab.on .ic { color: var(--forest); }
+.tab-count { position: absolute; top: 4px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: var(--on-accent); font: 700 11px/18px var(--font-ui); text-align: center; font-style: normal; }
+.tap { position: absolute; left: 0; top: 0; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(51, 54, 31, .26); border: 2px solid rgba(255, 250, 230, .9); z-index: 6; }
+
+/* Board (DESIGN.md D10) */
+.mock-board { --dw: 1008; --dh: 420; --colw: 230px; --gap: 14px; --c0: 0; width: 1008px; height: 420px; }
+.mock-board .frame { height: 100%; padding: 16px; }
+.cols { display: grid; grid-template-columns: repeat(4, var(--colw)); gap: var(--gap); height: 100%; }
+.col { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.col-head { padding: 8px 12px; border-radius: 10px; background: var(--surface); }
+.col-head .t { display: flex; gap: 8px; align-items: baseline; }
+.col-head b { font-size: 15px; font-weight: 800; }
+.col-head .n { font-size: 13px; font-weight: 600; color: var(--ink-2); display: grid; }
+.col-head .n > span { grid-area: 1 / 1; }
+.col-head .hint { display: block; font-size: 12px; color: var(--ink-2); font-weight: 600; }
+.col-body { flex: 1; border-radius: 10px; background: var(--surface-2); }
+.card { position: absolute; width: calc(var(--colw) - 20px); height: 74px; left: calc(26px + (var(--c) - var(--c0)) * (var(--colw) + var(--gap))); top: calc(98px + var(--r) * 84px); padding: 10px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.card .top { display: flex; gap: 8px; align-items: center; }
+.card .top b { flex: 1; min-width: 0; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .act { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; color: var(--ink-2); }
+.card .act.play { color: var(--forest); }
+.card .bottom { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--ink-2); font-weight: 600; white-space: nowrap; }
+.card .bottom .ic { width: 14px; height: 14px; }
+.card .bottom .mono { font-weight: 400; }
+.card .info { display: grid; flex: 1; min-width: 0; overflow: hidden; } .card .info > span { grid-area: 1 / 1; display: inline-flex; gap: 4px; align-items: center; min-width: 0; }
+.card .info .run .ic { color: var(--forest); } .card .info .ok .ic { color: var(--forest); }
+@media (max-width: 719px) {
+  .mock-board { --dw: 630; --colw: 190px; --c0: 1; width: 630px; }
+  .cols { grid-template-columns: repeat(3, var(--colw)); }
+  .col[data-c="0"], .card[data-c="0"] { display: none; }
+}
+
+/* Dusk: the OS notifications OpenCompanion sends */
+.toasts { display: flex; flex-direction: column; gap: 10px; }
+.ntf { display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border-radius: 10px; background: var(--glass-toast); color: #FBF3CF; box-shadow: var(--glass-rim), 0 12px 40px rgba(0, 0, 0, .3); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
+.ntf-app { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; }
+.ntf b { font-size: 15px; font-weight: 800; }
+.ntf span:last-child { font-size: 13px; }
+
+/* ---------- The clock and horizon: DESIGN.md's activity track, here tracking the day ---------- */
+#hud { position: fixed; left: 50%; bottom: 14px; translate: -50% 0; z-index: 5; display: none; align-items: center; gap: 12px; padding: 8px 14px; pointer-events: none; }
+.motion #hud { display: flex; }
+#hud .clock { font: 500 16px/1 var(--font-pixel); font-variant-numeric: tabular-nums; min-width: 44px; }
+#hud .horizon { width: min(320px, 52vw); }
+#hud .horizon::before, #hud .horizon .sp { background: var(--p-mark); }
+#hud .horizon .ev { background: var(--p-ink); opacity: .7; }
+#hud .horizon .ev.w { background: #F2C94C; opacity: 1; }
+#hud .horizon .now { right: auto; left: 0; background: var(--p-btn); }
+
+/* ---------- After dark: what it runs, how to build it ---------- */
+.facts { position: relative; z-index: 4; padding: 120px 16px; }
+.motion .facts, .motion .foot { --p-bg: rgba(36, 42, 34, .74); --p-ink: #F3EBC8; --rim1: .18; --rim2: .08; --p-btn: #9CC45A; --p-btn-ink: #1B1F1A; }
+.facts-in { max-width: 1120px; margin: 0 auto; display: grid; gap: 20px; }
+@media (min-width: 900px) {
+  .facts-in { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; }
+  .facts-in .notes { grid-column: 1 / -1; }
+}
+.f-head { padding: 22px 26px 24px; }
+.f-head h2, .get-card h2 { font-size: clamp(30px, 3.2vw, 46px); font-weight: 800; line-height: 1.1; }
+.f-head p { margin-top: 12px; font-size: 17px; line-height: 1.45; }
+.glass-panel { margin: 0; padding: 6px; list-style: none; border-radius: 14px; background: var(--glass); color: var(--ink); box-shadow: var(--glass-rim); border: 1px solid var(--line); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
+.cli-list li { display: flex; gap: 14px; align-items: flex-start; padding: 16px; border-radius: 10px; }
+.cli-list li + li { border-top: 1px solid var(--line); border-radius: 0; }
+.cli-list .climark { width: 40px; height: 40px; border-radius: 8px; font-size: 13px; }
+.cli-list b { font-size: 17px; font-weight: 800; }
+.cli-list p { margin-top: 2px; font-size: 15px; color: var(--ink-2); line-height: 1.45; }
+.notes { margin: 0; padding: 18px 22px 18px 40px; font-size: 15px; line-height: 1.5; display: grid; gap: 8px; }
+@media (min-width: 900px) { .notes { grid-template-columns: 1fr 1fr; column-gap: 40px; } }
+.get-card { max-width: 820px; margin: 0 auto; padding: 32px; border-radius: 14px; background: var(--glass); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--glass-rim); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); display: flex; flex-direction: column; gap: 18px; }
+.get-card > p { font-size: 17px; line-height: 1.5; max-width: 60ch; }
+.get-card .small { font-size: 14px; color: var(--ink-2); }
+.get-card .small .mono { font-size: 13px; color: var(--ink); }
+.term { margin: 0; padding: 18px 20px; border-radius: 10px; background: var(--term-bg); color: var(--term-text); font: 400 14px/1.6 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.get-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.get-card .btn.primary { background: var(--forest); color: var(--on-forest); }
+.copy-status { font-size: 14px; font-weight: 700; color: var(--forest); }
+.copy-status.bad { color: var(--ink); }
+.motion .facts .get-card, .motion .facts .glass-panel { --glass: #242A22B3; }
+.foot { position: relative; z-index: 4; padding: 0 16px 40px; }
+.foot-in { max-width: 1120px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 12px 18px; font-size: 14px; }
+.foot-in .brand-sm { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; margin-right: auto; }
+.foot-in a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; text-underline-offset: 3px; }
+#clis, #get { scroll-margin-top: 72px; }
+
+@media (max-width: 599px) {
+  .links .opt { display: none; }
+  .brand { font-size: 16px; padding: 8px 12px; }
+  .get-card { padding: 22px 18px; }
+  .get-acts .btn { width: 100%; }
+  .facts { padding: 88px 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#clis">Skip the story</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-cloud" viewBox="0 0 256 256"><path d="M160,40A88.09,88.09,0,0,0,81.29,88.67,64,64,0,1,0,72,216h88a88,88,0,0,0,0-176Zm0,160H72a48,48,0,0,1,0-96c1.1,0,2.2,0,3.29.11A88,88,0,0,0,72,128a8,8,0,0,0,16,0,72,72,0,1,1,72,72Z"/></symbol>
+  <symbol id="i-play" viewBox="0 0 256 256"><path d="M232.4,114.49,88.32,26.35a16,16,0,0,0-16.2-.3A15.86,15.86,0,0,0,64,39.87V216.13A15.94,15.94,0,0,0,80,232a16.07,16.07,0,0,0,8.36-2.35L232.4,141.51a15.81,15.81,0,0,0,0-27ZM80,215.94V40l143.83,88Z"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 256 256"><path d="M227.31,73.37,182.63,28.68a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31L227.31,96a16,16,0,0,0,0-22.63ZM92.69,208H48V163.31l88-88L180.69,120ZM192,108.68,147.31,64l24-24L216,84.68Z"/></symbol>
+  <symbol id="i-send" viewBox="0 0 256 256"><path d="M227.32,28.68a16,16,0,0,0-15.66-4.08l-.15,0L19.57,82.84a16,16,0,0,0-2.49,29.8L102,154l41.3,84.87A15.86,15.86,0,0,0,157.74,248q.69,0,1.38-.06a15.88,15.88,0,0,0,14-11.51l58.2-191.94c0-.05,0-.1,0-.15A16,16,0,0,0,227.32,28.68ZM157.83,231.85l-.05.14,0-.07-40.06-82.3,48-48a8,8,0,0,0-11.31-11.31l-48,48L24.08,98.25l-.07,0,.14,0L216,40Z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 256 256"><path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 256 256"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 256 256"><path d="M128,128a8,8,0,0,1-3,6.25l-40,32a8,8,0,1,1-10-12.5L107.19,128,75,102.25a8,8,0,1,1,10-12.5l40,32A8,8,0,0,1,128,128Zm48,24H136a8,8,0,0,0,0,16h40a8,8,0,0,0,0-16Zm56-96V200a16,16,0,0,1-16,16H40a16,16,0,0,1-16-16V56A16,16,0,0,1,40,40H216A16,16,0,0,1,232,56ZM216,200V56H40V200H216Z"/></symbol>
+  <symbol id="i-house" viewBox="0 0 256 256"><path d="M219.31,108.68l-80-80a16,16,0,0,0-22.62,0l-80,80A15.87,15.87,0,0,0,32,120v96a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V160h32v56a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V120A15.87,15.87,0,0,0,219.31,108.68ZM208,208H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48V120l80-80,80,80Z"/></symbol>
+  <symbol id="i-chats" viewBox="0 0 256 256"><path d="M232.07,186.76a80,80,0,0,0-62.5-114.17A80,80,0,1,0,23.93,138.76l-7.27,24.71a16,16,0,0,0,19.87,19.87l24.71-7.27a80.39,80.39,0,0,0,25.18,7.35,80,80,0,0,0,108.34,40.65l24.71,7.270a16,16,0,0,0,19.87-19.86ZM62,159.5a8.28,8.28,0,0,0-2.26.32L32,168l8.17-27.76a8,8,0,0,0-.63-6,64,64,0,1,1,26.26,26.26A8,8,0,0,0,62,159.5Zm153.79,28.73L224,216l-27.76-8.17a8,8,0,0,0-6,.63,64.05,64.05,0,0,1-85.87-24.88A79.930,79.930,0,0,0,174.7,89.71a64,64,0,0,1,41.75,92.48A8,8,0,0,0,215.82,188.230Z"/></symbol>
+  <symbol id="i-kanban" viewBox="0 0 256 256"><path d="M216,48H40a8,8,0,0,0-8,8V208a16,16,0,0,0,16,16H88a16,16,0,0,0,16-16V160h48v16a16,16,0,0,0,16,16h40a16,16,0,0,0,16-16V56A8,8,0,0,0,216,48ZM88,208H48V128H88Zm0-96H48V64H88Zm64,32H104V64h48Zm56,32H168V128h40Zm0-64H168V64h40Z"/></symbol>
+  <symbol id="i-spinner" viewBox="0 0 256 256"><path d="M136,32V64a8,8,0,0,1-16,0V32a8,8,0,0,1,16,0Zm88,88H192a8,8,0,0,0,0,16h32a8,8,0,0,0,0-16Zm-45.09,47.6a8,8,0,0,0-11.31,11.31l22.62,22.63a8,8,0,0,0,11.32-11.32ZM128,184a8,8,0,0,0-8,8v32a8,8,0,0,0,16,0V192A8,8,0,0,0,128,184ZM77.09,167.6,54.46,190.22a8,8,0,0,0,11.32,11.32L88.4,178.91A8,8,0,0,0,77.09,167.6ZM72,128a8,8,0,0,0-8-8H32a8,8,0,0,0,0,16H64A8,8,0,0,0,72,128ZM65.78,54.46A8,8,0,0,0,54.46,65.78L77.09,88.4A8,8,0,0,0,88.4,77.09Z"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 256 256"><path d="M188,88a27.75,27.75,0,0,0-12,2.71V60a28,28,0,0,0-41.36-24.6A28,28,0,0,0,80,44v6.71A27.75,27.75,0,0,0,68,48,28,28,0,0,0,40,76v76a88,88,0,0,0,176,0V116A28,28,0,0,0,188,88Zm12,64a72,72,0,0,1-144,0V76a12,12,0,0,1,24,0v44a8,8,0,0,0,16,0V44a12,12,0,0,1,24,0v68a8,8,0,0,0,16,0V60a12,12,0,0,1,24,0v68.67A48.08,48.08,0,0,0,120,176a8,8,0,0,0,16,0,32,32,0,0,1,32-32,8,8,0,0,0,8-8V116a12,12,0,0,1,24,0Z"/></symbol>
+  <symbol id="i-check-circle" viewBox="0 0 256 256"><path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 256 256"><path d="M216,72H130.67L102.93,51.2a16.12,16.12,0,0,0-9.6-3.2H40A16,16,0,0,0,24,64V200a16,16,0,0,0,16,16H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72Zm0,128H40V64H93.33L123.2,86.4A8,8,0,0,0,128,88h88Z"/></symbol>
+  <symbol id="i-github" viewBox="0 0 256 256"><path d="M208.31,75.68A59.78,59.78,0,0,0,202.93,28,8,8,0,0,0,196,24a59.75,59.75,0,0,0-48,24H124A59.75,59.75,0,0,0,76,24a8,8,0,0,0-6.93,4,59.78,59.78,0,0,0-5.38,47.68A58.14,58.14,0,0,0,56,104v8a56.06,56.06,0,0,0,48.44,55.47A39.8,39.8,0,0,0,96,192v8H72a24,24,0,0,1-24-24A40,40,0,0,0,8,136a8,8,0,0,0,0,16,24,24,0,0,1,24,24,40,40,0,0,0,40,40H96v16a8,8,0,0,0,16,0V192a24,24,0,0,1,48,0v40a8,8,0,0,0,16,0V192a39.8,39.8,0,0,0-8.44-24.53A56.06,56.06,0,0,0,216,112v-8A58.14,58.14,0,0,0,208.31,75.68ZM200,112a40,40,0,0,1-40,40H112a40,40,0,0,1-40-40v-8a41.74,41.74,0,0,1,6.9-22.48A8,8,0,0,0,80,73.83a43.81,43.81,0,0,1,.79-33.58,43.88,43.88,0,0,1,32.32,20.06A8,8,0,0,0,119.82,64h32.35a8,8,0,0,0,6.74-3.69,43.87,43.87,0,0,1,32.32-20.06A43.81,43.81,0,0,1,192,73.83a8.09,8.09,0,0,0,1,7.65A41.72,41.72,0,0,1,200,104Z"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 256 256"><path d="M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z"/></symbol>
+  <symbol id="i-arrow-down" viewBox="0 0 256 256"><path d="M205.66,149.66l-72,72a8,8,0,0,1-11.32,0l-72-72a8,8,0,0,1,11.32-11.32L120,196.69V40a8,8,0,0,1,16,0V196.69l58.34-58.35a8,8,0,0,1,11.32,11.32Z"/></symbol>
+  <symbol id="i-brain" viewBox="0 0 256 256"><path d="M248,124a56.11,56.11,0,0,0-32-50.61V72a48,48,0,0,0-88-26.49A48,48,0,0,0,40,72v1.39a56,56,0,0,0,0,101.2V176a48,48,0,0,0,88,26.49A48,48,0,0,0,216,176v-1.41A56.09,56.09,0,0,0,248,124ZM88,208a32,32,0,0,1-31.81-28.560A55.87,55.87,0,0,0,64,180h8a8,8,0,0,0,0-16H64A40,40,0,0,1,50.67,86.27,8,8,0,0,0,56,78.73V72a32,32,0,0,1,64,0v68.26A47.8,47.8,0,0,0,88,128a8,8,0,0,0,0,16,32,32,0,0,1,0,64Zm104-44h-8a8,8,0,0,0,0,16h8a55.87,55.87,0,0,0,7.810-.56A32,32,0,1,1,168,144a8,8,0,0,0,0-16,47.8,47.8,0,0,0-32,12.26V72a32,32,0,0,1,64,0v6.73a8,8,0,0,0,5.33,7.54A40,40,0,0,1,192,164Zm16-52a8,8,0,0,1-8,8h-4a36,36,0,0,1-36-36V80a8,8,0,0,1,16,0v4a20,20,0,0,0,20,20h4A8,8,0,0,1,208,112ZM60,120H56a8,8,0,0,1,0-16h4A20,20,0,0,0,80,84V80a8,8,0,0,1,16,0v4A36,36,0,0,1,60,120Z"/></symbol>
+  <symbol id="i-caret" viewBox="0 0 256 256"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></symbol>
+  <symbol id="i-note" viewBox="0 0 256 256"><path d="M88,96a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H96A8,8,0,0,1,88,96Zm8,40h64a8,8,0,0,0,0-16H96a8,8,0,0,0,0,16Zm32,16H96a8,8,0,0,0,0,16h32a8,8,0,0,0,0-16ZM224,48V156.69A15.86,15.86,0,0,1,219.31,168L168,219.31A15.86,15.86,0,0,1,156.69,224H48a16,16,0,0,1-16-16V48A16,16,0,0,1,48,32H208A16,16,0,0,1,224,48ZM48,208H152V160a8,8,0,0,1,8-8h48V48H48Zm120-40v28.7L196.69,168Z"/></symbol>
+  <symbol id="i-out" viewBox="0 0 256 256"><path d="M224,104a8,8,0,0,1-16,0V59.32l-66.33,66.34a8,8,0,0,1-11.32-11.32L196.68,48H152a8,8,0,0,1,0-16h64a8,8,0,0,1,8,8Zm-40,24a8,8,0,0,0-8,8v72H48V80h72a8,8,0,0,0,0-16H48A16,16,0,0,0,32,80V208a16,16,0,0,0,16,16H176a16,16,0,0,0,16-16V136A8,8,0,0,0,184,128Z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></symbol>
+  <symbol id="logo-claude" viewBox="0 -.01 39.5 39.53"><path fill="#d97757" d="m7.75 26.27 7.77-4.36.13-.38-.13-.21h-.38l-1.3-.08-4.44-.12-3.85-.16-3.73-.2-.94-.2-.88-1.160.09-.58.79-.53 1.13.1 2.5.17 3.75.26 2.72.16 4.03.42h.64l.09-.26-.22-.16-.17-.16-3.88-2.63-4.2-2.78-2.2-1.6-1.19-.81-.6-.76-.26-1.66 1.08-1.19 1.45.1.37.1 1.47 1.13 3.14 2.43 4.1 3.02.6.5.24-.17.03-.12-.27-.45-2.23-4.03-2.38-4.1-1.06-1.7-.28-1.02c-.1-.42-.17-.77-.17-1.2l1.23-1.67.68-.22 1.64.22.69.6 1.02 2.33 1.65 3.67 2.56 4.99.75 1.48.4 1.37.15.42h.26v-.24l.21-2.81.39-3.45.38-4.44.13-1.25.62-1.5 1.23-.81.96.46.79 1.13-.11.73-.47 3.05-.92 4.78-.6 3.2h.35l.4-.4 1.62-2.15 2.72-3.4 1.2-1.350 1.4-1.49.9-.71h1.7l1.25 1.86-.56 1.92-1.75 2.22-1.45 1.88-2.08 2.8-1.3 2.24.12.18.31-.03 4.7-1 2.54-.46 3.03-.52 1.37.64.15.65-.54 1.33-3.24.8-3.8.76-5.66 1.34-.07.05.08.1 2.55.24 1.09.06h2.67l4.97.37 1.3.86.78 1.05-.13.8-2 1.02-2.7-.64-6.3-1.5-2.16-.54h-.3v.18l1.8 1.76 3.3 2.98 4.13 3.84.21.95-.53.75-.56-.08-3.63-2.73-1.4-1.23-3.17-2.67h-.21v.28l.73 1.07 3.86 5.8.2 1.78-.28.58-1 .35-1.1-.2-2.26-3.170-2.33-3.57-1.88-3.2-.23.13-1.11 11.95-.52.61-1.2.46-1-.76-.53-1.23.53-2.43.64-3.17.52-2.52.47-3.13.28-1.04-.02-.07-.23.03-2.36 3.24-3.59 4.85-2.84 3.04-.68.27-1.18-.61.11-1.09.66-.97 3.93-5 2.37-3.1 1.53-1.79-.01-.26h-.09l-10.44 6.78-1.86.24-.8-.75.1-1.23.38-.4 3.14-2.16z"/></symbol>
+  <symbol id="logo-openai" viewBox="-1 -.1 949.1 959.8"><path fill="currentColor" d="m925.8 456.3c10.4 23.2 17 48 19.7 73.3 2.6 25.3 1.3 50.9-4.1 75.8-5.3 24.9-14.5 48.8-27.3 70.8-8.4 14.7-18.3 28.5-29.7 41.2-11.3 12.6-23.9 24-37.6 34-13.8 10-28.5 18.4-44.1 25.3-15.5 6.8-31.7 12-48.3 15.4-7.8 24.2-19.4 47.1-34.4 67.7-14.9 20.6-33 38.7-53.6 53.6-20.6 15-43.4 26.6-67.6 34.4-24.2 7.9-49.5 11.8-75 11.8-16.9.1-33.9-1.7-50.5-5.1-16.5-3.5-32.7-8.8-48.2-15.7s-30.2-15.5-43.9-25.5c-13.6-10-26.2-21.5-37.4-34.2-25 5.4-50.6 6.7-75.9 4.1-25.3-2.7-50.1-9.3-73.4-19.7-23.2-10.3-44.7-24.3-63.6-41.4s-35-37.1-47.7-59.1c-8.5-14.7-15.5-30.2-20.8-46.3s-8.8-32.7-10.6-49.6c-1.8-16.8-1.7-33.8.1-50.7 1.8-16.8 5.5-33.4 10.8-49.5-17-18.9-31-40.4-41.4-63.6-10.3-23.3-17-48-19.6-73.3-2.7-25.3-1.3-50.9 4-75.8s14.5-48.8 27.3-70.8c8.4-14.7 18.3-28.6 29.6-41.2s24-24 37.7-34 28.5-18.5 44-25.3c15.6-6.9 31.8-12 48.4-15.4 7.8-24.3 19.4-47.1 34.3-67.7 15-20.6 33.1-38.7 53.7-53.7 20.6-14.9 43.4-26.5 67.6-34.4 24.2-7.8 49.5-11.8 75-11.7 16.9-.1 33.9 1.6 50.5 5.1s32.8 8.7 48.3 15.6c15.5 7 30.2 15.5 43.9 25.5 13.7 10.1 26.3 21.5 37.5 34.2 24.9-5.3 50.5-6.6 75.8-4s50 9.3 73.3 19.6c23.2 10.4 44.7 24.3 63.6 41.4 18.9 17 35 36.9 47.7 59 8.5 14.6 15.5 30.1 20.8 46.3 5.3 16.1 8.9 32.7 10.6 49.6 1.8 16.9 1.8 33.9-.1 50.8-1.8 16.9-5.5 33.5-10.8 49.6 17.1 18.9 31 40.3 41.4 63.6zm-333.2 426.9c21.8-9 41.6-22.3 58.3-39s30-36.5 39-58.4c9-21.8 13.7-45.2 13.7-68.8v-223q-.1-.3-.2-.7-.1-.3-.3-.6-.2-.3-.5-.5-.3-.3-.6-.4l-80.7-46.6v269.4c0 2.7-.4 5.5-1.1 8.1-.7 2.7-1.7 5.2-3.1 7.6s-3 4.6-5 6.5a32.1 32.1 0 0 1 -6.5 5l-191.1 110.3c-1.6 1-4.3 2.4-5.7 3.2 7.9 6.7 16.5 12.6 25.5 17.8 9.1 5.2 18.5 9.6 28.3 13.2 9.8 3.5 19.9 6.2 30.1 8 10.3 1.8 20.7 2.7 31.1 2.7 23.6 0 47-4.7 68.8-13.8zm-455.1-151.4c11.9 20.5 27.6 38.3 46.3 52.7 18.8 14.4 40.1 24.9 62.9 31s46.6 7.7 70 4.6 45.9-10.7 66.4-22.5l193.2-111.5.5-.5q.2-.2.3-.6.2-.3.3-.6v-94l-233.2 134.9c-2.4 1.4-4.9 2.4-7.5 3.2-2.7.7-5.4 1-8.2 1-2.7 0-5.4-.3-8.1-1-2.6-.8-5.2-1.8-7.6-3.2l-191.1-110.4c-1.7-1-4.2-2.5-5.6-3.4-1.8 10.3-2.7 20.7-2.7 31.1s1 20.8 2.8 31.1c1.8 10.2 4.6 20.3 8.1 30.1 3.6 9.8 8 19.2 13.2 28.2zm-50.2-417c-11.8 20.5-19.4 43.1-22.5 66.5s-1.5 47.1 4.6 70c6.1 22.8 16.6 44.1 31 62.9 14.4 18.7 32.3 34.4 52.7 46.2l193.1 111.6q.3.1.7.2h.7q.4 0 .7-.2.3-.1.6-.3l81-46.8-233.2-134.6c-2.3-1.4-4.5-3.1-6.5-5a32.1 32.1 0 0 1 -5-6.5c-1.3-2.4-2.4-4.9-3.1-7.6-.7-2.6-1.1-5.3-1-8.1v-227.1c-9.8 3.6-19.3 8-28.3 13.2-9 5.3-17.5 11.3-25.5 18-7.9 6.7-15.3 14.1-22 22.1-6.7 7.9-12.6 16.5-17.8 25.5zm663.3 154.4c2.4 1.4 4.6 3 6.6 5 1.9 1.9 3.6 4.1 5 6.5 1.3 2.4 2.4 5 3.1 7.6.6 2.7 1 5.4.9 8.2v227.1c32.1-11.8 60.1-32.5 80.8-59.7 20.8-27.2 33.3-59.7 36.2-93.7s-3.9-68.2-19.7-98.5-39.9-55.5-69.5-72.5l-193.1-111.6q-.3-.1-.7-.2h-.7q-.3.1-.7.2-.3.1-.6.3l-80.6 46.6 233.2 134.7zm80.5-121h-.1v.1zm-.1-.1c5.8-33.6 1.9-68.2-11.3-99.7-13.1-31.5-35-58.6-63-78.2-28-19.5-61-30.7-95.1-32.2-34.2-1.4-68 6.9-97.6 23.9l-193.1 111.5q-.3.2-.5.5l-.4.6q-.1.3-.2.7-.1.3-.1.7v93.2l233.2-134.7c2.4-1.4 5-2.4 7.6-3.2 2.7-.7 5.4-1 8.1-1 2.8 0 5.5.3 8.2 1 2.6.8 5.1 1.8 7.5 3.2l191.1 110.4c1.7 1 4.2 2.4 5.6 3.3zm-505.3-103.2c0-2.7.4-5.4 1.1-8.1.7-2.6 1.7-5.2 3.1-7.6 1.4-2.3 3-4.5 5-6.5 1.9-1.9 4.1-3.6 6.5-4.9l191.1-110.3c1.8-1.1 4.3-2.5 5.7-3.2-26.2-21.9-58.2-35.9-92.1-40.2-33.9-4.4-68.3 1-99.2 15.5-31 14.5-57.2 37.6-75.5 66.4-18.3 28.9-28 62.3-28 96.5v223q.1.4.2.7.1.3.3.6.2.3.5.6.2.2.6.4l80.7 46.6zm43.8 294.7 103.9 60 103.9-60v-119.9l-103.8-60-103.9 60z"/></symbol>
+  <symbol id="logo-gemini" viewBox="38.562 0 8.526 8.518"><radialGradient id="gem-a" cx="67.977%" cy="18.976%" gradientTransform="matrix(-.34432 .34402 -.12615 -.93896 .938 .134)" r="192.358%"><stop offset="0" stop-color="#1c69ff"/><stop offset="1" stop-color="#94bcfe"/></radialGradient><path d="M42.825 0a5.08 5.08 0 0 0 4.263 4.259 5.08 5.08 0 0 0-4.263 4.259 5.08 5.08 0 0 0-4.263-4.26A5.08 5.08 0 0 0 42.825 0z" fill="url(#gem-a)"/></symbol>
+  <filter id="mb-0" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="0 0"/></filter>
+  <filter id="mb-1" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="0 0"/></filter>
+  <filter id="mb-2" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="0 0"/></filter>
+  <filter id="mb-3" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="0 0"/></filter>
+  <filter id="mb-4" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="0 0"/></filter>
+  <filter id="mb-5" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="0 0"/></filter>
+</svg>
+
+<div id="world" aria-hidden="true">
+  <div class="plane" id="p-far">
+    <div id="sky-ext"></div>
+    <img src="assets/meadow-sky.webp" alt="" id="sky-day" decoding="async">
+    <div class="skyg" id="sky-gold"></div>
+    <div class="skyg" id="sky-dusk"></div>
+    <div class="skyg" id="sky-night"></div>
+    <svg id="stars" viewBox="0 0 1672 1788" preserveAspectRatio="none"></svg>
+    <div id="sun"></div>
+  </div>
+  <div class="plane" id="p-clouds">
+    <img src="assets/meadow-clouds.webp" alt="" id="clouds" decoding="async">
+  </div>
+  <div class="plane" id="p-ground">
+    <img src="assets/meadow-ground.webp" alt="" id="ground" decoding="async">
+    <div id="flies"></div>
+    <div id="lantern">
+      <span class="glow"></span>
+      <svg viewBox="0 0 30 50"><path d="M15 1v5" stroke="#2a2418" stroke-width="2" fill="none"/><path d="M9 6h12v4H9z" fill="#2a2418"/><path d="M8 10h14l-1 30H9z" fill="#FFD27A"/><path d="M15 16c3 4 3 8 0 12-3-4-3-8 0-12z" fill="#FFF3C4"/><path d="M8 10h14M8 40h14M11 10v30M19 10v30" stroke="#2a2418" stroke-width="1.6" fill="none"/><path d="M6 40h18v4H6z" fill="#2a2418"/></svg>
+    </div>
+  </div>
+  <div id="vignette"></div>
+</div>
+<div id="fore" aria-hidden="true"><svg id="grass" viewBox="0 0 1600 420" preserveAspectRatio="xMidYMax slice"></svg></div>
+
+<header id="site-nav">
+  <a class="plate brand" href="#top"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg>OpenCompanion</a>
+  <nav class="plate links" aria-label="Page">
+    <a class="opt" href="#how">How it works</a>
+    <a class="opt" href="#clis">CLIs</a>
+    <a class="btn primary" href="#get">Build it</a>
+  </nav>
+</header>
+
+<main id="main">
+  <section id="story" aria-label="A working day with OpenCompanion">
+    <span id="top"></span>
+    <div id="stage">
+
+      <div class="beat" id="beat-hero" data-b="hero">
+        <div class="txt plate hero-plate">
+          <h1 data-mb="0">Step away from the terminal</h1>
+          <p>OpenCompanion starts and watches Claude Code, Codex CLI and OpenCode on your computer, and tells you when a session needs you.</p>
+          <a class="btn primary lg" href="#get" id="btn-hero-get">Build it on your computer</a>
+        </div>
+        <p class="cue plate" id="scroll-cue"><svg class="ic" aria-hidden="true"><use href="#i-arrow-down"/></svg>Scroll to spend a day with it</p>
+      </div>
+
+      <div class="beat" id="how" data-b="chat">
+        <div class="txt plate">
+          <h2 data-mb="1">Say it once, in plain words</h2>
+          <p>Chat turns one request into a card for each session. You read the prompt, then press Run.</p>
+        </div>
+        <div class="mockbox">
+          <div class="mock mock-chat" role="img" aria-label="The Chat screen: your request, the planner's reply, and two cards, Codex CLI in ai-remote and Claude Code in uninote, each with a Run button.">
+            <div class="frame">
+              <div class="ui" id="chat-ui">
+                <div class="thread">
+                  <p class="me" id="c-me">Codex, fix the failing tests in ai-remote. Claude Code, write the API docs in uninote.</p>
+                  <div class="stack1">
+                    <div class="planner m-only" id="c-think"><span class="who">Planner</span><span class="think-line"><svg class="ic" id="c-spin"><use href="#i-spinner"/></svg>Thinking with Claude Code…</span></div>
+                    <div class="planner" id="c-plan"><span class="who">Planner</span><p>Two separate folders, so two sessions. Check the prompts, then press Run on each one.</p></div>
+                  </div>
+                  <div class="dcard" id="c-card1">
+                    <div class="dc-top"><span class="climark"><svg style="color:var(--ink)"><use href="#logo-openai"/></svg></span><span class="grow"><b>Codex CLI · interactive</b><span class="mono path">~/Project/ai-remote</span></span><span class="chip run m-only dc-chip">Running</span></div>
+                    <div class="dc-prompt">Run the tests, find out why they fail, and fix them.</div>
+                    <div class="stack1">
+                      <div class="dc-acts"><span class="btn primary sm run-btn"><svg class="ic"><use href="#i-play"/></svg>Run in ai-remote</span><span class="btn secondary sm"><svg class="ic"><use href="#i-pencil"/></svg>Edit</span><span class="btn ghost sm">Discard</span></div>
+                      <div class="dc-started m-only"><span class="btn secondary sm"><svg class="ic"><use href="#i-terminal"/></svg>Open session</span><span class="meta">Started just now</span></div>
+                    </div>
+                  </div>
+                  <div class="dcard" id="c-card2">
+                    <div class="dc-top"><span class="climark"><svg><use href="#logo-claude"/></svg></span><span class="grow"><b>Claude Code · interactive</b><span class="mono path">~/Project/uninote</span></span><span class="chip run m-only dc-chip">Running</span></div>
+                    <div class="dc-prompt">Write API docs for the public endpoints in docs/api.md.</div>
+                    <div class="stack1">
+                      <div class="dc-acts"><span class="btn primary sm run-btn"><svg class="ic"><use href="#i-play"/></svg>Run in uninote</span><span class="btn secondary sm"><svg class="ic"><use href="#i-pencil"/></svg>Edit</span><span class="btn ghost sm">Discard</span></div>
+                      <div class="dc-started m-only"><span class="btn secondary sm"><svg class="ic"><use href="#i-terminal"/></svg>Open session</span><span class="meta">Started just now</span></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="composer">
+                  <div class="c-text"><span class="ph" id="c-ph">Describe a task. Name a CLI, type @ for a folder, or let the planner pick one.</span><span class="typed m-only" id="c-typed"></span></div>
+                  <div class="c-row"><span class="c-pick">CLI default<svg class="ic"><use href="#i-caret"/></svg></span><span class="c-pick"><svg class="ic b"><use href="#i-brain"/></svg>Thinking<svg class="ic"><use href="#i-caret"/></svg></span><span class="spacer"></span><span class="send"><svg class="ic"><use href="#i-send"/></svg></span></div>
+                </div>
+                <svg class="cursor m-only" id="c-cursor" viewBox="0 0 24 24"><path d="M4 2v17l4.5-4 3 6.5 3-1.3-2.9-6.4 5.9-.2z" fill="#33361F" stroke="#FFFAE6" stroke-width="1.6" stroke-linejoin="round"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="beat flip" id="beat-sessions" data-b="sessions">
+        <div class="txt plate">
+          <h2 data-mb="2">Every session on one line</h2>
+          <p>Status, the latest event and an activity track for each CLI, including the ones you opened in your own terminal.</p>
+        </div>
+        <div class="mockbox">
+          <div class="mock mock-sessions" role="img" aria-label="The Overview: Codex CLI running in ai-remote, Claude Code in uninote waiting for you, and an OpenCode session opened outside OpenCompanion shown read-only.">
+            <div class="frame pad">
+              <div class="sec-head" id="s-head1"><b>Running in OpenCompanion</b><span class="meta">2 running</span></div>
+              <div class="srow" id="s-row1">
+                <span class="climark"><svg style="color:var(--ink)"><use href="#logo-openai"/></svg></span>
+                <span style="min-width:0"><span class="task">Fix the failing tests</span><span class="where">Codex CLI · interactive · <span class="mono">~/Project/ai-remote</span></span></span>
+                <span class="track"><span class="horizon" data-hz="1"><i class="now"></i></span><span class="lines stack1"><span class="m-only">Reading package.json · 3 min</span><span class="m-only">Ran bun run test · 1 h 12 min</span><span>Edited src/lib/sync.ts · 2 h 38 min</span></span></span>
+                <span class="status-col"><span class="chip run">Running</span></span>
+              </div>
+              <div class="srow" id="s-row2">
+                <span class="climark"><svg><use href="#logo-claude"/></svg></span>
+                <span style="min-width:0"><span class="task">Write the API docs</span><span class="where">Claude Code · interactive · <span class="mono">~/Project/uninote</span></span></span>
+                <span class="track"><span class="horizon" data-hz="2"><i class="now m-only"></i></span><span class="lines stack1"><span class="m-only">Reading src/routes · 2 min</span><span class="m-only">Wrote docs/api.md · 1 h 5 min</span><span>Wants to run npm install · 2 h 31 min</span></span></span>
+                <span class="status-col"><span class="stack1"><span class="chip run m-only">Running</span><span class="chip wait">Waiting for you</span></span></span>
+                <span class="ring" id="s-ring"></span>
+              </div>
+              <div class="sec-head second" id="s-head2"><b>Opened outside OpenCompanion</b></div>
+              <div class="srow ext" id="s-row3">
+                <span class="climark">OC</span>
+                <span style="min-width:0"><span class="task">OpenCode in psikotes</span><span class="where">OpenCode · interactive · <span class="mono">~/Project/psikotes</span></span></span>
+                <span class="track"><span class="horizon" data-hz="3"></span><span class="lines"><span>Last entry 3 min ago</span></span></span>
+                <span class="status-col"><span class="chip ro">Read-only</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="beat" id="beat-phone" data-b="phone">
+        <div class="txt plate">
+          <h2 data-mb="3">Answer from your phone</h2>
+          <p>When Claude Code asks to run a command, your phone on the same Wi-Fi shows the request. Approve or Deny it there.</p>
+        </div>
+        <div class="mockbox">
+          <div class="mock mock-phone" role="img" aria-label="The phone companion: Claude Code wants to run npm install in uninote, with Approve and Deny buttons.">
+            <div class="device" id="p-device">
+              <div class="screen">
+                <div class="m-bar"><span class="m-brand"><svg class="ic"><use href="#i-cloud"/></svg>OpenCompanion</span><span class="chip run">Connected</span></div>
+                <div class="m-content">
+                  <p class="m-conn">To your desktop · 192.168.1.24</p>
+                  <div class="m-headrow"><b class="m-h1">Sessions</b><span class="btn secondary sm"><svg class="ic"><use href="#i-plus"/></svg>New session</span></div>
+                  <div class="m-needs" id="p-needs">
+                    <b>Claude Code wants to run a command</b>
+                    <span class="meta">uninote · asked just now</span>
+                    <div class="cmd"><small>Bash</small><code>npm install</code></div>
+                    <div class="m-acts"><span class="btn accent" id="p-approve"><svg class="ic"><use href="#i-check"/></svg>Approve</span><span class="btn secondary"><svg class="ic"><use href="#i-x"/></svg>Deny</span></div>
+                  </div>
+                  <div class="m-resolved m-only" id="p-resolved"><svg class="ic"><use href="#i-check-circle"/></svg>Approved. Claude Code continues in uninote.</div>
+                  <div class="m-sec">
+                    <b>Running</b>
+                    <div class="m-card" id="p-card2"><div class="row"><span class="climark"><svg><use href="#logo-claude"/></svg></span><span class="grow"><span class="task">Write the API docs</span><span class="meta">Claude Code · uninote</span></span><span class="stack1"><span class="chip wait" id="p-chip-wait">Waiting for you</span><span class="chip run m-only" id="p-chip-run">Running</span></span></div><span class="horizon full" data-hz="4"></span></div>
+                    <div class="m-card"><div class="row"><span class="climark"><svg style="color:var(--ink)"><use href="#logo-openai"/></svg></span><span class="grow"><span class="task">Fix the failing tests</span><span class="meta">Codex CLI · ai-remote</span></span><span class="chip run">Running</span></div><span class="horizon full" data-hz="5"><i class="now"></i></span></div>
+                  </div>
+                </div>
+                <div class="m-tabs"><span class="tab on"><svg class="ic"><use href="#i-house"/></svg>Sessions<i class="tab-count" id="p-badge">1</i></span><span class="tab"><svg class="ic"><use href="#i-chats"/></svg>Chat</span><span class="tab"><svg class="ic"><use href="#i-kanban"/></svg>Board</span></div>
+              </div>
+              <span class="notch"></span>
+            </div>
+            <span class="tap m-only" id="p-tap"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="beat flip" id="beat-board" data-b="board">
+        <div class="txt plate">
+          <h2 data-mb="4">Line up what comes next</h2>
+          <p>Board cards start a CLI when you press Run, then follow their session to Done.</p>
+        </div>
+        <div class="mockbox">
+          <div class="mock mock-board" role="img" aria-label="The Board with four columns, Pending, Todo, In progress and Done. A finished card moves to Done and a Todo card starts.">
+            <div class="frame">
+              <div class="cols">
+                <div class="col" data-c="0"><div class="col-head"><span class="t"><b>Pending</b><span class="n"><span>1</span></span></span><span class="hint">Not ready yet</span></div><div class="col-body"></div></div>
+                <div class="col" data-c="1"><div class="col-head"><span class="t"><b>Todo</b><span class="n"><span id="n-todo-a">1</span><span class="m-only" id="n-todo-b">0</span></span></span><span class="hint">Ready to hand to a CLI</span></div><div class="col-body"></div></div>
+                <div class="col" data-c="2"><div class="col-head"><span class="t"><b>In progress</b><span class="n"><span id="n-prog-a">2</span><span class="m-only" id="n-prog-b">1</span></span></span><span class="hint">A CLI session is on it</span></div><div class="col-body"></div></div>
+                <div class="col" data-c="3"><div class="col-head"><span class="t"><b>Done</b><span class="n"><span id="n-done-a">1</span><span class="m-only" id="n-done-b">2</span></span></span><span class="hint">Finished</span></div><div class="col-body"></div></div>
+              </div>
+              <div class="card" data-c="0" style="--c:0;--r:0"><div class="top"><b>Sketch the Skills empty state</b></div><div class="bottom"><svg class="ic"><use href="#i-folder"/></svg><span class="mono">ai-remote</span><svg class="ic"><use href="#i-note"/></svg></div></div>
+              <div class="card" id="b-todo" style="--c:1;--r:0"><div class="top"><span class="climark sm"><svg><use href="#logo-claude"/></svg></span><b>Update the README screenshots</b><span class="act play" id="b-play"><svg class="ic"><use href="#i-play"/></svg></span></div><div class="bottom"><svg class="ic"><use href="#i-folder"/></svg><span class="mono">uninote</span><span class="info"><span><svg class="ic"><use href="#i-note"/></svg></span><span class="run m-only"><svg class="ic"><use href="#i-spinner"/></svg>Running · just now</span></span></div></div>
+              <div class="card" id="b-move" style="--c:2;--r:0"><div class="top"><span class="climark sm"><svg style="color:var(--ink)"><use href="#logo-openai"/></svg></span><b>Add retry to the sync job</b><span class="act"><svg class="ic"><use href="#i-out"/></svg></span></div><div class="bottom"><svg class="ic"><use href="#i-folder"/></svg><span class="mono">ai-remote</span><span class="info"><span class="run"><svg class="ic"><use href="#i-spinner"/></svg>Running · 12 min</span><span class="ok m-only"><svg class="ic"><use href="#i-check-circle"/></svg>took 14 min</span></span></div></div>
+              <div class="card" id="b-stay" style="--c:2;--r:1"><div class="top"><span class="climark sm"><svg><use href="#logo-claude"/></svg></span><b>Write the API docs</b><span class="act"><svg class="ic"><use href="#i-out"/></svg></span></div><div class="bottom"><svg class="ic"><use href="#i-folder"/></svg><span class="mono">uninote</span><span class="info"><span class="run"><svg class="ic"><use href="#i-spinner"/></svg>Running · 6 h 2 min</span></span></div></div>
+              <div class="card" id="b-done" style="--c:3;--r:0"><div class="top"><span class="climark sm"><svg style="color:var(--ink)"><use href="#logo-openai"/></svg></span><b>Translate the tray menu</b><span class="act"><svg class="ic"><use href="#i-out"/></svg></span></div><div class="bottom"><svg class="ic"><use href="#i-folder"/></svg><span class="mono">ai-remote</span><span class="info"><span class="ok"><svg class="ic"><use href="#i-check-circle"/></svg>took 9 min</span></span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="beat" id="beat-dusk" data-b="dusk">
+        <div class="txt plate">
+          <h2 data-mb="5">It stays on your computer</h2>
+          <p>No account, no cloud server, no telemetry. Each CLI talks to its own provider, the same as in your terminal.</p>
+        </div>
+        <div class="toasts" role="img" aria-label="Two notifications from OpenCompanion: Codex CLI finished in ai-remote, and Claude Code finished in uninote.">
+          <div class="ntf" id="n1"><span class="ntf-app"><svg class="ic"><use href="#i-cloud"/></svg>OpenCompanion</span><b>Codex CLI finished</b><span>ai-remote · Fix the failing tests</span></div>
+          <div class="ntf" id="n2"><span class="ntf-app"><svg class="ic"><use href="#i-cloud"/></svg>OpenCompanion</span><b>Claude Code finished</b><span>uninote · Write the API docs</span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="clis" class="facts" aria-labelledby="clis-title">
+    <div class="facts-in">
+      <div class="plate f-head">
+        <h2 id="clis-title">What it runs today</h2>
+        <p>OpenCompanion finds these on your PATH. How much it can do depends on the CLI.</p>
+      </div>
+      <ul class="glass-panel cli-list">
+        <li><span class="climark"><svg><use href="#logo-claude"/></svg></span><div><b>Claude Code</b><p>Starts sessions, watches them, and answers their approval prompts from the desktop or your phone.</p></div></li>
+        <li><span class="climark"><svg style="color:var(--ink)"><use href="#logo-openai"/></svg></span><div><b>Codex CLI</b><p>Starts and watches sessions. Its approval prompts are answered in its own terminal.</p></div></li>
+        <li><span class="climark">OC</span><div><b>OpenCode</b><p>Starts and watches sessions. Its prompts are answered in its own terminal.</p></div></li>
+        <li><span class="climark"><svg><use href="#logo-gemini"/></svg></span><div><b>Gemini CLI</b><p>Found on your PATH and listed with its version. OpenCompanion cannot start it yet.</p></div></li>
+      </ul>
+      <ul class="plate notes">
+        <li>Sessions you started in your own terminal show up too, read-only, with their transcript.</li>
+        <li>Tested on Windows 11. macOS and Linux build from the same code but are untested.</li>
+        <li>Your phone reaches the computer over your own network. Away from home, use a VPN such as Tailscale.</li>
+        <li>Web Push is not built yet, so the phone shows notifications while its page is open.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="get" class="facts" aria-labelledby="get-title">
+    <div class="get-card">
+      <h2 id="get-title">Build it on your computer</h2>
+      <p>OpenCompanion is a Tauri 2 app. You need Rust (with the MSVC toolchain on Windows), Bun, and at least one supported CLI on your PATH.</p>
+      <pre class="term" id="build-cmds">git clone https://github.com/yusupsupriyadi/opencompanion.git
+cd opencompanion
+bun install
+bun run tauri build</pre>
+      <p class="small">The installer lands in <span class="mono">src-tauri/target/release/bundle</span>. For a window with hot reload, run <span class="mono">bun run tauri dev</span> instead.</p>
+      <div class="get-acts">
+        <a class="btn primary lg" href="https://github.com/yusupsupriyadi/opencompanion"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>Open the repository on GitHub</a>
+        <button class="btn secondary lg" type="button" id="btn-copy"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg>Copy the commands</button>
+        <span class="copy-status" id="copy-status" role="status" aria-live="polite"></span>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="plate foot-in">
+    <span class="brand-sm"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg>OpenCompanion 0.1.0</span>
+    <a href="https://github.com/yusupsupriyadi/opencompanion">Source on GitHub</a>
+    <a href="#top">Back to the morning</a>
+  </div>
+</footer>
+
+<div id="hud" class="plate" aria-hidden="true"><span class="clock" id="clock">07:00</span><span class="horizon" id="hud-hz"><i class="now" id="hud-now"></i></span></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/ScrollTrigger.min.js"></script>
+<script>
+(() => {
+  "use strict";
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const html = document.documentElement;
+  const IMG_W = 1672, IMG_H = 941;
+  const SPECKS = [6, 23, 41, 58, 77, 96, 118, 137, 152, 171, 190, 207];
+
+  // Seeded random, so stars, grass and fireflies land in the same places on every visit.
+  const rng = (seed) => () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  /* Copy the build commands: works in every mode, reports failure instead of pretending. */
+  const copyBtn = $("#btn-copy"), copyStatus = $("#copy-status");
+  let copyTimer = 0;
+  copyBtn.addEventListener("click", async () => {
+    const text = $("#build-cmds").textContent.trim();
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta); ta.select(); ok = document.execCommand("copy"); ta.remove();
+      } catch (e2) { ok = false; }
+    }
+    copyStatus.textContent = ok ? "Copied" : "Copy failed. Select the commands and press Ctrl+C.";
+    copyStatus.classList.toggle("bad", !ok);
+    clearTimeout(copyTimer);
+    copyTimer = setTimeout(() => { copyStatus.textContent = ""; }, 4000);
+  });
+
+  /* Horizon tracks inside the mockups: ground specks plus one mark per event. */
+  const HZ = {
+    1: [[4, ""], [12, ""], [21, ""], [30, ""], [41, ""], [50, ""], [61, ""], [72, ""], [83, ""]],
+    2: [[7, ""], [16, ""], [27, ""], [39, ""], [52, ""], [64, ""], [80, "w"]],
+    3: [[10, ""], [22, ""], [37, ""], [55, ""], [70, ""]],
+    4: [[12, ""], [30, ""], [48, ""], [66, ""], [84, "w"]],
+    5: [[6, ""], [20, ""], [35, ""], [52, ""], [68, ""], [86, ""]],
+  };
+  $$(".horizon[data-hz]").forEach((h) => {
+    const marks = HZ[h.dataset.hz] || [];
+    let s = "";
+    SPECKS.forEach((x, i) => { s += `<i class="sp" style="left:${(x / 2.2).toFixed(1)}%;top:${i % 2 ? 14 : 15}px"></i>`; });
+    marks.forEach(([l, c], i) => { s += `<i class="ev ${c}" data-i="${i}" style="left:${l}%"></i>`; });
+    h.insertAdjacentHTML("afterbegin", s);
+  });
+
+  /* Foreground grass: dark, out-of-focus blades with a few flower heads, generated once. */
+  (function buildGrass() {
+    const r = rng(11), W = 1600, H = 420;
+    let out = "";
+    [[40, 0.55], [34, 0.75], [26, 1]].forEach(([n, k], layer) => {
+      let g = "";
+      for (let i = 0; i < n; i++) {
+        const x = r() * W, h = H * (0.32 + r() * 0.62) * k, w = 12 + r() * 22, bend = (r() - 0.5) * 180;
+        g += `<path d="M${(x - w / 2).toFixed(1)},${H} Q${(x + bend * 0.25).toFixed(1)},${(H - h * 0.55).toFixed(1)} ${(x + bend).toFixed(1)},${(H - h).toFixed(1)} Q${(x + bend * 0.2 + w * 0.25).toFixed(1)},${(H - h * 0.5).toFixed(1)} ${(x + w / 2).toFixed(1)},${H}Z"/>`;
+      }
+      out +=`<g class="gl gl${layer}">${g}</g>`;
+    });
+    $("#grass").innerHTML = out;
+  })();
+
+  /* Stars and fireflies, placed once. */
+  (function buildNight() {
+    const r = rng(5);
+    let s = "";
+    for (let i = 0; i < 170; i++) {
+      const x = r() * IMG_W, y = r() * 941 * 1.4, rad = 0.7 + r() * r() * 2.2;
+      s += `<circle class="s${i % 3}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${rad.toFixed(2)}" opacity="${(0.45 + r() * 0.55).toFixed(2)}"/>`;
+    }
+    $("#stars").innerHTML = s;
+    const f = rng(9), flies = $("#flies");
+    for (let i = 0; i < 18; i++) {
+      const el = document.createElement("i");
+      el.style.left = (8 + f() * 88).toFixed(2) + "%";
+      el.style.top = (62 + f() * 32).toFixed(2) + "%";
+      el.dataset.ph = (f() * 6.28).toFixed(2);
+      el.dataset.sp = (0.4 + f() * 0.8).toFixed(2);
+      flies.appendChild(el);
+    }
+  })();
+
+  /* Fit every mockup into the box it is given. Zoom keeps the app's own pixel sizes inside. */
+  function fitMocks() {
+    const motion = html.classList.contains("motion");
+    const narrow = innerWidth < 1024 || innerHeight > innerWidth;
+    $$(".beat").forEach((b) => {
+      const txt = $(".txt", b), box = $(".mockbox", b);
+      if (motion && narrow && txt) b.style.setProperty("--below", txt.offsetTop + txt.offsetHeight + 14 + "px");
+    });
+    $$(".mock").forEach((m) => {
+      const box = m.parentElement, cs = getComputedStyle(m);
+      const dw = parseFloat(cs.getPropertyValue("--dw")), dh = parseFloat(cs.getPropertyValue("--dh"));
+      let z = Math.min(motion ? 1.35 : 1, box.clientWidth / dw);
+      if (motion && dh && box.clientHeight) z = Math.min(z, box.clientHeight / dh);
+      m.style.zoom = Math.max(0.3, z).toFixed(4);
+    });
+  }
+
+  const staticPage = () => { fitMocks(); addEventListener("resize", fitMocks); };
+  if (!html.classList.contains("motion")) return staticPage();
+  if (!window.gsap || !window.ScrollTrigger) { html.classList.remove("motion"); return staticPage(); }
+
+  gsap.registerPlugin(ScrollTrigger);
+  ScrollTrigger.config({ ignoreMobileResize: true });
+  const world = $("#world");
+  world.classList.add("cam-on");
+
+  /* ---------- Camera: each plane moves by its depth, and never shows its own edge ---------- */
+  const planes = [
+    { el: $("#p-far"), d: 0.32, x: true, top: -0.9, bottom: 1 },
+    { el: $("#p-clouds"), d: 1, x: true, drift: true },
+    { el: $("#p-ground"), d: 1, x: true, bottom: 1 },
+  ];
+  // One framing per scene; the timeline tweens cam.k from one scene to the next.
+  const SHOTS = {
+    wide: [[0.52, 0.56, 1], [0.46, 0.3, 1.06], [0.58, 0.34, 1.1], [0.6, 0.74, 1.22], [0.5, 0.48, 1], [0.77, 0.66, 1.5], [0.62, 0.16, 1.12]],
+    narrow: [[0.74, 0.6, 1], [0.6, 0.28, 1.05], [0.44, 0.3, 1.08], [0.4, 0.76, 1.18], [0.55, 0.45, 1], [0.775, 0.68, 1.35], [0.6, 0.14, 1.1]],
+  };
+  const cam = { k: 0 }, intro = { z: 0.07 }, drift = { u: 0 }, breath = { z: 0 };
+  let B = { w: 0, h: 0, left: 0, top: 0 }, VW = 0, VH = 0, shots = SHOTS.wide;
+  const fore = $("#fore");
+
+  function layoutBox() {
+    VW = innerWidth; VH = innerHeight;
+    shots = VW < 1024 || VH > VW ? SHOTS.narrow : SHOTS.wide;
+    const s = Math.max(VW / IMG_W, VH / IMG_H) * 1.22;
+    B = { w: IMG_W * s, h: IMG_H * s, left: (VW - IMG_W * s) / 2, top: (VH - IMG_H * s) / 2 };
+    planes.forEach((p) => Object.assign(p.el.style, { left: B.left + "px", top: B.top + "px", width: B.w + "px", height: B.h + "px" }));
+  }
+  function shot() {
+    const i = Math.min(shots.length - 2, Math.floor(cam.k)), f = cam.k - i, a = shots[i], b = shots[i + 1];
+    return { u: a[0] + (b[0] - a[0]) * f, v: a[1] + (b[1] - a[1]) * f, z: a[2] + (b[2] - a[2]) * f + intro.z + breath.z };
+  }
+  function applyCamera() {
+    const c = shot();
+    planes.forEach((p) => {
+      const z = 1 + (c.z - 1) * p.d;
+      const u = 0.5 + (c.u + (p.drift ? drift.u : 0) - 0.5) * p.d, v = 0.5 + (c.v - 0.5) * p.d;
+      let tx = VW / 2 - B.left - u * B.w * z, ty = VH / 2 - B.top - v * B.h * z;
+      if (p.x) {
+        const L = B.left + tx, R = L + B.w * z;
+        if (L > 0) tx -= L; else if (R < VW) tx += VW - R;
+      }
+      if (p.top !== undefined) { const T = B.top + ty + p.top * B.h * z; if (T > 0) ty -= T; }
+      if (p.bottom !== undefined) { const Bo = B.top + ty + p.bottom * B.h * z; if (Bo < VH) ty += VH - Bo; }
+      p.el.style.transform = `translate3d(${tx.toFixed(1)}px,${ty.toFixed(1)}px,0) scale(${z.toFixed(4)})`;
+    });
+    const k = gsap.utils.clamp(0, 1, (0.74 - c.v) / 0.24);
+    fore.style.transform = `translate3d(${(-(c.u - 0.52) * VW * 1.3).toFixed(1)}px,${(VH * 0.12 + k * VH * 0.38).toFixed(1)}px,0) scale(${(1 + (c.z - 1) * 0.7).toFixed(4)})`;
+  }
+
+  /* ---------- Painted light: tinted copies of the layers, made once in a canvas ---------- */
+  function tinted(img, color, mode) {
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const x = c.getContext("2d");
+    x.drawImage(img, 0, 0);
+    x.globalCompositeOperation = mode || "multiply";
+    if (Array.isArray(color)) {
+      const g = x.createLinearGradient(0, 0, 0, c.height);
+      color.forEach(([at, col]) => g.addColorStop(at, col));
+      x.fillStyle = g;
+    } else x.fillStyle = color;
+    x.fillRect(0, 0, c.width, c.height);
+    x.globalCompositeOperation = "destination-in";
+    x.drawImage(img, 0, 0);
+    c.style.opacity = 0;
+    return c;
+  }
+  const grades = {};
+  function makeGrades() {
+    const g = $("#ground"), cl = $("#clouds");
+    const put = (plane, before, key, img, color) => { const c = tinted(img, color); plane.insertBefore(c, before); grades[key] = c; };
+    put($("#p-ground"), $("#flies"), "gGold", g, "#F6D6A0");
+    put($("#p-ground"), $("#flies"), "gDusk", g, "#8C7298");
+    put($("#p-ground"), $("#flies"), "gNight", g, "#26303F");
+    put($("#p-clouds"), null, "cGold", cl, "#FFDDA8");
+    put($("#p-clouds"), null, "cDusk", cl, [[0, "#B98AB8"], [0.45, "#EE9C84"], [0.7, "#F7B06E"], [1, "#E88A5E"]]);
+    put($("#p-clouds"), null, "cNight", cl, "#394350");
+  }
+
+  /* ---------- Text: words split for the dim-to-full entrance, heading keeps its full name ---------- */
+  $$(".beat h1, .beat h2").forEach((h) => {
+    const text = h.textContent.trim();
+    h.setAttribute("aria-label", text);
+    h.innerHTML = text.split(/\s+/).map((w) => `<span class="w" aria-hidden="true">${w}</span>`).join(" ");
+  });
+
+  const ready = Promise.all([
+    document.fonts ? document.fonts.ready : Promise.resolve(),
+    ...["#ground", "#clouds"].map((s) => { const i = $(s); return i.decode ? i.decode().catch(() => {}) : Promise.resolve(); }),
+  ]);
+  // Slow fonts or images never hold the story back for more than a few seconds, and a failure falls back to the plain page.
+  Promise.race([ready, new Promise((r) => setTimeout(r, 4000))]).then(() => {
+    try { init(); } catch (err) {
+      console.error(err);
+      ScrollTrigger.getAll().forEach((s) => s.kill());
+      $$("#world canvas").forEach((c) => c.remove());
+      $$("#story [style], #world [style], #fore, #hud").forEach((el) => el.removeAttribute("style"));
+      world.classList.remove("cam-on");
+      html.classList.remove("motion", "ready");
+      staticPage();
+    }
+  });
+
+  function init() {
+    layoutBox();
+    fitMocks();
+    try { makeGrades(); } catch (e) { /* A canvas that cannot be made leaves the day colours; the story still runs. */ }
+    applyCamera();
+    const tl = gsap.timeline({ defaults: { ease: "power3.out" }, paused: true, onUpdate: tick });
+
+    // Directional motion blur on a heading while it moves (feGaussianBlur on one axis).
+    const blur = (el, at, dur, from, to, axis, ease) => {
+      const f = $("#mb-" + el.dataset.mb), fe = f.firstElementChild, o = { b: from };
+      tl.fromTo(o, { b: from }, { b: to, duration: dur, ease: ease || "power3.out", immediateRender: false, onUpdate() {
+        const v = o.b;
+        fe.setAttribute("stdDeviation", axis === "x" ? `${v.toFixed(2)} ${(v * 0.08).toFixed(2)}` : `${(v * 0.08).toFixed(2)} ${v.toFixed(2)}`);
+        el.style.filter = v > 0.15 ? `url(#${f.id})` : "none";
+      } }, at);
+    };
+    const DIR = { up: [0, 38], left: [-60, 0], right: [60, 0] };
+    const textIn = (b, at, dir) => {
+      const plate = $(".txt", b), h = $("h1, h2", plate), words = $$(".w", h), p = $("p", plate), [dx, dy] = DIR[dir];
+      tl.fromTo(plate, { opacity: 0, x: dx * 0.5, y: dy * 0.5, scale: 0.97 }, { opacity: 1, x: 0, y: 0, scale: 1, duration: 1.2, immediateRender: false }, at);
+      tl.fromTo(words, { opacity: 0.12, x: dx * 0.4, y: dy * 0.5 }, { opacity: 1, x: 0, y: 0, duration: 1.1, stagger: 0.14, ease: "power4.out", immediateRender: false }, at + 0.25);
+      blur(h, at + 0.25, 1.5, 14, 0, dir === "up" ? "y" : "x");
+      tl.fromTo(p, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.9, immediateRender: false }, at + 0.9);
+    };
+    const textOut = (b, at, dir) => {
+      const plate = $(".txt", b), h = $("h1, h2", plate), [dx, dy] = DIR[dir];
+      tl.to(plate, { opacity: 0, x: dx ? -dx * 0.7 : 0, y: dy ? -dy * 1.2 : 0, duration: 0.6, ease: "power2.in" }, at);
+      blur(h, at, 0.6, 0, 18, dir === "up" ? "y" : "x", "power2.in");
+    };
+    const pulse = (el, at) => tl.fromTo(el, { scale: 1 }, { scale: 0.92, duration: 0.18, ease: "power2.in", yoyo: true, repeat: 1, immediateRender: false }, at);
+    const swap = (from, to, at, dur = 0.4) => {
+      if (from) tl.to(from, { opacity: 0, duration: dur, ease: "power2.in" }, at);
+      if (to) tl.fromTo(to, { opacity: 0 }, { opacity: 1, duration: dur, immediateRender: false }, at + dur * 0.5);
+    };
+    // Where an element sits inside a UI wrapper, in the mockup's own (unzoomed) pixels.
+    const zoomOf = (el) => parseFloat(el.closest(".mock").style.zoom) || 1;
+    const inUi = (el, ui) => {
+      const r = el.getBoundingClientRect(), u = ui.getBoundingClientRect(), z = zoomOf(ui);
+      return { x: (r.left - u.left + r.width / 2) / z, y: (r.top - u.top + r.height / 2) / z, w: u.width / z, h: u.height / z };
+    };
+    const localH = (el) => el.getBoundingClientRect().height / zoomOf(el);
+    const camTo = (ui, el, at, s = 1.4, dur = 1) => {
+      const p = inUi(el, ui);
+      const x = gsap.utils.clamp(p.w - p.w * s, 0, p.w * 0.5 - p.x * s), y = gsap.utils.clamp(p.h - p.h * s, 0, p.h * 0.45 - p.y * s);
+      tl.to(ui, { x, y, scale: s, duration: dur, ease: "power2.inOut" }, at);
+    };
+    const camWide = (ui, at, dur = 1) => tl.to(ui, { x: 0, y: 0, scale: 1, duration: dur, ease: "power2.inOut" }, at);
+
+    const bHero = $("#beat-hero"), bChat = $("#how"), bSes = $("#beat-sessions"), bPhone = $("#beat-phone"), bBoard = $("#beat-board"), bDusk = $("#beat-dusk");
+    const boxOf = (b) => $(".mockbox", b);
+
+    /* Camera between scenes */
+    [[2, 10], [27, 8], [42, 9], [59, 8], [75, 13], [89, 11]].forEach(([at, dur], i) => tl.to(cam, { k: i + 1, duration: dur, ease: "power2.inOut" }, at));
+    tl.to(drift, { u: -0.006, duration: 100, ease: "none" }, 0);
+
+    /* 07:00  Morning: the hero leaves, the sky opens */
+    tl.to("#scroll-cue", { opacity: 0, y: 12, duration: 0.8, ease: "power2.in" }, 0.4);
+    textOut(bHero, 2.2, "up");
+
+    /* 09:00  Chat: typed, answered, two cards run */
+    const chatUi = $("#chat-ui"), typed = $("#c-typed"), ph = $("#c-ph"), cursor = $("#c-cursor");
+    const msg = $("#c-me").textContent, typer = { n: 0 };
+    const card1 = $("#c-card1"), card2 = $("#c-card2");
+    gsap.set(["#c-me", "#c-think", "#c-plan", card1, card2, cursor, ".dc-chip", ".dc-started"], { opacity: 0 });
+    textIn(bChat, 9.5, "up");
+    tl.fromTo(boxOf(bChat), { opacity: 0, y: 180, rotationX: 16 }, { opacity: 1, y: 0, rotationX: 0, duration: 3, ease: "power3.out", immediateRender: false }, 10);
+    tl.to(ph, { opacity: 0, duration: 0.2 }, 13);
+    tl.fromTo(typer, { n: 0 }, { n: msg.length, duration: 3.6, ease: "none", immediateRender: false, onUpdate() { typed.textContent = msg.slice(0, Math.round(typer.n)); } }, 13.1);
+    tl.to(typed, { opacity: 0, duration: 0.15, ease: "none" }, 17);
+    tl.to(ph, { opacity: 1, duration: 0.3 }, 17.3);
+    tl.fromTo("#c-me", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.8, immediateRender: false }, 17.05);
+    tl.fromTo("#c-think", { opacity: 0 }, { opacity: 1, duration: 0.4, immediateRender: false }, 18);
+    tl.fromTo("#c-spin", { rotation: 0 }, { rotation: 720, duration: 1.8, ease: "none", transformOrigin: "50% 50%", immediateRender: false }, 18);
+    tl.to("#c-think", { opacity: 0, duration: 0.3, ease: "power2.in" }, 19.6);
+    tl.fromTo("#c-plan", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.8, immediateRender: false }, 19.8);
+    // Cursor targets come from the full layout; then the cards fold shut and grow in when the planner answers.
+    const run1 = $(".run-btn", card1), run2 = $(".run-btn", card2);
+    const c0 = inUi($(".send", chatUi), chatUi), r1 = inUi(run1, chatUi), r2 = inUi(run2, chatUi);
+    const shut = { height: 0, opacity: 0, paddingTop: 0, paddingBottom: 0, borderWidth: 0 };
+    [card1, card2].forEach((c, i) => {
+      const h = localH(c);
+      gsap.set(c, { overflow: "hidden", ...shut });
+      tl.fromTo(c, shut, { height: h, opacity: 1, paddingTop: 14, paddingBottom: 14, borderWidth: 1, duration: 0.9, ease: "power3.out", immediateRender: false }, 20.4 + i * 0.6);
+    });
+    gsap.set(cursor, { x: c0.x - 60, y: c0.y - 40 });
+    tl.to(cursor, { opacity: 1, duration: 0.3 }, 21.8);
+    camTo(chatUi, run1, 22.2, 1.45, 1.2);
+    tl.to(cursor, { x: r1.x - 4, y: r1.y - 2, duration: 1.4, ease: "power2.inOut" }, 22.2);
+    pulse(run1, 23.8);
+    swap($(".dc-acts", card1), $(".dc-started", card1), 24.2);
+    tl.fromTo($(".dc-chip", card1), { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(2)", immediateRender: false }, 24.3);
+    camTo(chatUi, run2, 24.7, 1.45, 1.1);
+    tl.to(cursor, { x: r2.x - 4, y: r2.y - 2, duration: 1.2, ease: "power2.inOut" }, 24.7);
+    pulse(run2, 26);
+    swap($(".dc-acts", card2), $(".dc-started", card2), 26.4);
+    tl.fromTo($(".dc-chip", card2), { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(2)", immediateRender: false }, 26.5);
+    camWide(chatUi, 26.8, 1.1);
+    tl.to(cursor, { opacity: 0, duration: 0.3 }, 27.2);
+    textOut(bChat, 28.2, "up");
+    tl.to(boxOf(bChat), { opacity: 0, x: -90, y: -70, scale: 0.9, duration: 1.2, ease: "power2.in" }, 28.5);
+
+    /* 10:30  Overview: the cards become session rows, the horizons fill */
+    const sBox = boxOf(bSes);
+    const rows = ["#s-head1", "#s-row1", "#s-row2", "#s-head2", "#s-row3"];
+    gsap.set(rows, { opacity: 0 });
+    textIn(bSes, 30.6, "right");
+    tl.fromTo(sBox, { opacity: 0, x: -140, rotationY: 12 }, { opacity: 1, x: 0, rotationY: 0, duration: 2, immediateRender: false }, 29.6);
+    tl.fromTo(rows.slice(0, 3), { opacity: 0, x: -40 }, { opacity: 1, x: 0, duration: 0.9, stagger: 0.3, immediateRender: false }, 29.9);
+    tl.fromTo(rows.slice(3), { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.8, stagger: 0.25, immediateRender: false }, 33.4);
+    const evIn = (hz, times) => $$(`.horizon[data-hz="${hz}"] .ev`).forEach((e, i) => {
+      gsap.set(e, { opacity: 0, scale: 0 });
+      tl.fromTo(e, { opacity: 0, scale: 0, y: -8 }, { opacity: 1, scale: 1, y: 0, duration: 0.35, ease: "back.out(2)", immediateRender: false }, times[i]);
+    });
+    evIn(1, [31.2, 32, 32.9, 33.8, 34.8, 35.7, 36.6, 37.6, 38.6]);
+    evIn(2, [31.6, 32.6, 33.6, 34.6, 35.8, 37.2, 39.6]);
+    evIn(3, [33.9, 34.2, 34.5, 34.8, 35.1]);
+    const lines = (row) => $$(".lines > span", $(row));
+    const l1 = lines("#s-row1"), l2 = lines("#s-row2");
+    gsap.set([l1[1], l1[2], l2[1], l2[2]], { opacity: 0 });
+    swap(l1[0], l1[1], 33.4); swap(l1[1], l1[2], 36.9);
+    swap(l2[0], l2[1], 34.6); swap(l2[1], l2[2], 39.5);
+    const row2 = $("#s-row2"), chips2 = $$(".status-col .chip", row2), ring = $("#s-ring");
+    gsap.set([chips2[1], ring], { opacity: 0 });
+    swap(chips2[0], chips2[1], 39.5, 0.3);
+    tl.to($(".now", row2), { opacity: 0, duration: 0.2 }, 39.5);
+    tl.fromTo(ring, { opacity: 0 }, { opacity: 1, duration: 0.4, immediateRender: false }, 39.7);
+    textOut(bSes, 42.4, "right");
+    tl.to([rows[0], rows[1], rows[3], rows[4]], { opacity: 0, y: 30, duration: 0.8, stagger: 0.08, ease: "power2.in" }, 42.8);
+    tl.to(row2, { scale: 1.05, duration: 0.6, ease: "power2.out" }, 42.8);
+    tl.to(row2, { x: 260, y: 220, opacity: 0, duration: 1.4, ease: "power2.in" }, 43.5);
+    tl.to(sBox, { opacity: 0, duration: 0.4 }, 44.7);
+
+    /* 12:40  The phone buzzes on the grass: Approve */
+    const pBox = boxOf(bPhone), dev = $("#p-device"), needs = $("#p-needs"), resolved = $("#p-resolved"), tap = $("#p-tap"), badge = $("#p-badge");
+    const needsH = localH(needs), resH = localH(resolved);
+    gsap.set([needs, resolved], { height: 0, opacity: 0, paddingTop: 0, paddingBottom: 0, borderWidth: 0 });
+    gsap.set([badge, "#p-chip-run", tap], { opacity: 0 });
+    gsap.set(badge, { scale: 0 });
+    textIn(bPhone, 46.4, "left");
+    tl.fromTo(pBox, { opacity: 0, y: "70vh", rotation: -10, rotationX: 24 }, { opacity: 1, y: 0, rotation: -3, rotationX: 4, duration: 4, ease: "power3.out", immediateRender: false }, 47);
+    [[51.6, 5], [51.72, -5], [51.84, 4], [51.96, -3], [52.08, 0]].forEach(([at, x]) => tl.to(dev, { x, duration: 0.12, ease: "none" }, at));
+    tl.fromTo(needs, { height: 0, opacity: 0, paddingTop: 0, paddingBottom: 0, borderWidth: 0 }, { height: needsH, opacity: 1, paddingTop: 14, paddingBottom: 14, borderWidth: 1.5, duration: 1, ease: "power3.out", immediateRender: false }, 51.8);
+    tl.fromTo(badge, { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(2.4)", immediateRender: false }, 52.3);
+    const mockPhone = $(".mock-phone"), ap = $("#p-approve");
+    const apAt = () => inUi(ap, mockPhone);
+    // Measured after the card has its full height, so the thumb lands on the real button.
+    gsap.set(needs, { height: needsH, opacity: 1, paddingTop: 14, paddingBottom: 14, borderWidth: 1.5 });
+    const a = apAt();
+    gsap.set(needs, { height: 0, opacity: 0, paddingTop: 0, paddingBottom: 0, borderWidth: 0 });
+    gsap.set(tap, { x: a.x + 90, y: a.y + 170 });
+    tl.to(tap, { opacity: 1, duration: 0.4 }, 54);
+    tl.to(tap, { x: a.x, y: a.y, duration: 1.4, ease: "power2.inOut" }, 54.2);
+    tl.fromTo(tap, { scale: 1 }, { scale: 0.82, duration: 0.2, yoyo: true, repeat: 1, ease: "power2.in", immediateRender: false }, 55.8);
+    pulse(ap, 55.8);
+    tl.to(needs, { height: 0, opacity: 0, paddingTop: 0, paddingBottom: 0, borderWidth: 0, duration: 0.8, ease: "power2.inOut" }, 56.4);
+    tl.fromTo(resolved, { height: 0, opacity: 0, paddingTop: 0, paddingBottom: 0, borderWidth: 0 }, { height: resH, opacity: 1, paddingTop: 12, paddingBottom: 12, borderWidth: 1, duration: 0.8, immediateRender: false }, 56.7);
+    tl.to(badge, { scale: 0, opacity: 0, duration: 0.3, ease: "power2.in" }, 57);
+    swap($("#p-chip-wait"), $("#p-chip-run"), 57.2, 0.3);
+    tl.to(tap, { opacity: 0, y: "+=60", duration: 0.6, ease: "power2.in" }, 57.4);
+    textOut(bPhone, 59.2, "left");
+    tl.to(pBox, { y: "75vh", rotation: 4, opacity: 0.9, duration: 2.4, ease: "power2.in" }, 59.6);
+    tl.set(pBox, { opacity: 0 }, 62);
+
+    /* 15:00  Board: a card lands in Done, the next one starts */
+    const bBox = boxOf(bBoard), board = $(".mock-board");
+    const step = () => parseFloat(getComputedStyle(board).getPropertyValue("--colw")) + parseFloat(getComputedStyle(board).getPropertyValue("--gap"));
+    const cards = $$(".card", board), cols = $$(".col", board);
+    gsap.set([...cards, ...cols], { opacity: 0 });
+    gsap.set(["#n-todo-b", "#n-prog-b", "#n-done-b", "#b-move .ok", "#b-todo .run"], { opacity: 0 });
+    textIn(bBoard, 63.8, "up");
+    tl.fromTo(bBox, { opacity: 0, y: 70, scale: 0.94 }, { opacity: 1, y: 0, scale: 1, duration: 2.2, immediateRender: false }, 63.2);
+    tl.fromTo(cols, { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.8, stagger: 0.18, immediateRender: false }, 63.5);
+    tl.fromTo(cards, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.7, stagger: 0.14, immediateRender: false }, 64.4);
+    const S = step();
+    tl.to("#b-done", { y: 84, duration: 0.8, ease: "power2.inOut" }, 67.4);
+    tl.to("#b-move", { x: S, duration: 1.4, ease: "power2.inOut" }, 67.6);
+    tl.fromTo("#b-move", { scale: 1 }, { scale: 1.06, duration: 0.7, yoyo: true, repeat: 1, ease: "power2.inOut", immediateRender: false }, 67.6);
+    swap($("#b-move .run"), $("#b-move .ok"), 68.8);
+    swap($("#n-prog-a"), $("#n-prog-b"), 68, 0.3);
+    swap($("#n-done-a"), $("#n-done-b"), 68.8, 0.3);
+    pulse($("#b-play"), 69.8);
+    tl.to("#b-todo", { x: S, duration: 1.3, ease: "power2.inOut" }, 70.2);
+    swap($("#b-todo .info > span:first-child"), $("#b-todo .run"), 71.2);
+    tl.to("#b-play", { opacity: 0, duration: 0.3 }, 70.4);
+    swap($("#n-todo-a"), $("#n-todo-b"), 70.4, 0.3);
+    swap($("#n-prog-b"), $("#n-prog-a"), 71.4, 0.3);
+    textOut(bBoard, 73.6, "up");
+    tl.to(bBox, { opacity: 0, y: 80, duration: 1.6, ease: "power2.in" }, 74);
+
+    /* 18:40  Sunset over the meadow; the evening's notifications; the lantern */
+    const root = html;
+    tl.to("#sky-gold", { opacity: 1, duration: 14, ease: "none" }, 60);
+    tl.to("#sun", { left: "80%", top: "41%", duration: 14, ease: "sine.inOut" }, 60);
+    tl.to(root, { "--sun-core": "#FFF1C4", "--sun-mid": "rgba(255,214,140,.9)", "--sun-glow": "rgba(255,190,110,.42)", duration: 14, ease: "none" }, 60);
+    tl.to("#sky-dusk", { opacity: 1, duration: 10, ease: "sine.inOut" }, 73);
+    tl.to("#sun", { left: "77%", top: "72%", duration: 12, ease: "sine.in" }, 74);
+    // Once set, the sun leaves for good: the night camera looks up and the hills no longer hide it.
+    tl.to("#sun", { opacity: 0, duration: 2, ease: "none" }, 86);
+    tl.to(root, { "--sun-core": "#FFD58F", "--sun-mid": "rgba(255,160,90,.9)", "--sun-glow": "rgba(255,120,70,.45)", duration: 10, ease: "none" }, 74);
+    // Day plates turn to Dusk between the Board and the evening text, when no story text is on screen.
+    // Ink flips in one step late in the fade, so no in-between grey ever sits on a grey plate.
+    tl.to(root, { "--p-bg": "rgba(36,42,34,.74)", "--rim1": 0.18, "--rim2": 0.08, "--p-mark": "#6E7862", duration: 1, ease: "none" }, 76);
+    tl.set(root, { "--p-ink": "#F3EBC8", "--p-btn": "#9CC45A", "--p-btn-ink": "#1B1F1A" }, 76.8);
+    tl.to(root, { "--g1": "#1d2f27", "--g2": "#15241d", "--g3": "#0f1a14", duration: 12, ease: "none" }, 74);
+    tl.to("#vignette", { opacity: 0.75, duration: 12, ease: "none" }, 70);
+    tl.to("#sky-night", { opacity: 1, duration: 10, ease: "sine.inOut" }, 84);
+    tl.to("#stars", { opacity: 1, duration: 8, ease: "none" }, 87);
+    tl.to("#vignette", { opacity: 1, duration: 8, ease: "none" }, 86);
+    // Each grade fades in over the one below it; the one below leaves only once the new one is full.
+    // Two layers never share a soft edge for long, so no bright rim shows around clouds or along the ridge.
+    if (grades.gGold) {
+      const G = (k) => grades[k];
+      const steps = [["#ground", "gGold", "#clouds", "cGold", 60, 14], [null, "gDusk", null, "cDusk", 74, 10], [null, "gNight", null, "cNight", 84, 10]];
+      let prevG = $("#ground"), prevC = $("#clouds");
+      steps.forEach(([, g, , c, at, dur]) => {
+        tl.fromTo([G(g), G(c)], { opacity: 0 }, { opacity: 1, duration: dur, ease: "sine.inOut", immediateRender: false }, at);
+        tl.to([prevG, prevC], { opacity: 0, duration: 0.6, ease: "none" }, at + dur);
+        prevG = G(g); prevC = G(c);
+      });
+      tl.to(G("cNight"), { opacity: 0.8, duration: 4, ease: "none" }, 95);
+    } else {
+      tl.to("#clouds", { opacity: 0.55, duration: 8, ease: "none" }, 86);
+    }
+    textIn(bDusk, 78, "up");
+    tl.fromTo("#n1", { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 1, ease: "power4.out", immediateRender: false }, 80);
+    tl.fromTo("#n2", { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 1, ease: "power4.out", immediateRender: false }, 82.8);
+    tl.to(["#n1", "#n2"], { opacity: 0, x: 40, duration: 0.7, stagger: 0.15, ease: "power2.in" }, 88.2);
+    tl.fromTo("#lantern", { opacity: 0 }, { opacity: 1, duration: 1.6, ease: "power2.out", immediateRender: false }, 84);
+    tl.fromTo("#lantern .glow", { scale: 0.2 }, { scale: 1, duration: 2.4, ease: "back.out(1.6)", immediateRender: false }, 84);
+    tl.to("#flies", { opacity: 1, duration: 6, ease: "none" }, 83);
+    textOut(bDusk, 89.4, "up");
+
+    /* 21:00  Night: the camera looks up, the page continues under the stars */
+    tl.to("#hud", { opacity: 0, duration: 2, ease: "none" }, 97);
+    tl.to({}, { duration: 0.001 }, 100);
+    ["hero:0", "chat:12", "sessions:31", "phone:47", "board:64", "dusk:79", "night:95"].forEach((l) => { const [n, t] = l.split(":"); tl.addLabel(n, +t); });
+
+    /* ---------- The clock and the horizon follow the timeline ---------- */
+    const CLOCK = [[0, 420], [8, 530], [12, 540], [30, 630], [44, 760], [62, 900], [76, 1070], [84, 1120], [100, 1260]];
+    const HUD_EV = [[17, ""], [24, ""], [26, ""], [33, ""], [36.5, ""], [39.6, "w"], [56, ""], [68.8, ""], [71, ""], [80, ""], [82.8, ""]];
+    const hudHz = $("#hud-hz"), hudNow = $("#hud-now"), clock = $("#clock");
+    SPECKS.forEach((x, i) => hudHz.insertAdjacentHTML("afterbegin", `<i class="sp" style="left:${(x / 2.2).toFixed(1)}%;top:${i % 2 ? 14 : 15}px"></i>`));
+    const hudEvs = HUD_EV.map(([t, c]) => { const e = document.createElement("i"); e.className = "ev " + c; e.style.left = t + "%"; e.style.opacity = 0; hudHz.appendChild(e); return [t, e]; });
+    let lastMin = -1;
+    function tick() {
+      const t = tl.time();
+      applyCamera();
+      let i = 0;
+      while (i < CLOCK.length - 2 && t > CLOCK[i + 1][0]) i++;
+      const [t0, m0] = CLOCK[i], [t1, m1] = CLOCK[i + 1];
+      const m = Math.round(m0 + (m1 - m0) * gsap.utils.clamp(0, 1, (t - t0) / (t1 - t0)));
+      if (m !== lastMin) { lastMin = m; clock.textContent = String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); }
+      hudNow.style.left = Math.min(97, t) + "%";
+      hudEvs.forEach(([at, e]) => { e.style.opacity = t >= at ? 1 : 0; });
+      html.classList.toggle("past-hero", t > 3.2);
+    }
+
+    const st = ScrollTrigger.create({ trigger: "#story", start: "top top", end: "bottom bottom", scrub: 0.8, animation: tl });
+    ScrollTrigger.refresh();
+    tick();
+    html.classList.add("ready");
+
+    /* Load: the morning settles in, words rise dim to full */
+    const heroH = $("#beat-hero h1"), heroW = $$(".w", heroH);
+    gsap.fromTo(intro, { z: 0.07 }, { z: 0, duration: 2.6, ease: "power2.out", onUpdate: applyCamera });
+    if (tl.time() < 1) {
+      gsap.fromTo($("#beat-hero .txt"), { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 1.1, ease: "power3.out" });
+      gsap.fromTo(heroW, { opacity: 0.12, y: 34 }, { opacity: 1, y: 0, duration: 1.2, stagger: 0.12, ease: "power4.out", delay: 0.2 });
+      gsap.fromTo("#scroll-cue", { opacity: 0 }, { opacity: 1, duration: 0.8, delay: 1.4 });
+      gsap.fromTo("#hud", { opacity: 0 }, { opacity: 1, duration: 0.8, delay: 1.2 });
+    }
+
+    /* Ambient life, driven by the ticker's own clock: grass sway, lantern flicker, fireflies */
+    const gl = $$("#grass .gl"), flies = $$("#flies i"), glow = $("#lantern .glow");
+    gsap.ticker.add((time) => {
+      gl.forEach((g, i) => g.setAttribute("transform", `translate(0 420) skewX(${(Math.sin(time * (0.7 + i * 0.25) + i * 1.7) * (2.2 + i)).toFixed(2)}) translate(0 -420)`));
+      if (tl.time() > 82) {
+        glow.style.opacity = (0.86 + Math.sin(time * 7.3) * 0.05 + Math.sin(time * 3.1) * 0.06).toFixed(3);
+        flies.forEach((f) => {
+          const ph = +f.dataset.ph, sp = +f.dataset.sp, k = (time * 0.05 * sp + ph) % 1;
+          f.style.transform = `translate(${(Math.sin(time * sp + ph) * 180).toFixed(1)}%, ${(-k * 900).toFixed(1)}%)`;
+          f.style.opacity = (Math.sin(k * Math.PI) * (0.55 + 0.45 * Math.sin(time * 2.2 * sp + ph))).toFixed(2);
+        });
+      }
+      breath.z = Math.sin(time * 0.35) * 0.004;
+    });
+
+    /* Navigation into the story, and keyboard focus never lands on a hidden control */
+    $$('a[href="#how"]').forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); scrollTo({ top: st.labelToScroll("chat"), behavior: "smooth" }); }));
+    $$('a[href="#top"]').forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); scrollTo({ top: 0, behavior: "smooth" }); }));
+    $("#btn-hero-get").addEventListener("focus", () => { if (tl.time() > 2) scrollTo({ top: 0 }); });
+
+    let w0 = innerWidth, h0 = innerHeight;
+    addEventListener("resize", () => {
+      if (innerWidth === w0 && Math.abs(innerHeight - h0) < 120) return;
+      w0 = innerWidth; h0 = innerHeight;
+      layoutBox(); fitMocks(); applyCamera();
+    });
+
+    // Scrub hook for review: ?t=NN jumps to that point of the day.
+    const q = new URLSearchParams(location.search).get("t");
+    window.OC = { tl, st, seek(t) {
+      gsap.getTweensOf([intro, ...heroW, "#beat-hero .txt", "#scroll-cue", "#hud"]).forEach((tw) => { if (tw.parent === gsap.globalTimeline) tw.progress(1); });
+      scrollTo(0, st.start + (st.end - st.start) * (t / 100)); st.update(); tl.progress(t / 100); tick(); gsap.ticker.tick();
+    } };
+    if (q !== null) window.OC.seek(+q);
+  }
+})();
+</script>
+</body>
+</html>
