@@ -135,7 +135,7 @@ Prioritas: **P0** wajib untuk MVP, **P1** penting setelah MVP, **P2** nanti.
 | FR-32 | P1 | Isi sesi eksternal dari transcript. | Bila CLI menulis riwayat sesi lokal (bagian 6), detail sesi eksternal menampilkan pesan terakhir dari file itu. Bila tidak bisa dibaca, tampil "Transcript not available for this CLI". Yang dipakai adalah riwayat terbaru untuk folder proses itu yang ditulis sejak proses mulai (Claude Code `~/.claude/projects`, Codex `~/.codex/sessions`, OpenCode database di `~/.local/share/opencode` yang dibuka read-only), dibaca ulang tiap beberapa detik. Isinya pesan Anda, jawaban CLI, dan nama tool yang dipakai; OpenCompanion tidak pernah menulis ke file itu. |
 | FR-33 | P1 | Garis aktivitas. | Setiap sesi menampilkan garis horizon dengan titik untuk tiap event nyata (tool call, file diubah, prompt izin, error) dalam rentang waktu yang terlihat. |
 | FR-34 | P1 | Penggunaan sumber daya. | Detail sesi menampilkan CPU dan memori proses CLI (dan anak prosesnya). CPU dihitung sebagai bagian dari seluruh mesin seperti Task Manager, diukur tiap 3 detik selama sesi berjalan, bersama jumlah proses anak. |
-| FR-35 | P2 | Filter dan pencarian. | Filter berdasarkan CLI, project, status; cari di judul dan prompt. |
+| FR-35 | P2 | Filter dan pencarian. | Filter berdasarkan CLI, project, status; cari di judul dan prompt. Layar "All sessions" (`/history`, dari tautan di Overview) memuat semua sesi terbaru dulu, 50 per halaman dengan "Show 50 more"; kolom cari judul dan prompt (tanpa beda huruf besar kecil, `%` dan `_` dibaca sebagai teks), select CLI, folder (folder yang pernah dipakai sesi), dan status (Running, Waiting for you, Done, Error, Stopped). |
 
 ### E. Notifikasi
 

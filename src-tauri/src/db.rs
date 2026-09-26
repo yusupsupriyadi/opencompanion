@@ -113,6 +113,20 @@ pub struct SessionInfo {
     pub updated_at: i64,
 }
 
+/// What the history screen asks for (PRD FR-35). Empty text and `None` filters match everything.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SessionQuery {
+    /// Found in the title or the prompt, ignoring case.
+    pub text: String,
+    pub cli: Option<CliKind>,
+    pub folder: Option<String>,
+    /// `live`, `waiting`, `done`, `error` or `stopped`.
+    pub status: Option<String>,
+    pub limit: u32,
+    pub offset: u32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventRow {
@@ -654,6 +668,47 @@ impl Db {
         self.with(|c| {
             let mut st = c.prepare("SELECT * FROM sessions ORDER BY started_at DESC LIMIT ?1")?;
             let rows = st.query_map([limit], session_from)?;
+            rows.collect()
+        })
+    }
+
+    /// PRD FR-35: sessions matching a search, newest first, a page at a time.
+    pub fn search_sessions(&self, q: &SessionQuery) -> R<Vec<SessionInfo>> {
+        // `%` and `_` in the search are the owner's text, not wildcards.
+        let text = q.text.trim().replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+        let like = format!("%{text}%");
+        let statuses: &[&str] = match q.status.as_deref() {
+            Some("live") => &["starting", "running", "idle", "waiting"],
+            Some("waiting") => &["waiting"],
+            Some("done") => &["done"],
+            Some("error") => &["error"],
+            Some("stopped") => &["stopped"],
+            _ => &[],
+        };
+        let list = statuses.iter().map(|s| format!("'{s}'")).collect::<Vec<_>>().join(", ");
+        let status_sql = if list.is_empty() { String::new() } else { format!(" AND status IN ({list})") };
+        let sql = format!(
+            "SELECT * FROM sessions
+             WHERE (?1 = '' OR title LIKE ?2 ESCAPE '\\' OR prompt LIKE ?2 ESCAPE '\\')
+               AND (?3 IS NULL OR cli = ?3)
+               AND (?4 IS NULL OR cwd = ?4 COLLATE NOCASE){status_sql}
+             ORDER BY started_at DESC LIMIT ?5 OFFSET ?6"
+        );
+        self.with(|c| {
+            let mut st = c.prepare(&sql)?;
+            let rows = st.query_map(
+                params![text, like, q.cli.map(CliKind::bin), q.folder.as_deref().filter(|f| !f.is_empty()), q.limit.clamp(1, 500), q.offset],
+                session_from,
+            )?;
+            rows.collect()
+        })
+    }
+
+    /// Folders sessions ran in, most recent first, for the history's folder filter.
+    pub fn session_folders(&self) -> R<Vec<String>> {
+        self.with(|c| {
+            let mut st = c.prepare("SELECT cwd FROM sessions GROUP BY cwd COLLATE NOCASE ORDER BY MAX(started_at) DESC")?;
+            let rows = st.query_map([], |r| r.get(0))?;
             rows.collect()
         })
     }
@@ -1240,6 +1295,38 @@ mod tests {
         let cards = db.chat_message("m1").unwrap().unwrap().cards;
         assert_eq!(cards[0].session_id, None);
         assert_eq!(cards[1].session_id.as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn history_search_matches_text_cli_folder_and_status_a_page_at_a_time() {
+        let db = Db::open_in_memory().unwrap();
+        let add = |id: &str, cli: CliKind, cwd: &str, title: &str, status: Status, at: i64| {
+            let mut s = session(id, status);
+            s.cli = cli;
+            s.cwd = cwd.into();
+            s.title = title.into();
+            s.prompt = format!("prompt for {title}");
+            s.started_at = at;
+            db.upsert_session(&s).unwrap();
+        };
+        add("a", CliKind::Claude, "C:/p/uninote", "Fix the login bug", Status::Done, 1);
+        add("b", CliKind::Codex, "C:/p/uninote", "Write 100% of the docs", Status::Error, 2);
+        add("c", CliKind::Claude, "C:/p/ai-remote", "Tray icon", Status::Running, 3);
+        let ids = |q: SessionQuery| db.search_sessions(&SessionQuery { limit: 50, ..q }).unwrap().into_iter().map(|s| s.id).collect::<Vec<_>>();
+
+        assert_eq!(ids(SessionQuery::default()), ["c", "b", "a"]);
+        assert_eq!(ids(SessionQuery { text: "LOGIN".into(), ..Default::default() }), ["a"]);
+        assert_eq!(ids(SessionQuery { text: "prompt for tray".into(), ..Default::default() }), ["c"]);
+        // A % in the search is a percent sign, not a wildcard.
+        assert_eq!(ids(SessionQuery { text: "100%".into(), ..Default::default() }), ["b"]);
+        assert!(ids(SessionQuery { text: "%".into(), ..Default::default() }) == ["b"]);
+        assert_eq!(ids(SessionQuery { cli: Some(CliKind::Claude), ..Default::default() }), ["c", "a"]);
+        assert_eq!(ids(SessionQuery { folder: Some("c:/P/UNINOTE".into()), ..Default::default() }), ["b", "a"]);
+        assert_eq!(ids(SessionQuery { status: Some("live".into()), ..Default::default() }), ["c"]);
+        assert_eq!(ids(SessionQuery { status: Some("error".into()), cli: Some(CliKind::Codex), ..Default::default() }), ["b"]);
+        let page = db.search_sessions(&SessionQuery { limit: 1, offset: 1, ..Default::default() }).unwrap();
+        assert_eq!(page[0].id, "b");
+        assert_eq!(db.session_folders().unwrap(), ["C:/p/ai-remote", "C:/p/uninote"]);
     }
 
     #[test]

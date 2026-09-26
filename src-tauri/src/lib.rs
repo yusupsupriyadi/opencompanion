@@ -260,6 +260,25 @@ fn list_sessions(state: State<'_, AppState>, limit: Option<u32>) -> Res<Vec<Sess
         .collect())
 }
 
+/// PRD FR-35: sessions matching the history screen's search, with their horizon marks.
+#[tauri::command]
+fn search_sessions(state: State<'_, AppState>, query: db::SessionQuery) -> Res<Vec<SessionView>> {
+    Ok(state
+        .db
+        .search_sessions(&query)?
+        .into_iter()
+        .map(|info| {
+            let marks = state.db.event_marks(&info.id, 40).unwrap_or_default();
+            SessionView { info, marks }
+        })
+        .collect())
+}
+
+#[tauri::command]
+fn session_folders(state: State<'_, AppState>) -> Res<Vec<String>> {
+    state.db.session_folders()
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SessionDetail {
@@ -767,6 +786,8 @@ pub fn run() {
             outside_detail,
             scan_skills,
             list_sessions,
+            search_sessions,
+            session_folders,
             get_session,
             session_output,
             session_usage,

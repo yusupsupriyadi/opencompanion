@@ -120,6 +120,17 @@ export interface SessionInfo {
   updatedAt: number;
 }
 
+/** Mirrors `db::SessionQuery`: the history's search. Empty text and null filters match everything. */
+export interface SessionQuery {
+  text: string;
+  cli: CliKind | null;
+  folder: string | null;
+  /** `live`, `waiting`, `done`, `error` or `stopped`. */
+  status: string | null;
+  limit: number;
+  offset: number;
+}
+
 export interface SessionView extends SessionInfo {
   /** `[at, kind]`, newest first. */
   marks: [number, string][];
@@ -346,6 +357,9 @@ export const api = {
   outsideDetail: (pid: number) => invoke<{ session: ExternalSession; transcript: Transcript }>("outside_detail", { pid }),
   scanSkills: () => invoke<SkillScan>("scan_skills"),
   listSessions: (limit?: number) => invoke<SessionView[]>("list_sessions", { limit }),
+  searchSessions: (query: SessionQuery) => invoke<SessionView[]>("search_sessions", { query }),
+  /** Folders sessions ran in, most recent first. */
+  sessionFolders: () => invoke<string[]>("session_folders"),
   getSession: (id: string) => invoke<SessionDetail>("get_session", { id }),
   /** The terminal text so far; `seq` is its last chunk, so live chunks up to it are already in it. */
   sessionOutput: (id: string) => invoke<{ data: string; seq: number }>("session_output", { id }),

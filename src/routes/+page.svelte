@@ -66,6 +66,7 @@
         <div class="section-head">
           <h2 id="running-title">Running in OpenCompanion</h2>
           <span class="meta">{running.length} running, {today.length} finished today</span>
+          <a class="link" href="/history" id="link-all-sessions">All sessions</a>
         </div>
         {#each running as s (s.id)}
           <SessionRow {s} />
@@ -74,7 +75,7 @@
           <SessionRow {s} />
         {/each}
         {#if running.length === 0 && today.length === 0}
-          <p class="hint">Nothing is running right now. Earlier sessions are in the sidebar.</p>
+          <p class="hint">Nothing is running right now. Earlier sessions are under <a class="link" href="/history">All sessions</a>.</p>
         {/if}
       </section>
     {/if}

@@ -299,6 +299,14 @@ Satu frame berisi tiga contoh berdampingan:
 - Dialog lebar 720: nama skill, deskripsi, daftar folder dengan status, select "Copy from", lalu satu langkah per folder: "Add to Codex CLI" atau "Replace in Shared" (dengan peringatan file yang hanya ada di salinan itu terhapus) berisi blok `.cmd` berlabel "PowerShell" + "Copy command"; folder berupa link hanya mendapat "This folder links to … Update it there." tanpa perintah, dan folder yang berisi link di dalamnya mendapat penjelasan untuk mengganti secara manual, juga tanpa perintah (Remove-Item di PowerShell 5.1 mengikuti junction).
 - State: loading "Reading skill folders…", error "Skill folders could not be read" + "Try again", kosong "No skills in these folders yet" + daftar lima path, filter kosong "No skill differs between folders." / "No folder has a problem." / `No skill matches "…".`
 
+### D12 All sessions ✗ (hanya di Svelte)
+- Tujuan: menemukan sesi lama. Fokus: daftar hasil.
+- Dibuka dari tautan "All sessions" di kepala section "Running in OpenCompanion" di Overview (dan dari teks bantu saat tidak ada yang berjalan); tidak ada item nav baru.
+- Header: H1 "All sessions", sub "Every session OpenCompanion ran, newest first. Finished ones stay until you delete them or retention in Settings removes them."
+- Toolbar di alas glass: input cari dengan ikon `magnifying-glass` ("Search titles and prompts"), select "Every CLI", "Every folder" (nama folder + path pendek), "Any status". Pencarian menunggu 200 ms setelah ketikan atau pilihan terakhir; hasil lama tetap tampil selama mencari.
+- Hasil: SessionRow seperti Overview, 50 per halaman, tombol secondary "Show 50 more". Jumlah hasil diumumkan lewat status tersembunyi.
+- State: "Looking through your sessions…", error + "Try again", kosong "Nothing has run in OpenCompanion yet. Sessions you start show up here.", filter kosong "No session matches this search. Clear a filter or try other words."
+
 ### D9 Tema Senja ✗
 - Salinan D2 dan D4 dengan tema `mode: dark` (semua token berganti otomatis).
 - Segmented tema di sidebar: Dusk aktif (isi `surface`, ikon `moon` `ink`), Day diam.
