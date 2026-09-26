@@ -108,7 +108,7 @@ Prioritas: **P0** wajib untuk MVP, **P1** penting setelah MVP, **P2** nanti.
 | FR-15 | P1 | Lanjutkan sesi. | Sesi Done/Stopped bisa dilanjutkan memakai mekanisme resume milik CLI (lihat tabel bagian 6). |
 | FR-16 | P1 | Deteksi "Waiting for you". | Prompt izin atau pertanyaan dari CLI dideteksi lewat event stream (headless), hooks (bila CLI mendukung), atau pola teks per adapter (PTY). Metode yang dipakai ditampilkan di detail sesi. |
 | FR-17 | P1 | Setujui / tolak dari UI. | Saat Waiting for you, detail sesi menampilkan isi permintaan dan tombol Approve / Deny yang meneruskan jawaban ke CLI. |
-| FR-18 | P2 | Sesi berjalan setelah jendela ditutup. | Menutup jendela memindahkan app ke system tray; sesi tetap berjalan sampai app benar-benar keluar. |
+| FR-18 | P2 | Sesi berjalan setelah jendela ditutup. | Menutup jendela memindahkan app ke system tray; sesi tetap berjalan sampai app benar-benar keluar. Ikon tray: klik membuka jendela, menunya "Open OpenCompanion" dan "Quit OpenCompanion and stop its sessions". Pertama kali jendela masuk tray, satu notifikasi menjelaskannya. Settings › "Closing the window" bisa mematikannya, sehingga menutup jendela keluar dan menghentikan sesi. |
 
 ### C. Orchestrator Chat
 

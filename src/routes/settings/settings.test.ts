@@ -27,6 +27,8 @@ const base: Settings = {
   keepDays: 0,
   notifyClis: {},
   notifyProjects: {},
+  closeToTray: true,
+  trayHintShown: false,
 };
 
 let stored: Settings;
@@ -162,6 +164,18 @@ test("finished sessions are kept for the time picked, and Delete history refresh
   await user.click(screen.getByRole("button", { name: "Press again to delete finished sessions" }));
   expect(calls.calls("delete_history")).toHaveLength(1);
   expect(calls.calls("list_sessions")).toHaveLength(1);
+});
+
+test("closing the window keeps the app in the tray until that is turned off", async () => {
+  const calls = api();
+  const user = userEvent.setup();
+  render(SettingsPage);
+  const tray = await screen.findByRole("checkbox", { name: "Keep running in the tray" });
+  expect(tray).toBeChecked();
+  expect(screen.getByText(/Sessions keep running and your phone can still reach them/)).toBeInTheDocument();
+  await user.click(tray);
+  expect(calls.calls("save_settings").at(-1)).toMatchObject({ settings: { closeToTray: false } });
+  expect(screen.getByText(/Closing the window quits OpenCompanion and stops every session it started/)).toBeInTheDocument();
 });
 
 test("a setting that could not be saved shows the stored value again", async () => {

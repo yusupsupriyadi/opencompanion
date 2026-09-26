@@ -229,6 +229,10 @@ export interface Settings {
   notifyClis: Record<string, NotifyRule>;
   /** Notifications per project folder, keyed by path; folders inside it follow it too. */
   notifyProjects: Record<string, NotifyRule>;
+  /** Closing the window keeps the app in the tray with its sessions running. */
+  closeToTray: boolean;
+  /** The one-time "still running in the tray" notice was shown. */
+  trayHintShown: boolean;
 }
 
 /** Mirrors `db::NotifyRule`: which notifications one CLI or one folder sends. */

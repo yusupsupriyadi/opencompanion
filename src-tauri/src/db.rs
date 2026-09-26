@@ -250,6 +250,10 @@ pub struct Settings {
     /// Notifications per project folder, keyed by the folder's path. Sessions in a folder inside it
     /// follow the rule too.
     pub notify_projects: HashMap<String, NotifyRule>,
+    /// Closing the window keeps the app in the tray with its sessions running (PRD FR-18).
+    pub close_to_tray: bool,
+    /// The one-time notice that the app is still in the tray was shown.
+    pub tray_hint_shown: bool,
 }
 
 /// The kinds of notification a session sends.
@@ -384,6 +388,8 @@ impl Default for Settings {
             keep_days: 0,
             notify_clis: HashMap::new(),
             notify_projects: HashMap::new(),
+            close_to_tray: true,
+            tray_hint_shown: false,
         }
     }
 }
@@ -1159,9 +1165,10 @@ mod tests {
         s.notify_waiting = false;
         assert!(!s.notifies(Notice::Waiting, CliKind::Claude, r"C:\elsewhere"));
 
-        // Settings saved before these rules existed load with none.
+        // Settings saved before these rules existed load with none, and keep the app in the tray.
         let old: Settings = serde_json::from_str(r#"{"notifyDone":false}"#).unwrap();
         assert!(old.notify_clis.is_empty() && !old.notifies(Notice::Done, CliKind::Claude, "C:/w"));
+        assert!(old.close_to_tray && !old.tray_hint_shown);
     }
 
     #[test]

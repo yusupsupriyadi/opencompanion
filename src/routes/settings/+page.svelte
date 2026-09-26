@@ -621,6 +621,24 @@
         </fieldset>
       </section>
 
+      <section class="card" id="closing" aria-labelledby="close-title">
+        <h2 id="close-title">Closing the window</h2>
+        <label class="check-row">
+          <input
+            type="checkbox"
+            checked={settings.closeToTray}
+            onchange={(e) =>
+              saveControl(e.currentTarget, { closeToTray: e.currentTarget.checked }, e.currentTarget.checked ? "Closing the window now keeps OpenCompanion in the tray." : "Closing the window now quits OpenCompanion.")}
+          />
+          <span>Keep running in the tray</span>
+        </label>
+        <p class="meta" style="margin:0">
+          {settings.closeToTray
+            ? "Sessions keep running and your phone can still reach them. Click the tray icon to open the window again; quit from its menu to stop the sessions."
+            : "Closing the window quits OpenCompanion and stops every session it started."}
+        </p>
+      </section>
+
       <section class="card" aria-labelledby="scan-title">
         <h2 id="scan-title">Outside sessions</h2>
         <label class="meta" for="scan-select">How often OpenCompanion looks for CLIs running in other terminals. The scan reads the process list only.</label>

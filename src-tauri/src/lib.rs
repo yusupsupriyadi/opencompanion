@@ -81,14 +81,78 @@ impl Emit for TauriEmit {
     }
 }
 
-/// Brings the window forward on the session a notification was about.
-fn open_session(app: &AppHandle, id: &str) {
+/// Shows the window again, from the tray, a second launch or a notification.
+fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
     }
-    let _ = app.emit("open-session", id);
+}
+
+/// Brings the window forward on the session a notification was about.
+fn open_session(app: &AppHandle, id: &str) {
+    show_main(app);
+    if !id.is_empty() {
+        let _ = app.emit("open-session", id);
+    }
+}
+
+/// The tray icon (PRD FR-18): a click opens the window; its menu opens it or quits, and quitting
+/// is what stops the sessions.
+fn tray(app: &tauri::App) -> tauri::Result<()> {
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+    use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+    let open = MenuItem::with_id(app, "open", "Open OpenCompanion", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit OpenCompanion and stop its sessions", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&open, &PredefinedMenuItem::separator(app)?, &quit])?;
+    let mut icon = TrayIconBuilder::with_id("main")
+        .tooltip("OpenCompanion")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "open" => show_main(app),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main(tray.app_handle());
+            }
+        });
+    if let Some(image) = app.default_window_icon() {
+        icon = icon.icon(image.clone());
+    }
+    icon.build(app)?;
+    Ok(())
+}
+
+/// Closing the window hides it while Settings keeps the app in the tray, so sessions and the phone
+/// connection carry on. The first time, a notification says where the app went.
+fn on_close(window: &tauri::Window, api: &tauri::CloseRequestApi) {
+    let app = window.app_handle();
+    let Some(state) = app.try_state::<AppState>() else { return };
+    let Ok(mut settings) = state.db.settings() else { return };
+    if window.label() != "main" || !settings.close_to_tray {
+        return;
+    }
+    api.prevent_close();
+    let _ = window.hide();
+    if !settings.tray_hint_shown {
+        settings.tray_hint_shown = true;
+        let _ = state.db.save_settings(&settings);
+        show_notification(
+            app,
+            "OpenCompanion is still running",
+            "Sessions keep going in the tray. Click its icon to open the window, or quit from its menu.",
+            "",
+        );
+    }
 }
 
 /// An OS notification whose click opens its session (PRD FR-40). A Windows toast reports the
@@ -618,13 +682,7 @@ pub fn run() {
     let mut builder = tauri::Builder::default();
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(w) = app.get_webview_window("main") {
-                let _ = w.unminimize();
-                let _ = w.show();
-                let _ = w.set_focus();
-            }
-        }));
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)));
     }
     let app = builder
         // The window draws its own title bar (`decorations: false`); a saved state from before that would turn the native frame back on.
@@ -636,7 +694,13 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                on_close(window, api);
+            }
+        })
         .setup(|app| {
+            tray(app)?;
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
             let db = Arc::new(Db::open(&data_dir.join("opencompanion.db"))?);

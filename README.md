@@ -45,12 +45,12 @@ The integration tests drive a stand-in CLI (`src-tauri/src/bin/fake-cli.rs`) tha
 
 ## Status
 
-Built: the P0 requirements of PRD sections A to G, most P1 ones (install commands, custom CLI paths, resume, waiting detection, Approve/Deny, planner context, activity track, device list, offline screen, permission modes Ask me / Plan / Auto / Bypass, text size, planner model and thinking level, `@` folder mentions in Chat, CPU and memory per session, transcripts of sessions opened outside OpenCompanion, retention of finished sessions, notification choices per CLI and per project folder, Chat follow-ups sent to a running session), and the Board (section H, including Add to board from Chat). Outside the PRD: the Skills screen, which shows which skill is missing from a CLI's folder or has different content there, with a copy command to run yourself.
+Built: the P0 requirements of PRD sections A to G, most P1 ones (install commands, custom CLI paths, resume, waiting detection, Approve/Deny, planner context, activity track, device list, offline screen, permission modes Ask me / Plan / Auto / Bypass, text size, planner model and thinking level, `@` folder mentions in Chat, CPU and memory per session, transcripts of sessions opened outside OpenCompanion, retention of finished sessions, notification choices per CLI and per project folder, Chat follow-ups sent to a running session, the tray icon that keeps sessions running after the window closes), and the Board (section H, including Add to board from Chat). Outside the PRD: the Skills screen, which shows which skill is missing from a CLI's folder or has different content there, with a copy command to run yourself.
 
 Known limits:
 
 - Approve/Deny works for Claude Code (headless through its stdio control protocol, interactive through hooks). Codex and OpenCode prompts are answered in their own terminal; OpenCode's headless `run` refuses prompts by itself.
 - Codex success-path events are parsed from its documentation; on the development machine Codex could not authenticate, so only its failure path was observed.
 - On Windows, clicking a notification while it is on screen opens its session (FR-40); one clicked later from the notification center only brings OpenCompanion forward. On macOS and Linux a click does not open the session yet: the Tauri notification plugin has no click action there.
-- Not built yet: UI language switch (FR-63), tray mode (FR-18) and Web Push to the phone (FR-42).
+- Not built yet: UI language switch (FR-63) and Web Push to the phone (FR-42).
 - Windows 11 is the tested platform. macOS and Linux build from the same code but are untested.
