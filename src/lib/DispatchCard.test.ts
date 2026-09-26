@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
+import { tick } from "svelte";
 import { beforeEach, expect, test, vi } from "vitest";
+import { i18n } from "$lib/i18n.svelte";
 import { CLIS, backend } from "../test/fixtures";
 import type { ChatMessage, DispatchCard as Card } from "./api";
 import DispatchCard from "./DispatchCard.svelte";
@@ -135,4 +137,19 @@ test("a started card links to its session", () => {
   render(DispatchCard, { card: card({ state: "started", sessionId: "s9" }), messageId: "m1", onchange: vi.fn() });
   expect(screen.getByRole("link", { name: "Open session" })).toHaveAttribute("href", "/session?id=s9");
   expect(screen.queryByRole("button", { name: /Run in/ })).toBeNull();
+});
+
+test("the card switches to Indonesian when the UI language changes", async () => {
+  backend({});
+  render(DispatchCard, { card: card(), messageId: "m1", onchange: vi.fn() });
+  expect(screen.getByRole("button", { name: "Run in comic-translate" })).toBeInTheDocument();
+  try {
+    i18n.lang = "id";
+    await tick();
+    expect(screen.getByRole("button", { name: "Jalankan di comic-translate" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tambah ke Board" })).toBeInTheDocument();
+    expect(screen.getByText("Siap")).toBeInTheDocument();
+  } finally {
+    i18n.lang = "en";
+  }
 });

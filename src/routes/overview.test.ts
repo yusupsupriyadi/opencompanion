@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/svelte";
+import { render, screen, within } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test } from "vitest";
 import NewSessionDialog from "$lib/NewSessionDialog.svelte";
@@ -36,6 +36,15 @@ test("a waiting session is the focal point, running and finished ones follow", (
   expect(screen.getByRole("link", { name: /Fix tests/ })).toHaveAttribute("href", "/session?id=r");
   expect(screen.getByRole("link", { name: /Docs/ })).toHaveAttribute("href", "/session?id=d");
   expect(screen.getByText("1 running, 1 finished today")).toBeInTheDocument();
+});
+
+test("with nothing from today, the hint links to all sessions inside its sentence", () => {
+  const old = Date.now() - 3 * 86_400_000;
+  app.sessions = [session({ id: "old", status: "done", startedAt: old, endedAt: old })];
+  render(Overview);
+  const hint = screen.getByText(/Nothing is running right now/);
+  expect(hint).toHaveTextContent("Nothing is running right now. Earlier sessions are under All sessions.");
+  expect(within(hint).getByRole("link", { name: "All sessions" })).toHaveAttribute("href", "/history");
 });
 
 test("outside sessions are read-only rows with real process data", () => {

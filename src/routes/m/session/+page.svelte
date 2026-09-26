@@ -12,17 +12,19 @@
   import Dialog from "$lib/Dialog.svelte";
   import StatusChip from "$lib/StatusChip.svelte";
   import { CLI_LABEL, ago, clock, folderName, isLive, shortPath, waitingTitle } from "$lib/format";
+  import { t, tb } from "$lib/i18n.svelte";
   import { answer as sendAnswer, call, notify, onMessage, phone } from "$lib/phone.svelte";
 
   const id = $derived(page.url.searchParams.get("id") ?? "");
 
   // The keys a terminal UI asks for: confirm, cancel, move through a list, interrupt.
+  // The spoken names are getters, so they follow the UI language; the key caps stay as printed.
   const KEYS = [
-    { key: "enter", label: "Enter", name: "Press Enter" },
-    { key: "esc", label: "Esc", name: "Press Escape" },
-    { key: "up", label: "↑", name: "Arrow up" },
-    { key: "down", label: "↓", name: "Arrow down" },
-    { key: "ctrl_c", label: "Ctrl+C", name: "Press Ctrl+C to interrupt" },
+    { key: "enter", label: "Enter", get name() { return t("phone.session.keyEnter"); } },
+    { key: "esc", label: "Esc", get name() { return t("phone.session.keyEsc"); } },
+    { key: "up", label: "↑", get name() { return t("phone.session.keyUp"); } },
+    { key: "down", label: "↓", get name() { return t("phone.session.keyDown"); } },
+    { key: "ctrl_c", label: "Ctrl+C", get name() { return t("phone.session.keyCtrlC"); } },
   ];
 
   let loaded = $state<{ session: SessionInfo; events: EventRow[]; tail: string } | null>(null);
@@ -59,12 +61,12 @@
       if (sid === id) reloadSoon();
     });
     // A terminal's screen is not pushed to the phone, so a live one is read more often.
-    const t = setInterval(() => {
+    const timer = setInterval(() => {
       if (s && isLive(s)) load();
     }, 2500);
     return () => {
       off();
-      clearInterval(t);
+      clearInterval(timer);
       clearTimeout(pending);
     };
   });
@@ -82,10 +84,10 @@
   });
   const followUpHint = $derived.by(() => {
     if (!s) return "";
-    if (s.status === "waiting") return "Answer the permission request above first.";
-    if (live && s.cli !== "claude") return `${CLI_LABEL[s.cli]} is working. Send the next message when this turn finishes.`;
-    if (!live && !s.cliSessionId) return `${CLI_LABEL[s.cli]} did not report a session id, so this conversation cannot continue.`;
-    return `Starts the next turn of ${CLI_LABEL[s.cli]} in ${folderName(s.cwd)}.`;
+    if (s.status === "waiting") return t("phone.session.hintWaiting");
+    if (live && s.cli !== "claude") return t("phone.session.hintWorking", { cli: CLI_LABEL[s.cli] });
+    if (!live && !s.cliSessionId) return t("phone.session.hintNoId", { cli: CLI_LABEL[s.cli] });
+    return t("phone.session.hintNext", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) });
   });
 
   const lines = $derived.by(() => {
@@ -101,17 +103,17 @@
           case "tool_call":
             return `• ${ev.tool} ${ev.summary}`;
           case "file_changed":
-            return `  edited ${ev.path}`;
+            return `  ${t("phone.session.logEdited", { path: ev.path })}`;
           case "permission_request":
             return `? ${ev.tool}: ${ev.summary}`;
           case "permission_denied":
-            return `✗ ${ev.tool} refused`;
+            return `✗ ${t("phone.session.logRefused", { tool: ev.tool })}`;
           case "tool_failed":
-            return `✗ ${ev.tool} failed: ${ev.message}`;
+            return `✗ ${t("phone.session.logFailed", { tool: ev.tool, message: ev.message })}`;
           case "error":
             return ev.message;
           case "done":
-            return ev.ok ? `✓ Finished at ${clock(e.at)}` : `✗ Failed: ${ev.summary}`;
+            return ev.ok ? `✓ ${t("phone.session.logFinished", { time: clock(e.at) })}` : `✗ ${t("phone.session.logDoneFailed", { summary: ev.summary })}`;
           default:
             return "";
         }
@@ -166,7 +168,7 @@
     sendError = "";
     try {
       await call(`/api/sessions/${id}/resume`, { method: "POST" });
-      notify(`Resumed ${CLI_LABEL[s.cli]} in ${folderName(s.cwd)}.`);
+      notify(t("phone.session.resumed", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) }));
       reloadSoon(800);
     } catch (err) {
       sendError = err instanceof Error ? err.message : String(err);
@@ -188,21 +190,21 @@
   }
 </script>
 
-<svelte:head><title>{s ? `${s.title} · OpenCompanion` : "Session · OpenCompanion"}</title></svelte:head>
+<svelte:head><title>{s ? s.title : t("phone.session.title")} · OpenCompanion</title></svelte:head>
 
 <header class="bar">
-  <a class="back grow" href="/m"><CaretLeft size={20} aria-hidden="true" />Sessions</a>
+  <a class="back grow" href="/m"><CaretLeft size={20} aria-hidden="true" />{t("phone.nav.sessions")}</a>
   {#if s && live}
-    <button class="btn danger" type="button" id="btn-stop-session" disabled={busy} onclick={() => (stopOpen = true)}><Stop size={16} aria-hidden="true" />Stop</button>
+    <button class="btn danger" type="button" id="btn-stop-session" disabled={busy} onclick={() => (stopOpen = true)}><Stop size={16} aria-hidden="true" />{t("phone.session.stop")}</button>
   {/if}
 </header>
 <main class="content" id="phone-session" style:padding-bottom={s ? `${dockHeight + 24}px` : undefined}>
   {#if loadState === "loading" && !s}
-    <p class="m-p" role="status">Loading…</p>
+    <p class="m-p" role="status">{t("phone.session.loading")}</p>
   {:else if loadState === "missing" || !s}
-    <h1 class="m-h1">Session not found</h1>
-    <p class="m-p">It may have been removed from the history on your computer.</p>
-    <a class="btn secondary block" href="/m">Back to sessions</a>
+    <h1 class="m-h1">{t("phone.session.missing")}</h1>
+    <p class="m-p">{t("phone.session.missingBody")}</p>
+    <a class="btn secondary block" href="/m">{t("phone.session.back")}</a>
   {:else}
     <div class="row" style="align-items:flex-start">
       <CliMark kind={s.cli} />
@@ -210,27 +212,27 @@
     </div>
     <div class="row" style="gap:8px;flex-wrap:wrap">
       <StatusChip status={s.status} />
-      <span class="meta">{CLI_LABEL[s.cli]} · {s.mode} · started {ago(s.startedAt)}</span>
+      <span class="meta">{CLI_LABEL[s.cli]} · {t(`phone.mode.${s.mode}`)} · {t("phone.session.started", { ago: ago(s.startedAt) })}</span>
     </div>
     <p class="meta mono" style="margin:0;overflow-wrap:anywhere">{shortPath(s.cwd)}</p>
 
     {#if s.status === "waiting"}
       <section class="m-needs" aria-labelledby="ms-needs">
         <h2 id="ms-needs">{waitingTitle(s)}</h2>
-        {#if s.waiting?.detail}<div class="cmd"><small>{s.waiting.tool ?? "Request"}</small><code>{s.waiting.detail}</code></div>{/if}
+        {#if s.waiting?.detail}<div class="cmd"><small>{s.waiting.tool ?? t("phone.request")}</small><code>{s.waiting.detail}</code></div>{/if}
         {#if !s.waiting?.canAnswer}
           <p class="small" style="margin:0">
-            {terminal ? "Answer it with the keys below, the same way you would in the terminal." : "Answer this in the session's terminal on your computer."}
+            {terminal ? t("phone.session.answerWithKeys") : t("phone.answerOnComputer")}
           </p>
         {/if}
       </section>
     {/if}
 
-    {#if failure}<p class="err-text" role="alert" style="margin:0">{failure}</p>{/if}
+    {#if failure}<p class="err-text" role="alert" style="margin:0">{tb(failure)}</p>{/if}
 
     <section class="m-sec" aria-labelledby="ms-out">
-      <h2 id="ms-out">{terminal ? "Terminal" : "Latest events"}</h2>
-      <pre class="tail">{lines || "No output yet."}</pre>
+      <h2 id="ms-out">{terminal ? t("phone.session.terminal") : t("phone.session.events")}</h2>
+      <pre class="tail">{lines || t("phone.session.noOutput")}</pre>
     </section>
   {/if}
 </main>
@@ -239,36 +241,36 @@
   <div class="dock" id="phone-session-dock" bind:offsetHeight={dockHeight}>
     {#if answerable}
       <div>
-        <button class="btn accent" type="button" disabled={busy} onclick={() => answer(true)}><Check size={16} aria-hidden="true" />Approve</button>
-        <button class="btn secondary" type="button" disabled={busy} onclick={() => answer(false)}><X size={16} aria-hidden="true" />Deny</button>
+        <button class="btn accent" type="button" disabled={busy} onclick={() => answer(true)}><Check size={16} aria-hidden="true" />{t("phone.approve")}</button>
+        <button class="btn secondary" type="button" disabled={busy} onclick={() => answer(false)}><X size={16} aria-hidden="true" />{t("phone.deny")}</button>
       </div>
     {:else if terminal && live}
       <form class="stack" onsubmit={send}>
-        <div class="keys" role="group" aria-label="Terminal keys">
+        <div class="keys" role="group" aria-label={t("phone.session.keys")}>
           {#each KEYS as k (k.key)}
             <button class="btn secondary" type="button" aria-label={k.name} onclick={() => press(k.key)}>{k.label}</button>
           {/each}
         </div>
         <div class="send-row">
-          <label class="sr-only" for="ms-input">Type into the terminal</label>
-          <input class="input" id="ms-input" bind:value={text} enterkeyhint="send" autocomplete="off" autocapitalize="off" placeholder="Type, then Send to press Enter" />
-          <button class="btn primary" type="submit" disabled={sending || !text.trim()}><PaperPlaneTilt size={16} aria-hidden="true" />Send</button>
+          <label class="sr-only" for="ms-input">{t("phone.session.typeLabel")}</label>
+          <input class="input" id="ms-input" bind:value={text} enterkeyhint="send" autocomplete="off" autocapitalize="off" placeholder={t("phone.session.typePlaceholder")} />
+          <button class="btn primary" type="submit" disabled={sending || !text.trim()}><PaperPlaneTilt size={16} aria-hidden="true" />{t("phone.send")}</button>
         </div>
-        {#if sendError}<p class="err-text small" role="alert">{sendError}</p>{/if}
+        {#if sendError}<p class="err-text small" role="alert">{tb(sendError)}</p>{/if}
       </form>
     {:else if terminal}
       <div class="stack">
-        <button class="btn primary" type="button" id="btn-resume-session" disabled={busy} onclick={resume}><Play size={16} aria-hidden="true" />{busy ? "Resuming…" : "Resume terminal"}</button>
-        {#if sendError}<p class="err-text small" role="alert">{sendError}</p>{:else}<p class="small">Opens the terminal on your computer again, with the CLI's own history when it has one.</p>{/if}
+        <button class="btn primary" type="button" id="btn-resume-session" disabled={busy} onclick={resume}><Play size={16} aria-hidden="true" />{busy ? t("phone.session.resuming") : t("phone.session.resume")}</button>
+        {#if sendError}<p class="err-text small" role="alert">{tb(sendError)}</p>{:else}<p class="small">{t("phone.session.resumeHelp")}</p>{/if}
       </div>
     {:else}
       <form class="stack" onsubmit={send}>
         <div class="send-row">
-          <label class="sr-only" for="ms-input">Message for {CLI_LABEL[s.cli]}</label>
-          <textarea class="textarea" id="ms-input" rows="1" bind:value={text} disabled={!canFollowUp} placeholder={canFollowUp ? `Follow-up for ${CLI_LABEL[s.cli]}` : "Not available right now"}></textarea>
-          <button class="btn primary" type="submit" disabled={!canFollowUp || sending || !text.trim()}><PaperPlaneTilt size={16} aria-hidden="true" />Send</button>
+          <label class="sr-only" for="ms-input">{t("phone.session.messageFor", { cli: CLI_LABEL[s.cli] })}</label>
+          <textarea class="textarea" id="ms-input" rows="1" bind:value={text} disabled={!canFollowUp} placeholder={canFollowUp ? t("phone.session.followUpFor", { cli: CLI_LABEL[s.cli] }) : t("phone.session.unavailable")}></textarea>
+          <button class="btn primary" type="submit" disabled={!canFollowUp || sending || !text.trim()}><PaperPlaneTilt size={16} aria-hidden="true" />{t("phone.send")}</button>
         </div>
-        {#if sendError}<p class="err-text small" role="alert">{sendError}</p>{:else}<p class="small">{followUpHint}</p>{/if}
+        {#if sendError}<p class="err-text small" role="alert">{tb(sendError)}</p>{:else}<p class="small">{followUpHint}</p>{/if}
       </form>
     {/if}
   </div>
@@ -277,11 +279,11 @@
 <Dialog bind:open={stopOpen} labelledby="stop-sheet-title">
   {#if s}
     <div class="d-body" style="gap:14px">
-      <h2 id="stop-sheet-title" style="font-size:20px">Stop this session?</h2>
-      <p class="m-p">OpenCompanion sends {CLI_LABEL[s.cli]} in {folderName(s.cwd)} an interrupt first, then stops it by force after 3 seconds.</p>
+      <h2 id="stop-sheet-title" style="font-size:20px">{t("phone.session.stopTitle")}</h2>
+      <p class="m-p">{t("phone.session.stopBody", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) })}</p>
       <div class="d-foot sheet-foot">
-        <button class="btn danger" type="button" onclick={stop}><Stop size={16} aria-hidden="true" />Stop session</button>
-        <button class="btn secondary" type="button" onclick={() => (stopOpen = false)}>Keep running</button>
+        <button class="btn danger" type="button" onclick={stop}><Stop size={16} aria-hidden="true" />{t("phone.session.stopConfirm")}</button>
+        <button class="btn secondary" type="button" onclick={() => (stopOpen = false)}>{t("phone.session.keepRunning")}</button>
       </div>
     </div>
   {/if}

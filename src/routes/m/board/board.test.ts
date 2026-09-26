@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import { goto } from "$app/navigation";
 import type { SessionInfo, Task } from "$lib/api";
+import { i18n } from "$lib/i18n.svelte";
 import { phone, receive } from "$lib/phone.svelte";
 import { setUrl } from "../../../test/app-state.svelte";
 import { phoneServer, sent } from "../../../test/phone-server";
@@ -80,6 +81,20 @@ test("a card whose session waits can be approved from the Board", async () => {
   expect(within(sheet).queryByRole("link", { name: /Run/ })).not.toBeInTheDocument();
   await u.click(within(sheet).getByRole("button", { name: "Approve" }));
   expect(sent(fetchMock, "POST /api/sessions/s1/answer")).toEqual([{ allow: true }]);
+});
+
+test("the Board speaks Indonesian when the desktop does", async () => {
+  phoneServer({ "GET /api/tasks": () => [200, { tasks: [task({})] }] });
+  i18n.lang = "id";
+  try {
+    const u = userEvent.setup();
+    render(Board);
+    expect(await screen.findByText("Write the API docs")).toBeInTheDocument();
+    await u.click(screen.getByRole("button", { name: "Tertunda 0" }));
+    expect(screen.getByText(/Tidak ada yang tertunda/)).toBeInTheDocument();
+  } finally {
+    i18n.lang = "en";
+  }
 });
 
 test("a card deleted on the computer while its sheet is open closes the sheet", async () => {

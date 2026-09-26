@@ -9,13 +9,15 @@
   import CliMark from "$lib/CliMark.svelte";
   import Dialog from "$lib/Dialog.svelte";
   import { shortPath } from "$lib/format";
+  import { t, tb } from "$lib/i18n.svelte";
   import { app, refreshClis, saveSettings, showToast } from "$lib/store.svelte";
 
-  const HEADLESS: Record<CliKind, string> = {
+  // null: no headless adapter yet, shown as translated text.
+  const HEADLESS: Record<CliKind, string | null> = {
     claude: "claude -p --output-format stream-json",
     codex: "codex exec --json -C <folder>",
     opencode: "opencode run --format json --dir <folder>",
-    gemini: "Not supported yet",
+    gemini: null,
   };
   // Official npm packages. OpenCompanion never runs these itself (PRD FR-03).
   const INSTALL: Record<CliKind, string> = {
@@ -38,12 +40,15 @@
       : (app.settings?.chatCli ?? app.clis.find((c) => c.path && c.kind !== "gemini")?.kind ?? null),
   );
   const foundCount = $derived(app.clis.filter((c) => c.path).length);
+  // The --version flag sits in code type between the two halves.
+  const sub = $derived(t("work.clis.sub").split("{flag}"));
 
   async function rescan() {
     await refreshClis();
     if (app.clisState === "ready") {
       const missing = app.clis.filter((c) => !c.path).map((c) => c.label);
-      showToast(`Scan finished: ${foundCount} of ${app.clis.length} found${missing.length ? `, ${missing.join(", ")} not found` : ""}.`);
+      const counts = { found: foundCount, total: app.clis.length };
+      showToast(missing.length ? t("work.clis.scanDoneMissing", { ...counts, missing: missing.join(", ") }) : t("work.clis.scanDone", counts));
     }
   }
 
@@ -51,9 +56,9 @@
     if (!app.settings) return;
     try {
       await saveSettings({ ...app.settings, chatCli: kind, plannerSource: "cli" });
-      showToast(`${app.clis.find((c) => c.kind === kind)?.label} is now the Chat planner.`);
+      showToast(t("work.clis.plannerSet", { cli: app.clis.find((c) => c.kind === kind)?.label ?? kind }));
     } catch (e) {
-      showToast(errorText(e));
+      showToast(tb(errorText(e)));
     }
   }
 
@@ -66,7 +71,7 @@
   }
 
   async function pickFile() {
-    const picked = await openDialog({ multiple: false, directory: false, title: "Choose the CLI executable", filters: [{ name: "Programs", extensions: ["exe", "cmd", "bat"] }] });
+    const picked = await openDialog({ multiple: false, directory: false, title: t("work.clis.pickTitle"), filters: [{ name: t("work.clis.pickFilter"), extensions: ["exe", "cmd", "bat"] }] });
     if (typeof picked === "string") pathValue = picked;
   }
 
@@ -75,7 +80,7 @@
     if (!app.settings || !configCli) return;
     const p = pathValue.trim();
     if (p && !/^([A-Za-z]:[\\/]|\\\\|\/).+/.test(p)) {
-      configError = "Enter the full path to the executable, or leave it empty to use PATH.";
+      configError = t("work.clis.pathInvalid");
       return;
     }
     savingConfig = true;
@@ -89,7 +94,7 @@
       await saveSettings({ ...app.settings, cliPaths, cliArgs });
       configOpen = false;
       await refreshClis();
-      showToast(`Saved ${configCli.label} settings.`);
+      showToast(t("work.clis.saved", { cli: configCli.label }));
     } catch (err) {
       configError = errorText(err);
     } finally {
@@ -100,45 +105,45 @@
   async function copy(text: string) {
     try {
       await navigator.clipboard.writeText(text);
-      showToast(`Copied ${text}`);
+      showToast(t("work.clis.copied", { text }));
     } catch {
-      showToast("Could not copy. Select the text and copy it by hand.");
+      showToast(t("work.clis.copyFailed"));
     }
   }
 </script>
 
-<svelte:head><title>CLIs · OpenCompanion</title></svelte:head>
+<svelte:head><title>{t("work.clis.pageTitle")}</title></svelte:head>
 
 <main class="main" id="clis-main">
   <header class="page-head">
     <div class="grow">
-      <h1>CLIs</h1>
-      <p class="sub">Found on your PATH and in common install folders. Versions come from each CLI's own <span class="mono">--version</span> output.</p>
+      <h1>{t("work.clis.heading")}</h1>
+      <p class="sub">{sub[0]}<span class="mono">--version</span>{sub[1]}</p>
     </div>
     <button class="btn secondary" type="button" id="btn-rescan" disabled={app.checkingClis} onclick={rescan}>
-      <ArrowClockwise size={16} aria-hidden="true" /><span>{app.checkingClis ? "Scanning…" : "Rescan"}</span>
+      <ArrowClockwise size={16} aria-hidden="true" /><span>{app.checkingClis ? t("work.scanning") : t("work.rescan")}</span>
     </button>
   </header>
 
   {#if app.clisState === "loading"}
-    <p class="hint" role="status">Checking PATH and common install folders…</p>
+    <p class="hint" role="status">{t("work.clis.checking")}</p>
   {:else if app.clisState === "error"}
     <div class="state-box" role="alert">
-      <h2>CLIs could not be checked</h2>
-      <p>{app.clisError}</p>
-      <button class="btn secondary" type="button" onclick={rescan}>Try again</button>
+      <h2>{t("work.clis.loadError")}</h2>
+      <p>{tb(app.clisError)}</p>
+      <button class="btn secondary" type="button" onclick={rescan}>{t("work.tryAgain")}</button>
     </div>
   {:else}
     <div class="table-wrap">
       <table id="cli-table" aria-busy={app.checkingClis}>
-        <caption class="sr-only">Coding CLIs found on this computer</caption>
+        <caption class="sr-only">{t("work.clis.caption")}</caption>
         <thead>
           <tr>
-            <th scope="col" style="width:32%">CLI</th>
-            <th scope="col">Version</th>
-            <th scope="col" style="width:28%">Headless command</th>
-            <th scope="col">Adapter</th>
-            <th scope="col"><span class="sr-only">Actions</span></th>
+            <th scope="col" style="width:32%">{t("work.clis.colCli")}</th>
+            <th scope="col">{t("work.clis.colVersion")}</th>
+            <th scope="col" style="width:28%">{t("work.clis.colHeadless")}</th>
+            <th scope="col">{t("work.clis.colAdapter")}</th>
+            <th scope="col"><span class="sr-only">{t("work.clis.colActions")}</span></th>
           </tr>
         </thead>
         <tbody>
@@ -149,30 +154,30 @@
                   <div class="name">
                     <CliMark kind={c.kind} />
                     <span><b>{c.label}</b><span class="mono" title={c.path}>{shortPath(c.path)}</span>
-                      {#if app.settings?.cliArgs[c.kind]}<span class="mono">extra: {app.settings.cliArgs[c.kind]}</span>{/if}
+                      {#if app.settings?.cliArgs[c.kind]}<span class="mono">{t("work.clis.extraArgs", { args: app.settings.cliArgs[c.kind] })}</span>{/if}
                     </span>
                   </div>
                 </td>
-                <td class="mono">{c.version ?? "unknown"}</td>
-                <td class="mono">{HEADLESS[c.kind]}</td>
+                <td class="mono">{c.version ?? t("work.clis.versionUnknown")}</td>
+                <td class="mono">{HEADLESS[c.kind] ?? t("work.clis.headlessUnsupported")}</td>
                 <td>
                   {#if c.error}
-                    <span class="chip err" title={c.error}>Can't read version</span>
+                    <span class="chip err" title={tb(c.error)}>{t("work.clis.versionUnreadable")}</span>
                   {:else if c.tested}
-                    <span class="ok"><CheckCircle size={16} aria-hidden="true" />Tested</span>
+                    <span class="ok"><CheckCircle size={16} aria-hidden="true" />{t("work.clis.tested")}</span>
                   {:else}
-                    <span class="chip wait" title="The adapter has not been tested with this version yet. Headless mode still works, but events may look different.">Untested version</span>
+                    <span class="chip wait" title={t("work.clis.untestedHint")}>{t("work.clis.untested")}</span>
                   {/if}
                 </td>
                 <td class="acts">
                   {#if c.kind !== "gemini"}
                     {#if planner === c.kind}
-                      <span class="planner-label">Chat planner</span>
+                      <span class="planner-label">{t("work.clis.chatPlanner")}</span>
                     {:else}
-                      <button class="btn secondary sm" type="button" onclick={() => usePlanner(c.kind)}>Use as planner</button>
+                      <button class="btn secondary sm" type="button" onclick={() => usePlanner(c.kind)}>{t("work.clis.usePlanner")}</button>
                     {/if}
                   {/if}
-                  <button class="icon-btn" type="button" aria-label="Settings for {c.label}" title="Path and extra arguments" onclick={() => configure(c)}><GearSix size={18} aria-hidden="true" /></button>
+                  <button class="icon-btn" type="button" aria-label={t("work.clis.settingsFor", { cli: c.label })} title={t("work.clis.pathAndArgs")} onclick={() => configure(c)}><GearSix size={18} aria-hidden="true" /></button>
                 </td>
               </tr>
             {:else}
@@ -180,17 +185,17 @@
                 <td>
                   <div class="name">
                     <CliMark kind={c.kind} />
-                    <span><b>{c.label}</b><span class="meta">{c.error ?? "Not found on PATH"}</span></span>
+                    <span><b>{c.label}</b><span class="meta">{c.error ?? t("work.clis.notOnPath")}</span></span>
                   </div>
                 </td>
                 <td colspan="3">
                   <div class="install">
                     <code>{INSTALL[c.kind]}</code>
-                    <button class="btn secondary sm" type="button" onclick={() => copy(INSTALL[c.kind])}><Copy size={16} aria-hidden="true" />Copy command</button>
+                    <button class="btn secondary sm" type="button" onclick={() => copy(INSTALL[c.kind])}><Copy size={16} aria-hidden="true" />{t("work.copyCommand")}</button>
                   </div>
                 </td>
                 <td class="acts">
-                  <button class="icon-btn" type="button" aria-label="Set a path for {c.label}" title="Set a path" onclick={() => configure(c)}><GearSix size={18} aria-hidden="true" /></button>
+                  <button class="icon-btn" type="button" aria-label={t("work.clis.setPathFor", { cli: c.label })} title={t("work.clis.setPath")} onclick={() => configure(c)}><GearSix size={18} aria-hidden="true" /></button>
                 </td>
               </tr>
             {/if}
@@ -198,7 +203,7 @@
         </tbody>
       </table>
     </div>
-    <p class="note">OpenCompanion never installs a CLI for you. Copy the command, run it in your own terminal, then press Rescan. Aider, Qwen Code and other CLIs are planned after the first release.</p>
+    <p class="note">{t("work.clis.note")}</p>
   {/if}
 </main>
 
@@ -206,27 +211,27 @@
   {#if configCli}
     <form class="d-body" novalidate onsubmit={saveConfig}>
       <div class="row">
-        <h2 id="cfg-title" class="grow">{configCli.label} settings</h2>
-        <button class="icon-btn" type="button" aria-label="Close" onclick={() => (configOpen = false)}><X size={18} aria-hidden="true" /></button>
+        <h2 id="cfg-title" class="grow">{t("work.clis.settingsTitle", { cli: configCli.label })}</h2>
+        <button class="icon-btn" type="button" aria-label={t("work.close")} onclick={() => (configOpen = false)}><X size={18} aria-hidden="true" /></button>
       </div>
       <div class="field">
-        <label class="label" for="cfg-path">Executable path</label>
+        <label class="label" for="cfg-path">{t("work.clis.pathLabel")}</label>
         <div class="row" style="gap:10px">
-          <input class="input mono grow" id="cfg-path" bind:value={pathValue} oninput={() => (configError = "")} placeholder="Empty: use the one found on PATH" spellcheck="false" aria-describedby="cfg-path-help" />
-          <button class="btn secondary" type="button" onclick={pickFile}>Browse</button>
+          <input class="input mono grow" id="cfg-path" bind:value={pathValue} oninput={() => (configError = "")} placeholder={t("work.clis.pathPlaceholder")} spellcheck="false" aria-describedby="cfg-path-help" />
+          <button class="btn secondary" type="button" onclick={pickFile}>{t("work.clis.browse")}</button>
         </div>
-        <p class="help" id="cfg-path-help">OpenCompanion runs it once with --version to read the version. Nothing else is executed until you start a session.</p>
+        <p class="help" id="cfg-path-help">{t("work.clis.pathHelp")}</p>
       </div>
       <div class="field">
-        <label class="label" for="cfg-args">Extra arguments</label>
-        <input class="input mono" id="cfg-args" bind:value={argsValue} placeholder="For example --pure" spellcheck="false" aria-describedby="cfg-args-help" />
-        <p class="help" id="cfg-args-help">Added to every session this CLI runs in OpenCompanion, separated by spaces. Quotes are not supported.</p>
+        <label class="label" for="cfg-args">{t("work.clis.argsLabel")}</label>
+        <input class="input mono" id="cfg-args" bind:value={argsValue} placeholder={t("work.clis.argsPlaceholder")} spellcheck="false" aria-describedby="cfg-args-help" />
+        <p class="help" id="cfg-args-help">{t("work.clis.argsHelp")}</p>
       </div>
-      {#if configError}<p class="err-text" role="alert" style="margin:0">{configError}</p>{/if}
+      {#if configError}<p class="err-text" role="alert" style="margin:0">{tb(configError)}</p>{/if}
       <div class="d-foot">
-        <span class="meta grow">Esc to close</span>
-        <button class="btn secondary" type="button" onclick={() => (configOpen = false)}>Cancel</button>
-        <button class="btn primary" type="submit" disabled={savingConfig}>Save and rescan</button>
+        <span class="meta grow">{t("work.escToClose")}</span>
+        <button class="btn secondary" type="button" onclick={() => (configOpen = false)}>{t("work.cancel")}</button>
+        <button class="btn primary" type="submit" disabled={savingConfig}>{t("work.clis.saveRescan")}</button>
       </div>
     </form>
   {/if}

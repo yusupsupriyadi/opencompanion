@@ -6,6 +6,7 @@
   import CliMark from "./CliMark.svelte";
   import { refocus } from "./focus";
   import { CLI_LABEL, ago, folderName, shortPath, waitingTitle } from "./format";
+  import { t, tb } from "./i18n.svelte";
   import { app, showToast } from "./store.svelte";
 
   // The one focal point of the Overview (DESIGN.md D2), also used compact on Session detail.
@@ -21,7 +22,8 @@
     failure = "";
     try {
       await api.answerSession(s.id, allow);
-      showToast(allow ? `Approved. ${CLI_LABEL[s.cli]} continues in ${folderName(s.cwd)}.` : `Denied. ${CLI_LABEL[s.cli]} was told no.`);
+      const cli = CLI_LABEL[s.cli];
+      showToast(allow ? t("sessions.needsYou.approved", { cli, folder: folderName(s.cwd) }) : t("sessions.needsYou.denied", { cli }));
       // This panel leaves once the session runs again, taking the pressed button with it.
       refocus();
     } catch (e) {
@@ -39,25 +41,25 @@
       <h2 id={titleId}>{waitingTitle(s)}</h2>
       <div class="meta">
         {folderName(s.cwd)} · <span class="mono">{shortPath(s.cwd)}</span>
-        {#if w} · asked {ago(w.since, app.now)}{/if}
+        {#if w} · {t("sessions.needsYou.asked", { ago: ago(w.since, app.now) })}{/if}
       </div>
     </div>
-    <span class="chip wait">Waiting for you</span>
+    <span class="chip wait">{t("sessions.needsYou.waiting")}</span>
   </div>
   {#if w?.detail}
-    <div class="cmd"><small>{w.tool ?? (w.reason === "permission" ? "Request" : "On screen")}</small><code>{w.detail}</code></div>
+    <div class="cmd"><small>{w.tool ?? (w.reason === "permission" ? t("sessions.needsYou.request") : t("sessions.needsYou.onScreen"))}</small><code>{w.detail}</code></div>
   {/if}
-  {#if failure}<p class="err-text" role="alert" style="margin:0">{failure}</p>{/if}
+  {#if failure}<p class="err-text" role="alert" style="margin:0">{tb(failure)}</p>{/if}
   <div class="actions">
     {#if w?.canAnswer}
-      <button class="btn accent" type="button" disabled={busy} onclick={() => answer(true)}><Check size={16} aria-hidden="true" />Approve</button>
-      <button class="btn secondary" type="button" disabled={busy} onclick={() => answer(false)}><X size={16} aria-hidden="true" />Deny</button>
+      <button class="btn accent" type="button" disabled={busy} onclick={() => answer(true)}><Check size={16} aria-hidden="true" />{t("sessions.needsYou.approve")}</button>
+      <button class="btn secondary" type="button" disabled={busy} onclick={() => answer(false)}><X size={16} aria-hidden="true" />{t("sessions.needsYou.deny")}</button>
     {:else}
-      <span class="meta">Answer this in the session's terminal. OpenCompanion does not pick an option for you here.</span>
+      <span class="meta">{t("sessions.needsYou.answerInTerminal")}</span>
     {/if}
     <span class="spacer"></span>
     {#if showOpen}
-      <a class="btn secondary" href="/session?id={s.id}"><TerminalWindow size={16} aria-hidden="true" />Open session</a>
+      <a class="btn secondary" href="/session?id={s.id}"><TerminalWindow size={16} aria-hidden="true" />{t("sessions.needsYou.openSession")}</a>
     {/if}
   </div>
 </section>

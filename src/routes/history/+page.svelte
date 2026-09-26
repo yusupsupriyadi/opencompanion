@@ -5,18 +5,19 @@
   import { api, errorText, type CliKind, type SessionView } from "$lib/api";
   import SessionRow from "$lib/SessionRow.svelte";
   import { CLI_LABEL, folderName, shortPath } from "$lib/format";
+  import { plural, t, tb, type Key } from "$lib/i18n.svelte";
   import { app } from "$lib/store.svelte";
 
   // Every session OpenCompanion ran, searchable (PRD FR-35). The Overview keeps only today's.
   const PAGE = 50;
   const CLIS = Object.entries(CLI_LABEL) as [CliKind, string][];
-  const STATUSES = [
-    { id: "", label: "Any status" },
-    { id: "live", label: "Running" },
-    { id: "waiting", label: "Waiting for you" },
-    { id: "done", label: "Done" },
-    { id: "error", label: "Error" },
-    { id: "stopped", label: "Stopped" },
+  const STATUSES: { id: string; label: Key }[] = [
+    { id: "", label: "sessions.history.anyStatus" },
+    { id: "live", label: "sessions.history.statusLive" },
+    { id: "waiting", label: "sessions.history.statusWaiting" },
+    { id: "done", label: "sessions.history.statusDone" },
+    { id: "error", label: "sessions.history.statusError" },
+    { id: "stopped", label: "sessions.history.statusStopped" },
   ];
 
   let text = $state("");
@@ -60,8 +61,8 @@
   // Typing and picking wait a moment, so a word typed quickly is one search, not one per letter.
   $effect(() => {
     void [text, cli, folder, status];
-    const t = setTimeout(() => search(), 200);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => search(), 200);
+    return () => clearTimeout(timer);
   });
 
   onMount(() => {
@@ -78,55 +79,59 @@
   });
 </script>
 
-<svelte:head><title>All sessions · OpenCompanion</title></svelte:head>
+<svelte:head><title>{t("sessions.history.title")} · OpenCompanion</title></svelte:head>
 
 <main class="main" id="history-main">
   <header class="page-head">
     <div class="grow">
-      <h1>All sessions</h1>
-      <p class="sub">Every session OpenCompanion ran, newest first. Finished ones stay until you delete them or retention in Settings removes them.</p>
+      <h1>{t("sessions.history.title")}</h1>
+      <p class="sub">{t("sessions.history.intro")}</p>
     </div>
   </header>
 
   <div class="toolbar" id="history-toolbar">
     <label class="input-wrap search">
       <MagnifyingGlass size={16} aria-hidden="true" />
-      <input type="search" bind:value={text} aria-label="Search sessions" placeholder="Search titles and prompts" spellcheck="false" />
+      <input type="search" bind:value={text} aria-label={t("sessions.history.search")} placeholder={t("sessions.history.searchPlaceholder")} spellcheck="false" />
     </label>
-    <select class="select" aria-label="CLI" bind:value={cli}>
-      <option value="">Every CLI</option>
+    <select class="select" aria-label={t("sessions.history.cliFilter")} bind:value={cli}>
+      <option value="">{t("sessions.history.everyCli")}</option>
       {#each CLIS as [kind, label] (kind)}<option value={kind}>{label}</option>{/each}
     </select>
-    <select class="select" aria-label="Folder" bind:value={folder}>
-      <option value="">Every folder</option>
+    <select class="select" aria-label={t("sessions.history.folderFilter")} bind:value={folder}>
+      <option value="">{t("sessions.history.everyFolder")}</option>
       {#each folders as f (f)}<option value={f} title={f}>{folderName(f)} · {shortPath(f)}</option>{/each}
     </select>
-    <select class="select" aria-label="Status" bind:value={status}>
-      {#each STATUSES as s (s.id)}<option value={s.id}>{s.label}</option>{/each}
+    <select class="select" aria-label={t("sessions.history.statusFilter")} bind:value={status}>
+      {#each STATUSES as s (s.id)}<option value={s.id}>{t(s.label)}</option>{/each}
     </select>
   </div>
 
   {#if loadState === "loading"}
-    <p class="hint" role="status">Looking through your sessions…</p>
+    <p class="hint" role="status">{t("sessions.history.loading")}</p>
   {:else if loadState === "error"}
     <div class="state-box" role="alert">
-      <h2>The sessions could not be searched</h2>
-      <p>{loadError}</p>
-      <button class="btn secondary" type="button" onclick={() => search()}>Try again</button>
+      <h2>{t("sessions.history.searchFailed")}</h2>
+      <p>{tb(loadError)}</p>
+      <button class="btn secondary" type="button" onclick={() => search()}>{t("sessions.tryAgain")}</button>
     </div>
   {:else if shown.length === 0}
     <p class="hint" role="status">
-      {filtered ? "No session matches this search. Clear a filter or try other words." : "Nothing has run in OpenCompanion yet. Sessions you start show up here."}
+      {filtered ? t("sessions.history.noMatch") : t("sessions.history.empty")}
     </p>
   {:else}
-    <section class="section" aria-label="Sessions found">
-      <p class="sr-only" role="status">{shown.length === 1 ? "1 session" : `${shown.length}${more ? " or more" : ""} sessions`} found.</p>
+    <section class="section" aria-label={t("sessions.history.found")}>
+      <p class="sr-only" role="status">
+        {more && shown.length !== 1
+          ? t("sessions.history.foundMore", { n: shown.length })
+          : plural(shown.length, "sessions.history.foundOne", "sessions.history.foundMany")}
+      </p>
       {#each shown as s (s.id)}
         <SessionRow {s} />
       {/each}
     </section>
     {#if more}
-      <button class="btn secondary more" type="button" onclick={() => search(true)}>Show {PAGE} more</button>
+      <button class="btn secondary more" type="button" onclick={() => search(true)}>{t("sessions.history.showMore", { n: PAGE })}</button>
     {/if}
   {/if}
 </main>

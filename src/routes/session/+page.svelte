@@ -13,6 +13,7 @@
   import Terminal from "$lib/Terminal.svelte";
   import Timeline from "$lib/Timeline.svelte";
   import { CLI_LABEL, SIGNAL_TEXT, clock, duration, folderName, isLive, memory, modeLabel, shortPath } from "$lib/format";
+  import { t, tb } from "$lib/i18n.svelte";
   import { app, showToast } from "$lib/store.svelte";
 
   const id = $derived(page.url.searchParams.get("id") ?? "");
@@ -106,10 +107,10 @@
       }
     };
     measure();
-    const t = setInterval(measure, 3000);
+    const timer = setInterval(measure, 3000);
     return () => {
       gone = true;
-      clearInterval(t);
+      clearInterval(timer);
     };
   });
 
@@ -121,10 +122,10 @@
   });
   const followUpHint = $derived.by(() => {
     if (!s) return "";
-    if (s.status === "waiting") return "Answer the permission request above first";
-    if (live && s.cli !== "claude") return `${CLI_LABEL[s.cli]} is working. Send the next message when this turn finishes.`;
-    if (!live && !s.cliSessionId) return `${CLI_LABEL[s.cli]} did not report a session id, so this conversation cannot continue`;
-    return `Send a follow-up to ${CLI_LABEL[s.cli]}`;
+    if (s.status === "waiting") return t("sessions.detail.hintAnswerFirst");
+    if (live && s.cli !== "claude") return t("sessions.detail.hintBusy", { cli: CLI_LABEL[s.cli] });
+    if (!live && !s.cliSessionId) return t("sessions.detail.hintNoId", { cli: CLI_LABEL[s.cli] });
+    return t("sessions.detail.hintFollowUp", { cli: CLI_LABEL[s.cli] });
   });
 
   async function sendFollowUp(e: SubmitEvent) {
@@ -148,9 +149,9 @@
     stopOpen = false;
     try {
       await api.stopSession(s.id);
-      showToast(`Stopping ${CLI_LABEL[s.cli]} in ${folderName(s.cwd)}.`);
+      showToast(t("sessions.detail.stopping", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) }));
     } catch (err) {
-      showToast(errorText(err));
+      showToast(tb(errorText(err)));
     }
   }
 
@@ -161,51 +162,51 @@
       await api.resumeSession(s.id, 120, 32);
       termKey += 1;
       detail = await api.getSession(s.id);
-      showToast(`Resumed ${CLI_LABEL[s.cli]} in ${folderName(s.cwd)}.`);
+      showToast(t("sessions.detail.resumed", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) }));
     } catch (err) {
-      showToast(errorText(err));
+      showToast(tb(errorText(err)));
     } finally {
       resuming = false;
     }
   }
 </script>
 
-<svelte:head><title>{s ? `${s.title} · OpenCompanion` : "Session · OpenCompanion"}</title></svelte:head>
+<svelte:head><title>{s ? s.title : t("sessions.detail.pageTitle")} · OpenCompanion</title></svelte:head>
 
 <main class="main detail" id="session-main">
   {#if loadState === "loading"}
-    <p class="hint" role="status">Loading the session…</p>
+    <p class="hint" role="status">{t("sessions.detail.loading")}</p>
   {:else if loadState === "missing" || !s}
     <div class="not-found">
-      <p class="crumb"><a href="/">Overview</a></p>
-      <h1>Session not found</h1>
-      <p class="sub">It may have been removed with the history in Settings.</p>
-      <a class="btn secondary" href="/">Back to Overview</a>
+      <p class="crumb"><a href="/">{t("sessions.overview.title")}</a></p>
+      <h1>{t("sessions.detail.notFoundTitle")}</h1>
+      <p class="sub">{t("sessions.detail.notFoundBody")}</p>
+      <a class="btn secondary" href="/">{t("sessions.backToOverview")}</a>
     </div>
   {:else if loadState === "error"}
     <div class="state-box" role="alert">
-      <h2>This session could not be loaded</h2>
-      <p>{loadError}</p>
-      <button class="btn secondary" type="button" onclick={() => load(id)}>Try again</button>
+      <h2>{t("sessions.detail.loadFailed")}</h2>
+      <p>{tb(loadError)}</p>
+      <button class="btn secondary" type="button" onclick={() => load(id)}>{t("sessions.tryAgain")}</button>
     </div>
   {:else}
     <header class="page-head">
       <div class="grow head-stack">
-        <nav class="crumb" aria-label="Breadcrumb"><a href="/">Overview</a> / {folderName(s.cwd)}</nav>
+        <nav class="crumb" aria-label={t("sessions.breadcrumb")}><a href="/">{t("sessions.overview.title")}</a> / {folderName(s.cwd)}</nav>
         <div class="row title-row">
           <CliMark kind={s.cli} />
           <h1>{s.title}</h1>
           <StatusChip status={s.status} />
         </div>
         <div class="meta">
-          {CLI_LABEL[s.cli]}{version ? ` ${version}` : ""} · {s.mode} · {modeLabel(s.permissionMode)} mode · <span class="mono" title={s.cwd}>{shortPath(s.cwd)}</span> · started {clock(s.startedAt)}
-          {#if s.source !== "manual"} · from {s.source === "chat" ? "Chat" : "the Board"}{/if}
+          {CLI_LABEL[s.cli]}{version ? ` ${version}` : ""} · {t(`sessions.mode.${s.mode}`)} · {t("sessions.detail.permMode", { mode: modeLabel(s.permissionMode) })} · <span class="mono" title={s.cwd}>{shortPath(s.cwd)}</span> · {t("sessions.startedAt", { time: clock(s.startedAt) })}
+          {#if s.source !== "manual"} · {s.source === "chat" ? t("sessions.detail.fromChat") : t("sessions.detail.fromBoard")}{/if}
         </div>
       </div>
       {#if live}
-        <button class="btn danger" type="button" onclick={() => (stopOpen = true)}><Stop size={16} aria-hidden="true" />Stop</button>
+        <button class="btn danger" type="button" onclick={() => (stopOpen = true)}><Stop size={16} aria-hidden="true" />{t("sessions.detail.stop")}</button>
       {:else if s.mode === "interactive"}
-        <button class="btn primary" type="button" disabled={resuming} onclick={resume}><Play size={16} aria-hidden="true" />{resuming ? "Resuming…" : "Resume"}</button>
+        <button class="btn primary" type="button" disabled={resuming} onclick={resume}><Play size={16} aria-hidden="true" />{resuming ? t("sessions.detail.resuming") : t("sessions.detail.resume")}</button>
       {/if}
     </header>
 
@@ -214,41 +215,39 @@
     {/if}
 
     <div class="activity">
-      <span class="pixel">Activity</span>
+      <span class="pixel">{t("sessions.detail.activity")}</span>
       <Horizon {marks} start={s.startedAt} end={s.endedAt ?? app.now} live={s.status === "running"} />
-      <span class="legend">{s.lastEvent ?? "Commands, file edits and approvals show up here"}</span>
+      <span class="legend">{s.lastEvent ? tb(s.lastEvent) : t("sessions.detail.activityEmpty")}</span>
       <button class="btn secondary sm side-toggle" type="button" aria-expanded={sideOpen} aria-controls="session-side" onclick={() => (sideOpen = !sideOpen)}>
-        {sideOpen ? "Hide details" : "Details"}
+        {sideOpen ? t("sessions.hideDetails") : t("sessions.details")}
       </button>
     </div>
 
     <div class="detail-body">
-      <section class="term" aria-label="Session output">
+      <section class="term" aria-label={t("sessions.detail.output")}>
         {#if s.mode === "interactive"}
           {#key `${id}-${termKey}`}
-            <Terminal id={s.id} {live} label="Terminal for {CLI_LABEL[s.cli]} in {folderName(s.cwd)}" />
+            <Terminal id={s.id} {live} label={t("sessions.detail.terminalLabel", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) })} />
           {/key}
           <div class="term-note">
-            {live
-              ? "Type straight into the terminal. Ctrl+C interrupts the CLI. Ctrl+Tab leaves the terminal."
-              : "This terminal has closed. Resume opens it again with the CLI's own history when it has one."}
+            {live ? t("sessions.detail.terminalLive") : t("sessions.detail.terminalClosed")}
           </div>
         {:else}
           <Timeline {events} />
           <form class="term-in" onsubmit={sendFollowUp}>
             <label for="term-input">›</label>
             <input id="term-input" bind:value={followUp} placeholder={followUpHint} disabled={!canFollowUp || sending} autocomplete="off" spellcheck="false" />
-            <small>{canFollowUp ? "Enter to send" : ""}</small>
+            <small>{canFollowUp ? t("sessions.detail.enterToSend") : ""}</small>
           </form>
-          {#if sendError}<div class="term-note" role="alert">{sendError}</div>{/if}
+          {#if sendError}<div class="term-note" role="alert">{tb(sendError)}</div>{/if}
         {/if}
       </section>
 
       <aside class="detail-side" id="session-side" class:open={sideOpen}>
         <div class="side-group">
-          <h3>Files changed</h3>
+          <h3>{t("sessions.detail.filesChanged")}</h3>
           {#if files.length === 0}
-            <p>{s.mode === "interactive" && s.cli !== "claude" ? "Not reported by this CLI in interactive mode." : "No files changed yet."}</p>
+            <p>{s.mode === "interactive" && s.cli !== "claude" ? t("sessions.detail.filesNotReported") : t("sessions.detail.noFiles")}</p>
           {:else}
             {#each files as [path, n] (path)}
               <div class="kv"><span class="mono" title={path}>{folderName(path)}</span><b class="mono">{n}×</b></div>
@@ -256,33 +255,33 @@
           {/if}
         </div>
         <div class="side-group">
-          <h3>Process</h3>
-          <div class="kv"><span>Status</span><b>{s.status}</b></div>
-          {#if s.pid && live}<div class="kv"><span>PID</span><b class="mono">{s.pid}</b></div>{/if}
+          <h3>{t("sessions.process")}</h3>
+          <div class="kv"><span>{t("sessions.detail.status")}</span><b>{t(`sessions.status.${s.status}`)}</b></div>
+          {#if s.pid && live}<div class="kv"><span>{t("sessions.pid")}</span><b class="mono">{s.pid}</b></div>{/if}
           {#if live && usage}
-            <div class="kv"><span>CPU</span><b class="mono">{usage.cpuPercent}%</b></div>
-            <div class="kv"><span>Memory</span><b class="mono">{memory(usage.memoryBytes)}</b></div>
-            <div class="kv"><span>Child processes</span><b class="mono">{usage.children}</b></div>
+            <div class="kv"><span>{t("sessions.cpu")}</span><b class="mono">{usage.cpuPercent}%</b></div>
+            <div class="kv"><span>{t("sessions.memory")}</span><b class="mono">{memory(usage.memoryBytes)}</b></div>
+            <div class="kv"><span>{t("sessions.detail.childProcesses")}</span><b class="mono">{usage.children}</b></div>
           {:else if measuring}
-            <p>Measuring CPU and memory…</p>
+            <p>{t("sessions.detail.measuring")}</p>
           {/if}
-          <div class="kv"><span>Running for</span><b>{duration((s.endedAt ?? app.now) - s.startedAt)}</b></div>
-          {#if s.exitCode !== null}<div class="kv"><span>Exit code</span><b class="mono">{s.exitCode}</b></div>{/if}
-          {#if s.cliSessionId}<div class="kv"><span>CLI session</span><b class="mono" title={s.cliSessionId}>{s.cliSessionId.slice(0, 12)}</b></div>{/if}
+          <div class="kv"><span>{t("sessions.runningFor")}</span><b>{duration((s.endedAt ?? app.now) - s.startedAt)}</b></div>
+          {#if s.exitCode !== null}<div class="kv"><span>{t("sessions.detail.exitCode")}</span><b class="mono">{s.exitCode}</b></div>{/if}
+          {#if s.cliSessionId}<div class="kv"><span>{t("sessions.detail.cliSession")}</span><b class="mono" title={s.cliSessionId}>{s.cliSessionId.slice(0, 12)}</b></div>{/if}
         </div>
         <div class="side-group">
-          <h3>Needs-you signal</h3>
+          <h3>{t("sessions.detail.signal")}</h3>
           <p>
             {#if s.waiting}{SIGNAL_TEXT[s.waiting.method]}
             {:else if s.mode === "headless" && s.cli === "claude"}{SIGNAL_TEXT.stdio}
             {:else if s.mode === "interactive" && s.cli === "claude"}{SIGNAL_TEXT.hook}
-            {:else if s.mode === "headless" && s.cli === "opencode"}OpenCode's run mode refuses permission prompts by itself; refusals appear in the output.
+            {:else if s.mode === "headless" && s.cli === "opencode"}{t("sessions.detail.signalOpenCode")}
             {:else}{SIGNAL_TEXT.screen}{/if}
           </p>
         </div>
         {#if detail?.task}
           <div class="side-group">
-            <h3>Board card</h3>
+            <h3>{t("sessions.detail.boardCard")}</h3>
             <p><a class="link" href="/board">{detail.task.title}</a></p>
           </div>
         {/if}
@@ -293,16 +292,16 @@
 
 <Dialog bind:open={stopOpen} labelledby="stop-title">
   <div class="d-body">
-    <h2 id="stop-title">Stop this session?</h2>
+    <h2 id="stop-title">{t("sessions.detail.stopTitle")}</h2>
     {#if s}
       <p class="meta" style="margin:0;font-size:14px">
-        OpenCompanion sends {CLI_LABEL[s.cli]} in {folderName(s.cwd)} an interrupt first. If it has not exited after 3 seconds, it is stopped by force.
+        {t("sessions.detail.stopBody", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) })}
       </p>
     {/if}
     <div class="d-foot">
       <span class="grow"></span>
-      <button class="btn secondary" type="button" onclick={() => (stopOpen = false)}>Keep running</button>
-      <button class="btn danger" type="button" onclick={confirmStop}><Stop size={16} aria-hidden="true" />Stop session</button>
+      <button class="btn secondary" type="button" onclick={() => (stopOpen = false)}>{t("sessions.detail.keepRunning")}</button>
+      <button class="btn danger" type="button" onclick={confirmStop}><Stop size={16} aria-hidden="true" />{t("sessions.detail.stopSession")}</button>
     </div>
   </div>
 </Dialog>

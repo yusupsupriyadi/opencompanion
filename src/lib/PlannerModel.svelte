@@ -3,6 +3,7 @@
   import CaretDown from "phosphor-svelte/lib/CaretDown";
   import { api, errorText, type ChatModel, type CliInstall, type ModelList, type ModelOption } from "./api";
   import { effortLabel } from "./format";
+  import { t } from "./i18n.svelte";
   import { app, forgetModelLists, plannerModels, showToast } from "./store.svelte";
 
   /** Model and thinking level for the chat planner, kept per CLI in Settings. */
@@ -50,7 +51,7 @@
   const models = $derived.by<ModelOption[]>(() => {
     const listed = list?.models ?? [];
     if (!saved.model || listed.some((m) => m.id === saved.model)) return listed;
-    const label = listState === "loading" ? saved.model : `${saved.model} (saved)`;
+    const label = listState === "loading" ? saved.model : t("chat.model.saved", { model: saved.model });
     return [{ id: saved.model, label, group: null, efforts: saved.effort ? [saved.effort] : [] }, ...listed];
   });
 
@@ -76,9 +77,11 @@
   });
 
   // The labels are hidden, so the tooltip names the picker and shows a label the width cut off.
-  const modelTitle = $derived(`Model: ${models.find((m) => m.id === model)?.label ?? "CLI default"}`);
+  const modelTitle = $derived(t("chat.model.modelTitle", { model: models.find((m) => m.id === model)?.label ?? t("chat.model.cliDefault") }));
   const effortTitle = $derived(
-    efforts.length === 0 ? `${cli.label} offers no thinking levels for this model` : `Thinking: ${effort ? effortLabel(effort) : "CLI default"}`,
+    efforts.length === 0
+      ? t("chat.model.noEfforts", { cli: cli.label })
+      : t("chat.model.effortTitle", { level: effort ? effortLabel(effort) : t("chat.model.cliDefault") }),
   );
 
   async function save() {
@@ -90,7 +93,7 @@
       if (turn !== saves) return;
       model = saved.model;
       effort = saved.effort;
-      showToast(`The planner model could not be saved: ${errorText(e)}`);
+      showToast(t("chat.model.saveFailed", { error: errorText(e) }));
     }
   }
 
@@ -109,7 +112,7 @@
 
 <div class="pickers" id="planner-model">
   <div class="pick">
-    <label class="sr-only" for="planner-model-select">Model</label>
+    <label class="sr-only" for="planner-model-select">{t("chat.model.label")}</label>
     <select
       class="select"
       id="planner-model-select"
@@ -118,7 +121,7 @@
       aria-busy={listState === "loading"}
       title={modelTitle}
     >
-      <option value="">CLI default</option>
+      <option value="">{t("chat.model.cliDefault")}</option>
       {#each groups as g}
         {#if g.name}
           <optgroup label={g.name}>
@@ -133,7 +136,7 @@
   </div>
   <div class="pick lead">
     <Brain class="lead-icon" size={14} aria-hidden="true" />
-    <label class="sr-only" for="planner-effort-select">Thinking</label>
+    <label class="sr-only" for="planner-effort-select">{t("chat.model.thinking")}</label>
     <select
       class="select"
       id="planner-effort-select"
@@ -142,16 +145,16 @@
       disabled={efforts.length === 0}
       title={effortTitle}
     >
-      <option value="">CLI default</option>
+      <option value="">{t("chat.model.cliDefault")}</option>
       {#each efforts as e (e)}<option value={e}>{effortLabel(e)}</option>{/each}
     </select>
     <CaretDown class="caret" size={12} weight="bold" aria-hidden="true" />
   </div>
   {#if listState === "loading"}
-    <span class="meta" role="status">Listing {cli.label} models…</span>
+    <span class="meta" role="status">{t("chat.model.listing", { cli: cli.label })}</span>
   {:else if listState === "error"}
     <span class="err-text" role="alert">{listError}</span>
-    <button class="btn ghost sm" type="button" onclick={retry}>List models again</button>
+    <button class="btn ghost sm" type="button" onclick={retry}>{t("chat.model.listAgain")}</button>
   {/if}
 </div>
 

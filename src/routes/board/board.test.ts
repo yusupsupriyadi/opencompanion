@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test } from "vitest";
 import type { Task } from "$lib/api";
+import { i18n } from "$lib/i18n.svelte";
 import { app, toast } from "$lib/store.svelte";
 import { CLIS, backend, session } from "../../test/fixtures";
 import Board from "./+page.svelte";
@@ -96,6 +97,23 @@ test("delete asks twice", async () => {
   expect(calls.calls("delete_task")).toHaveLength(0);
   await user.click(screen.getByRole("button", { name: "Press again to delete" }));
   expect(calls.calls("delete_task")).toEqual([{ id: "t1" }]);
+});
+
+test("in Indonesian the columns, buttons and toasts use the Indonesian words", async () => {
+  api();
+  const user = userEvent.setup();
+  i18n.lang = "id";
+  try {
+    render(Board);
+    expect(await screen.findByRole("region", { name: /Tertunda/ })).toBeInTheDocument();
+    expect(screen.getByText("Kartu yang selesai masuk ke sini.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Kartu baru" }));
+    await user.type(screen.getByLabelText("Judul"), "Tambah ekspor CSV");
+    await user.click(screen.getByRole("button", { name: "Simpan kartu" }));
+    expect(toast.text).toBe('"Tambah ekspor CSV" ditambahkan ke Tertunda.');
+  } finally {
+    i18n.lang = "en";
+  }
 });
 
 test("Run on a Todo card opens the run dialog filled from the card", async () => {

@@ -38,6 +38,8 @@ dialog.sheet { margin: auto auto 0; width: 100%; max-width: 480px; border-radius
 dialog.sheet .d-foot { flex-direction: column; align-items: stretch; }
 dialog.sheet .btn { min-height: 48px; }
 .phone .btn { min-height: 44px; }
+/* A long folder name in "Run in {folder}" wraps instead of running off a narrow phone. */
+.phone .btn, dialog.sheet .btn { white-space: normal; text-align: center; overflow-wrap: anywhere; }
 
 /* Bottom tabs: Sessions, Chat and Board are one thumb tap apart. Hidden on detail screens, which own the bottom edge. */
 .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; justify-content: center; background: var(--bg); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }

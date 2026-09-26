@@ -4,18 +4,20 @@
   import { onMount } from "svelte";
   import { api } from "./api";
   import { folderName } from "./format";
+  import { t } from "./i18n.svelte";
 
+  // `label` has no default value: the default name, "Project folder", has to follow the UI language.
   let {
     value = $bindable(""),
     error = "",
     id,
-    label = "Project folder",
+    label,
     oninput,
   }: { value?: string; error?: string; id: string; label?: string; oninput?: () => void } = $props();
 
   // Folders used in OpenCompanion first; on a fresh install, the projects found on disk.
   let suggestions = $state<string[]>([]);
-  let suggestionLabel = $state("Recent:");
+  let fromDisk = $state(false);
 
   onMount(async () => {
     try {
@@ -25,14 +27,14 @@
         return;
       }
       suggestions = (await api.projectFolders()).slice(0, 6).map((p) => p.path);
-      suggestionLabel = "Projects:";
+      fromDisk = true;
     } catch {
       suggestions = [];
     }
   });
 
   async function browse() {
-    const picked = await openDialog({ directory: true, multiple: false, defaultPath: value || undefined, title: "Choose a project folder" });
+    const picked = await openDialog({ directory: true, multiple: false, defaultPath: value || undefined, title: t("shell.folder.pickerTitle") });
     if (typeof picked === "string") {
       value = picked;
       oninput?.();
@@ -41,7 +43,7 @@
 </script>
 
 <div class="field">
-  <label class="label" for={id}>{label}</label>
+  <label class="label" for={id}>{label ?? t("shell.folder.label")}</label>
   <div class="row" style="gap:10px">
     <div class="input-wrap grow">
       <FolderSimple size={18} aria-hidden="true" />
@@ -56,12 +58,12 @@
         placeholder="C:\Users\you\Project\my-app"
       />
     </div>
-    <button class="btn secondary" type="button" onclick={browse}>Browse</button>
+    <button class="btn secondary" type="button" onclick={browse}>{t("shell.folder.browse")}</button>
   </div>
   {#if error}<p class="error" id="{id}-error">{error}</p>{/if}
   {#if suggestions.length}
     <div class="tags">
-      <span>{suggestionLabel}</span>
+      <span>{fromDisk ? t("shell.folder.projects") : t("shell.folder.recent")}</span>
       {#each suggestions as p (p)}
         <button class="tag" type="button" title={p} onclick={() => { value = p; oninput?.(); }}>{folderName(p)}</button>
       {/each}

@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
+import { tick } from "svelte";
 import { beforeEach, expect, test } from "vitest";
+import { i18n } from "$lib/i18n.svelte";
 import { setUrl } from "../test/app-state.svelte";
 import { session } from "../test/fixtures";
 import Sidebar from "./Sidebar.svelte";
@@ -179,4 +181,19 @@ test("phone access shows its real state", () => {
   app.companion = { running: true, address: "192.168.1.5", port: 8765, error: null };
   render(Sidebar);
   expect(screen.getByRole("link", { name: /Phone access/ })).toHaveTextContent("On");
+});
+
+test("switching the UI language to Indonesian relabels the open sidebar", async () => {
+  app.sessions = [session({ id: "b", title: "Fix the login bug", status: "running", cli: "codex" })];
+  render(Sidebar);
+  expect(screen.getByRole("link", { name: "Overview" })).toBeInTheDocument();
+  try {
+    i18n.lang = "id";
+    await tick();
+    expect(screen.getByRole("link", { name: "Ringkasan" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("button", { name: "Sesi baru" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Fix the login bug/ })).toHaveAccessibleName("Fix the login bug Codex CLI, Berjalan");
+  } finally {
+    i18n.lang = "en";
+  }
 });

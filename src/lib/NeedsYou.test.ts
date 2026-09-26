@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { expect, test } from "vitest";
+import { i18n } from "$lib/i18n.svelte";
 import { backend, session } from "../test/fixtures";
 import NeedsYou from "./NeedsYou.svelte";
 
@@ -30,6 +31,21 @@ test("prompts OpenCompanion cannot answer point to the terminal instead", () => 
   render(NeedsYou, { s: waiting(false) });
   expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
   expect(screen.getByText(/Answer this in the session's terminal/)).toBeInTheDocument();
+});
+
+test("the panel speaks Indonesian when that is the UI language, and follows a switch back", async () => {
+  backend({});
+  i18n.lang = "id";
+  try {
+    render(NeedsYou, { s: waiting(true) });
+    expect(screen.getByRole("button", { name: "Setujui" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tolak" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Buka sesi" })).toHaveAttribute("href", "/session?id=s1");
+    i18n.lang = "en";
+    expect(await screen.findByRole("button", { name: "Approve" })).toBeInTheDocument();
+  } finally {
+    i18n.lang = "en";
+  }
 });
 
 test("a failed answer is shown next to the buttons", async () => {

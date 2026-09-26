@@ -6,6 +6,7 @@
   import { errorText, type CliKind } from "$lib/api";
   import CliMark from "$lib/CliMark.svelte";
   import { shortPath } from "$lib/format";
+  import { t, tb } from "$lib/i18n.svelte";
   import { app, loadSettings, refreshClis, saveSettings } from "$lib/store.svelte";
   const meadow = "/meadow-day.png";
 
@@ -32,36 +33,36 @@
   }
 </script>
 
-<svelte:head><title>Welcome · OpenCompanion</title></svelte:head>
+<svelte:head><title>{t("work.onboarding.pageTitle")}</title></svelte:head>
 
 <main class="scene" id="onboarding">
   <img class="scene-art" src={meadow} alt="" aria-hidden="true" />
   <section class="panel" aria-labelledby="ob-title">
     <div class="brand"><span>OpenCompanion</span><Cloud size={20} aria-hidden="true" /></div>
     <div>
-      <h1 id="ob-title">{app.clisState === "ready" && planners.length === 0 ? "No coding CLI was found yet" : "These coding CLIs are on your computer"}</h1>
-      <p class="lead">OpenCompanion looked through your PATH and common install folders. Nothing was installed or changed.</p>
+      <h1 id="ob-title">{app.clisState === "ready" && planners.length === 0 ? t("work.onboarding.noneFound") : t("work.onboarding.found")}</h1>
+      <p class="lead">{t("work.onboarding.lead")}</p>
     </div>
 
     {#if app.clisState === "error"}
-      <p class="err-text" role="alert" style="margin:0">{app.clisError}</p>
+      <p class="err-text" role="alert" style="margin:0">{tb(app.clisError)}</p>
     {/if}
-    <ul class="found" aria-busy={app.checkingClis || app.clisState === "loading"} aria-label="Coding CLIs found">
+    <ul class="found" aria-busy={app.checkingClis || app.clisState === "loading"} aria-label={t("work.onboarding.listLabel")}>
       {#if app.clisState === "loading"}
-        <li><span class="wait-txt">Checking claude, codex, opencode and gemini…</span></li>
+        <li><span class="wait-txt">{t("work.onboarding.checking")}</span></li>
       {/if}
       {#each app.clis as c (c.kind)}
         <li>
           <CliMark kind={c.kind} />
           <span class="grow">
             <b>{c.label}</b>
-            {#if c.path}<span class="path" title={c.path}>{shortPath(c.path)}</span>{:else}<span class="wait-txt">You can add it later from CLIs</span>{/if}
+            {#if c.path}<span class="path" title={c.path}>{shortPath(c.path)}</span>{:else}<span class="wait-txt">{t("work.onboarding.addLater")}</span>{/if}
           </span>
           {#if c.path}
             <span class="ver">{c.version ?? ""}</span>
-            <span class="yes"><CheckCircle size={18} aria-label="Found" /></span>
+            <span class="yes"><CheckCircle size={18} aria-label={t("work.onboarding.foundMark")} /></span>
           {:else}
-            <span class="chip idle">Not found</span>
+            <span class="chip idle">{t("work.onboarding.notFound")}</span>
           {/if}
         </li>
       {/each}
@@ -69,23 +70,23 @@
 
     {#if planners.length}
       <div class="field">
-        <label class="label" for="ob-planner">Planner for Chat</label>
+        <label class="label" for="ob-planner">{t("work.onboarding.plannerLabel")}</label>
         <select class="select" id="ob-planner" value={pick} onchange={(e) => (chosen = e.currentTarget.value as CliKind)}>
           {#each planners as c (c.kind)}<option value={c.kind}>{c.label} {c.version ?? ""}</option>{/each}
         </select>
-        <p class="help">Chat runs this CLI headless, with read-only access to your project folders, to turn your requests into session suggestions. You can change it later in Settings.</p>
+        <p class="help">{t("work.onboarding.plannerHelp")}</p>
       </div>
     {:else if app.clisState === "ready"}
-      <p class="help" style="margin:0">Install Claude Code, Codex CLI or OpenCode in your own terminal, then press Rescan. The CLIs screen lists the install commands.</p>
+      <p class="help" style="margin:0">{t("work.onboarding.installHint")}</p>
     {/if}
 
-    {#if failure}<p class="err-text" role="alert" style="margin:0">{failure}</p>{/if}
+    {#if failure}<p class="err-text" role="alert" style="margin:0">{tb(failure)}</p>{/if}
     <div class="actions">
       <button class="btn primary" type="button" id="ob-continue" disabled={busy || app.clisState === "loading"} onclick={finish}>
-        {pickLabel ? `Continue with ${pickLabel}` : "Continue without a planner"}
+        {pickLabel ? t("work.onboarding.continueWith", { cli: pickLabel }) : t("work.onboarding.continueWithout")}
       </button>
       <button class="btn secondary" type="button" disabled={app.checkingClis} onclick={refreshClis}>
-        <ArrowClockwise size={16} aria-hidden="true" /><span>{app.checkingClis ? "Scanning…" : "Rescan"}</span>
+        <ArrowClockwise size={16} aria-hidden="true" /><span>{app.checkingClis ? t("work.scanning") : t("work.rescan")}</span>
       </button>
     </div>
   </section>

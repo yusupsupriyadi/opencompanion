@@ -8,6 +8,7 @@
   import type { ChatMessage, ChatThread } from "$lib/api";
   import PhoneDispatchCard from "$lib/PhoneDispatchCard.svelte";
   import { folderName } from "$lib/format";
+  import { plural, t, tb } from "$lib/i18n.svelte";
   import { call, onMessage, PhoneError } from "$lib/phone.svelte";
 
   // No `id` is a new chat: the first message creates its thread.
@@ -112,7 +113,7 @@
 
   function announce(m: ChatMessage) {
     const n = m.cards.length;
-    announcement = m.role === "error" ? m.text : n ? `The planner answered with ${n} session card${n === 1 ? "" : "s"}.` : "The planner answered.";
+    announcement = m.role === "error" ? m.text : n ? plural(n, "phone.thread.answeredOne", "phone.thread.answeredMany") : t("phone.thread.answered");
   }
 
   function replace(m: ChatMessage) {
@@ -120,29 +121,29 @@
   }
 </script>
 
-<svelte:head><title>{thread ? `${thread.title} · ` : ""}Chat · OpenCompanion</title></svelte:head>
+<svelte:head><title>{thread ? `${thread.title} · ` : ""}{t("phone.nav.chat")} · OpenCompanion</title></svelte:head>
 
 <header class="bar">
-  <a class="back" href="/m/chat"><CaretLeft size={20} aria-hidden="true" />Chats</a>
+  <a class="back" href="/m/chat"><CaretLeft size={20} aria-hidden="true" />{t("phone.thread.back")}</a>
 </header>
 <main class="content" id="phone-chat-thread" style:padding-bottom="{dockHeight + 24}px">
-  <h1 class="m-title">{thread?.title ?? "New chat"}</h1>
+  <h1 class="m-title">{thread?.title ?? t("phone.newChat")}</h1>
 
   {#if loadState === "missing"}
-    <p class="m-p" role="alert">This chat was deleted, so its messages are no longer stored. Sessions started from its cards keep running.</p>
-    <a class="btn secondary block" href="/m/chat/thread">Start a new chat</a>
+    <p class="m-p" role="alert">{t("phone.thread.deleted")}</p>
+    <a class="btn secondary block" href="/m/chat/thread">{t("phone.thread.startNew")}</a>
   {:else if loadState === "loading"}
-    <p class="m-p" role="status">Loading the conversation…</p>
+    <p class="m-p" role="status">{t("phone.thread.loading")}</p>
   {:else if loadState === "error"}
-    <p class="err-text" role="alert" style="margin:0">The conversation could not be loaded: {loadError}</p>
-    <button class="btn secondary block" type="button" onclick={() => open(id)}>Try again</button>
+    <p class="err-text" role="alert" style="margin:0">{t("phone.thread.loadFailed", { error: loadError })}</p>
+    <button class="btn secondary block" type="button" onclick={() => open(id)}>{t("phone.tryAgain")}</button>
   {:else}
     <p class="sr-only" role="status">{announcement}</p>
     <div class="m-thread">
       {#if messages.length === 0 && !pending}
         <div class="m-planner">
-          <span class="who">Planner</span>
-          <p>Describe a task and where it should happen. For example: "Codex: fix the failing tests in ai-remote". I answer with a card for each session. Nothing starts until you press Run.</p>
+          <span class="who">{t("phone.thread.planner")}</span>
+          <p>{t("phone.thread.intro")}</p>
         </div>
       {/if}
       {#each messages as m (m.id)}
@@ -150,8 +151,8 @@
           <p class="m-me">{m.text}</p>
         {:else}
           <div class="m-planner">
-            <span class="who">Planner</span>
-            {#if m.text}<p class:err-text={m.role === "error"}>{m.text}</p>{/if}
+            <span class="who">{t("phone.thread.planner")}</span>
+            {#if m.text}<p class:err-text={m.role === "error"}>{tb(m.text)}</p>{/if}
             {#each m.cards as c (c.id)}
               <PhoneDispatchCard card={c} messageId={m.id} onchange={replace} />
             {/each}
@@ -161,13 +162,13 @@
       {#if pending}
         <p class="m-me">{pending}</p>
         <div class="m-planner">
-          <span class="who">Planner</span>
-          <p class="thinking" role="status"><SpinnerGap size={18} class="spin" aria-hidden="true" />The planner is reading your message. This usually takes 10 to 30 seconds.</p>
+          <span class="who">{t("phone.thread.planner")}</span>
+          <p class="thinking" role="status"><SpinnerGap size={18} class="spin" aria-hidden="true" />{t("phone.thread.reading")}</p>
         </div>
       {:else if answering}
         <div class="m-planner">
-          <span class="who">Planner</span>
-          <p class="thinking" role="status"><SpinnerGap size={18} class="spin" aria-hidden="true" />The planner is still answering the last message. Its answer shows up here.</p>
+          <span class="who">{t("phone.thread.planner")}</span>
+          <p class="thinking" role="status"><SpinnerGap size={18} class="spin" aria-hidden="true" />{t("phone.thread.stillAnswering")}</p>
         </div>
       {/if}
     </div>
@@ -178,13 +179,13 @@
   <div class="dock" id="phone-chat-composer" bind:offsetHeight={dockHeight}>
     <form class="stack" onsubmit={send}>
       <div class="send-row">
-        <label class="sr-only" for="pc-input">Message the planner</label>
-        <textarea class="textarea" id="pc-input" rows="2" bind:value={draft} placeholder="Describe a task. Name a CLI and a folder, or let the planner pick."></textarea>
-        <button class="btn primary" type="submit" id="btn-chat-send" disabled={pending !== null || answering || !draft.trim()}><PaperPlaneTilt size={16} aria-hidden="true" />Send</button>
+        <label class="sr-only" for="pc-input">{t("phone.thread.inputLabel")}</label>
+        <textarea class="textarea" id="pc-input" rows="2" bind:value={draft} placeholder={t("phone.thread.inputPlaceholder")}></textarea>
+        <button class="btn primary" type="submit" id="btn-chat-send" disabled={pending !== null || answering || !draft.trim()}><PaperPlaneTilt size={16} aria-hidden="true" />{t("phone.send")}</button>
       </div>
-      {#if sendError}<p class="err-text small" role="alert">{sendError}</p>
-      {:else if autoRun.length}<p class="small">Cards for {autoRun.map(folderName).join(", ")} start without asking; the rest wait for Run.</p>
-      {:else}<p class="small">Nothing starts until you press Run on a card.</p>{/if}
+      {#if sendError}<p class="err-text small" role="alert">{tb(sendError)}</p>
+      {:else if autoRun.length}<p class="small">{t("phone.thread.autoRun", { folders: autoRun.map(folderName).join(", ") })}</p>
+      {:else}<p class="small">{t("phone.thread.noAutoRun")}</p>{/if}
     </form>
   </div>
 {/if}

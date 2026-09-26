@@ -4,6 +4,7 @@
   import { api, errorText, type ExternalSession, type Transcript, type TranscriptLine } from "$lib/api";
   import CliMark from "$lib/CliMark.svelte";
   import { CLI_LABEL, ago, clock, duration, folderName, memory, shortPath } from "$lib/format";
+  import { t, tb } from "$lib/i18n.svelte";
   import { app } from "$lib/store.svelte";
 
   const ENDED = "This process has ended.";
@@ -20,16 +21,16 @@
   // The periodic scan also measures CPU; the detail call only confirms the process and reads memory.
   const scanned = $derived(found ? app.outside.find((o) => o.pid === found?.pid && o.startedAt === found.startedAt) : undefined);
   const x = $derived(scanned ?? found);
-  const title = $derived(x ? (x.cwd ? `${CLI_LABEL[x.kind]} in ${folderName(x.cwd)}` : CLI_LABEL[x.kind]) : "");
+  const title = $derived(x ? (x.cwd ? t("sessions.outside.title", { cli: CLI_LABEL[x.kind], folder: folderName(x.cwd) }) : CLI_LABEL[x.kind]) : "");
   const last = $derived(transcript?.lines.findLast((l) => l.at !== null)?.at ?? null);
 
   const PREFIX: Record<TranscriptLine["speaker"], string> = { you: "› ", cli: "", tool: "• " };
   const CLS: Record<TranscriptLine["speaker"], string> = { you: "t-g", cli: "", tool: "t-d" };
 
-  async function show(t: Transcript) {
+  async function show(next: Transcript) {
     // Follow new lines only while the reader is at the end, so scrolling back to read is not interrupted.
     const atEnd = !box || box.scrollHeight - box.scrollTop - box.clientHeight < 24;
-    transcript = t;
+    transcript = next;
     await tick();
     if (box && atEnd) box.scrollTop = box.scrollHeight;
   }
@@ -80,70 +81,70 @@
   });
 </script>
 
-<svelte:head><title>{title ? `${title} · OpenCompanion` : "Outside session · OpenCompanion"}</title></svelte:head>
+<svelte:head><title>{title || t("sessions.outside.pageTitle")} · OpenCompanion</title></svelte:head>
 
 <main class="main detail" id="outside-main">
   {#if loadState === "loading"}
-    <p class="hint" role="status">Reading the session…</p>
+    <p class="hint" role="status">{t("sessions.outside.loading")}</p>
   {:else if loadState === "error"}
     <div class="state-box" role="alert">
-      <h2>This session could not be read</h2>
-      <p>{loadError}</p>
-      <button class="btn secondary" type="button" onclick={() => attempt++}>Try again</button>
+      <h2>{t("sessions.outside.readFailed")}</h2>
+      <p>{tb(loadError)}</p>
+      <button class="btn secondary" type="button" onclick={() => attempt++}>{t("sessions.tryAgain")}</button>
     </div>
   {:else if loadState === "ended" || !x}
     <div class="not-found" id="outside-ended">
-      <p class="crumb"><a href="/">Overview</a></p>
-      <h1>This session has ended</h1>
-      <p class="sub">The CLI is no longer running. Its history stays in the CLI's own folder, so it can pick the conversation up again there.</p>
-      <a class="btn secondary" href="/">Back to Overview</a>
+      <p class="crumb"><a href="/">{t("sessions.overview.title")}</a></p>
+      <h1>{t("sessions.outside.endedTitle")}</h1>
+      <p class="sub">{t("sessions.outside.endedBody")}</p>
+      <a class="btn secondary" href="/">{t("sessions.backToOverview")}</a>
     </div>
   {:else}
     <header class="page-head">
       <div class="grow head-stack">
-        <nav class="crumb" aria-label="Breadcrumb"><a href="/">Overview</a> / {x.cwd ? folderName(x.cwd) : "Folder unknown"}</nav>
+        <nav class="crumb" aria-label={t("sessions.breadcrumb")}><a href="/">{t("sessions.overview.title")}</a> / {x.cwd ? folderName(x.cwd) : t("sessions.folderUnknown")}</nav>
         <div class="row title-row">
           <CliMark kind={x.kind} />
           <h1>{title}</h1>
-          <span class="chip ro">Read-only</span>
+          <span class="chip ro">{t("sessions.readOnly")}</span>
         </div>
         <div class="meta">
-          Opened outside OpenCompanion · {x.mode} · <span class="mono" title={x.cwd ?? ""}>{x.cwd ? shortPath(x.cwd) : "Folder unknown"}</span> · started {clock(x.startedAt * 1000)}
+          {t("sessions.openedOutside")} · {t(`sessions.mode.${x.mode}`)} · <span class="mono" title={x.cwd ?? ""}>{x.cwd ? shortPath(x.cwd) : t("sessions.folderUnknown")}</span> · {t("sessions.startedAt", { time: clock(x.startedAt * 1000) })}
         </div>
       </div>
       <button class="btn secondary sm side-toggle" type="button" aria-expanded={sideOpen} aria-controls="outside-side" onclick={() => (sideOpen = !sideOpen)}>
-        {sideOpen ? "Hide details" : "Details"}
+        {sideOpen ? t("sessions.hideDetails") : t("sessions.details")}
       </button>
     </header>
 
     <div class="detail-body">
-      <section class="term" aria-label="Transcript of {title}">
-        <pre class="term-out" bind:this={box}>{#if !transcript || transcript.lines.length === 0}<span class="t-d">{transcript?.note ?? "Reading the transcript…"}</span>{:else}{#each transcript.lines as l, i (i)}{#if i > 0}{"\n"}{/if}<span class={CLS[l.speaker]}>{PREFIX[l.speaker]}{l.text}</span>{/each}{/if}</pre>
-        <div class="term-note">This session was opened outside OpenCompanion. Showing its transcript, read-only.</div>
+      <section class="term" aria-label={t("sessions.outside.transcriptOf", { title })}>
+        <pre class="term-out" bind:this={box}>{#if !transcript || transcript.lines.length === 0}<span class="t-d">{transcript?.note ? tb(transcript.note) : t("sessions.outside.readingTranscript")}</span>{:else}{#each transcript.lines as l, i (i)}{#if i > 0}{"\n"}{/if}<span class={CLS[l.speaker]}>{PREFIX[l.speaker]}{l.text}</span>{/each}{/if}</pre>
+        <div class="term-note">{t("sessions.outside.transcriptNote")}</div>
       </section>
 
       <aside class="detail-side" id="outside-side" class:open={sideOpen}>
         <div class="side-group">
-          <h3>Process</h3>
-          <div class="kv"><span>PID</span><b class="mono">{x.pid}</b></div>
-          <div class="kv"><span>Running for</span><b>{duration(app.now - x.startedAt * 1000)}</b></div>
-          <div class="kv"><span>Memory</span><b class="mono">{memory(x.memoryBytes)}</b></div>
-          {#if scanned}<div class="kv"><span>CPU</span><b class="mono">{scanned.cpuPercent}%</b></div>{/if}
+          <h3>{t("sessions.process")}</h3>
+          <div class="kv"><span>{t("sessions.pid")}</span><b class="mono">{x.pid}</b></div>
+          <div class="kv"><span>{t("sessions.runningFor")}</span><b>{duration(app.now - x.startedAt * 1000)}</b></div>
+          <div class="kv"><span>{t("sessions.memory")}</span><b class="mono">{memory(x.memoryBytes)}</b></div>
+          {#if scanned}<div class="kv"><span>{t("sessions.cpu")}</span><b class="mono">{scanned.cpuPercent}%</b></div>{/if}
         </div>
         <div class="side-group">
-          <h3>Transcript</h3>
+          <h3>{t("sessions.outside.transcript")}</h3>
           {#if transcript?.source}
             <p class="mono source" title={transcript.source}>{shortPath(transcript.source)}</p>
             <p>
-              {last ? `Last entry ${ago(last, app.now)}.` : ""} Read every few seconds from the history {CLI_LABEL[x.kind]} keeps on this computer. OpenCompanion never writes to it.
+              {last ? t("sessions.outside.lastEntry", { ago: ago(last, app.now) }) : ""} {t("sessions.outside.readEvery", { cli: CLI_LABEL[x.kind] })}
             </p>
           {:else}
-            <p>{transcript?.note ?? "Looking for the history this CLI keeps…"}</p>
+            <p>{transcript?.note ? tb(transcript.note) : t("sessions.outside.lookingForHistory")}</p>
           {/if}
         </div>
         <div class="side-group">
-          <h3>Input</h3>
-          <p>Only the terminal it was opened in can answer its prompts, send it messages or stop it.</p>
+          <h3>{t("sessions.outside.input")}</h3>
+          <p>{t("sessions.outside.inputBody")}</p>
         </div>
       </aside>
     </div>

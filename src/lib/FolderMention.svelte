@@ -4,6 +4,7 @@
   import FolderSimplePlus from "phosphor-svelte/lib/FolderSimplePlus";
   import { api, errorText, type ProjectFolder } from "./api";
   import { shortPath } from "./format";
+  import { t } from "./i18n.svelte";
 
   /** `@` in the composer lists project folders; picking one writes its path into the message. */
   let { textarea }: { textarea: HTMLTextAreaElement | undefined } = $props();
@@ -123,7 +124,7 @@
   }
 
   async function browse(at: { start: number; query: string }) {
-    const picked = await openDialog({ directory: true, multiple: false, title: "Choose a folder for the planner" });
+    const picked = await openDialog({ directory: true, multiple: false, title: t("chat.mention.dialogTitle") });
     textarea?.focus();
     if (typeof picked === "string") insert(picked, at);
   }
@@ -150,17 +151,17 @@
 {#if open && token}
   <div class="mention" id="folder-mention">
     {#if loadState === "loading" || loadState === "idle"}
-      <p class="meta" role="status">Finding your project folders…</p>
+      <p class="meta" role="status">{t("chat.mention.loading")}</p>
     {:else if loadState === "error"}
-      <p class="err-text" role="alert">The folders could not be listed: {loadError}</p>
+      <p class="err-text" role="alert">{t("chat.mention.loadFailed", { error: loadError })}</p>
     {:else if matches.length === 0}
-      <p class="meta" role="status">No known folder matches "{token.query}". Browse for it, or keep typing a path.</p>
+      <p class="meta" role="status">{t("chat.mention.noMatch", { query: token.query })}</p>
     {:else}
-      <p class="sr-only" role="status">{matches.length} folders.</p>
+      <p class="sr-only" role="status">{t("chat.mention.count", { n: matches.length })}</p>
     {/if}
     <!-- Keys go through the text box (aria-activedescendant); a click writes the path. -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <ul class="options" role="listbox" id={LIST_ID} aria-label="Folders">
+    <ul class="options" role="listbox" id={LIST_ID} aria-label={t("chat.mention.listLabel")}>
       {#each matches as f, i (f.path)}
         <li
           role="option"
@@ -185,10 +186,10 @@
         onclick={() => choose(matches.length)}
       >
         <FolderSimplePlus size={16} aria-hidden="true" />
-        <b>Browse for a folder…</b>
+        <b>{t("chat.mention.browse")}</b>
       </li>
     </ul>
-    <p class="keys">Up and Down to choose · Enter writes the path · Esc closes</p>
+    <p class="keys">{t("chat.mention.keys")}</p>
   </div>
 {/if}
 

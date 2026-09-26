@@ -3,23 +3,30 @@
   import { page } from "$app/state";
   import Cloud from "phosphor-svelte/lib/Cloud";
   import { onMount, tick } from "svelte";
+  import { t, tb } from "$lib/i18n.svelte";
   import { call, connect, loadSessions, phone, setToken } from "$lib/phone.svelte";
 
   let digits = $state(["", "", "", "", "", ""]);
   let name = $state("");
+  let nameTyped = false;
   let failure = $state("");
   let busy = $state(false);
   const fromQr = page.url.searchParams.get("code")?.replace(/\D/g, "").slice(0, 6) ?? "";
 
   function guessName() {
     const ua = navigator.userAgent;
-    const device = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android phone" : "Phone";
-    const browser = /CriOS|Chrome/.test(ua) ? "Chrome" : /FxiOS|Firefox/.test(ua) ? "Firefox" : /Safari/.test(ua) ? "Safari" : "browser";
+    const device = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? t("phone.pair.androidPhone") : t("phone.pair.phone");
+    const browser = /CriOS|Chrome/.test(ua) ? "Chrome" : /FxiOS|Firefox/.test(ua) ? "Firefox" : /Safari/.test(ua) ? "Safari" : t("phone.pair.browser");
     return `${device} · ${browser}`;
   }
 
+  // The desktop's language arrives after this page opens, so the suggested name follows it until the user types their own.
+  $effect(() => {
+    const suggested = guessName();
+    if (!nameTyped) name = suggested;
+  });
+
   onMount(() => {
-    name = guessName();
     if (fromQr.length === 6) digits = fromQr.split("");
     phone.unpaired = false;
   });
@@ -51,7 +58,7 @@
     e.preventDefault();
     const code = digits.join("");
     if (code.length !== 6) {
-      failure = "Enter all 6 digits shown on your computer.";
+      failure = t("phone.pair.incomplete");
       focusDigit(digits.findIndex((d) => !d));
       return;
     }
@@ -72,21 +79,21 @@
   }
 </script>
 
-<svelte:head><title>Pair this phone · OpenCompanion</title></svelte:head>
+<svelte:head><title>{t("phone.pair.title")} · OpenCompanion</title></svelte:head>
 
 <header class="bar"><span class="brand grow">OpenCompanion <Cloud size={20} aria-hidden="true" /></span></header>
 <main class="content" id="phone-pair">
   <img class="art" src="/meadow-day.png" alt="" aria-hidden="true" />
-  <h1 class="m-h1">Pair this phone</h1>
+  <h1 class="m-h1">{t("phone.pair.title")}</h1>
   {#if fromQr.length === 6}
-    <p class="m-p">The code from your computer is filled in. Check the name, then press Pair.</p>
+    <p class="m-p">{t("phone.pair.fromQr")}</p>
   {:else}
-    <p class="m-p">On your computer, open OpenCompanion, go to Settings, turn on Phone access and scan the code there with your camera app. Or type the 6-digit code below.</p>
+    <p class="m-p">{t("phone.pair.howTo")}</p>
   {/if}
 
   <form onsubmit={pair} novalidate style="display:flex;flex-direction:column;gap:14px">
     <fieldset style="border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:10px">
-      <legend class="label" style="font-weight:800;padding:0;margin-bottom:10px">Pairing code</legend>
+      <legend class="label" style="font-weight:800;padding:0;margin-bottom:10px">{t("phone.pair.code")}</legend>
       <div class="codes">
         {#each digits as d, i (i)}
           <input
@@ -94,7 +101,7 @@
             value={d}
             inputmode="numeric"
             maxlength="6"
-            aria-label="Digit {i + 1}"
+            aria-label={t("phone.pair.digit", { n: i + 1 })}
             autocomplete="one-time-code"
             aria-invalid={failure ? "true" : undefined}
             oninput={(e) => oninput(i, e)}
@@ -104,12 +111,12 @@
       </div>
     </fieldset>
     <div class="field">
-      <label class="label" for="device-name">Name for this phone</label>
-      <input class="input" id="device-name" bind:value={name} maxlength="60" autocomplete="off" />
-      <p class="help">Shown in OpenCompanion Settings, where you can remove this phone later.</p>
+      <label class="label" for="device-name">{t("phone.pair.name")}</label>
+      <input class="input" id="device-name" bind:value={name} oninput={() => (nameTyped = true)} maxlength="60" autocomplete="off" />
+      <p class="help">{t("phone.pair.nameHelp")}</p>
     </div>
-    {#if failure}<p class="error" role="alert" style="margin:0">{failure}</p>{/if}
-    <button class="btn primary block" type="submit" disabled={busy}>{busy ? "Pairing…" : "Pair"}</button>
+    {#if failure}<p class="error" role="alert" style="margin:0">{tb(failure)}</p>{/if}
+    <button class="btn primary block" type="submit" disabled={busy}>{busy ? t("phone.pair.pairing") : t("phone.pair.pair")}</button>
   </form>
-  <p class="small" style="margin:0">This phone talks only to your computer, over your own network.</p>
+  <p class="small" style="margin:0">{t("phone.pair.privacy")}</p>
 </main>

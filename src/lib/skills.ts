@@ -1,18 +1,19 @@
 import type { SkillEntry, SkillProblem, SkillRoot, SkillRow, SkillScan } from "./api";
+import { t, type Key } from "./i18n.svelte";
 
 export type SkillFilter = "all" | "different" | "problems";
 type Shell = SkillScan["shell"];
 
-export const PROBLEM_LABEL: Record<SkillProblem, string> = {
-  noSkillMd: "No SKILL.md",
-  brokenLink: "Broken link",
-  unreadable: "Unreadable",
-  tooLarge: "Too large",
+const PROBLEM_LABEL: Record<SkillProblem, Key> = {
+  noSkillMd: "work.skills.problemNoSkillMd",
+  brokenLink: "work.skills.problemBrokenLink",
+  unreadable: "work.skills.problemUnreadable",
+  tooLarge: "work.skills.problemTooLarge",
 };
 
 export type Cell =
   | { kind: "missing" }
-  | { kind: "same"; label: "Same" | "Installed" }
+  | { kind: "same"; label: string }
   | { kind: "version"; variant: string; modifiedAt: number | null }
   | { kind: "problem"; label: string };
 
@@ -28,12 +29,13 @@ export function entryIn(row: SkillRow, rootId: string): SkillEntry | undefined {
 const isDifferent = (row: SkillRow) => row.variants > 1;
 const hasProblem = (row: SkillRow) => row.entries.some((e) => e.problem);
 
+/** Labels come out in the current language, so call this while rendering to follow a language change. */
 export function cellFor(row: SkillRow, rootId: string): Cell {
   const e = entryIn(row, rootId);
   if (!e) return { kind: "missing" };
-  if (e.problem) return { kind: "problem", label: PROBLEM_LABEL[e.problem] };
+  if (e.problem) return { kind: "problem", label: t(PROBLEM_LABEL[e.problem]) };
   if (isDifferent(row) && e.variant) return { kind: "version", variant: e.variant, modifiedAt: e.modifiedAt };
-  return { kind: "same", label: row.entries.filter((x) => x.hash).length > 1 ? "Same" : "Installed" };
+  return { kind: "same", label: t(row.entries.filter((x) => x.hash).length > 1 ? "work.skills.same" : "work.skills.installed") };
 }
 
 export function skillCounts(rows: SkillRow[]) {

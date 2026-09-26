@@ -20,6 +20,7 @@
     type Settings,
   } from "$lib/api";
   import { MODES, TEXT_SIZES, ago, folderName, modeLabel, shortPath } from "$lib/format";
+  import { LANGS, plural, t, tb, type Key } from "$lib/i18n.svelte";
   import { app, loadSettings, refreshSessions, saveSettings, showToast } from "$lib/store.svelte";
 
   let settings = $state<Settings | null>(null);
@@ -45,16 +46,17 @@
     let ok;
     if (value === "api") {
       const done = settings?.plannerApi.baseUrl && settings.plannerApi.model;
-      ok = await save({ plannerSource: "api" }, done ? "Chat planner saved." : "Chat planner saved. Add the provider's base URL and model below.");
+      ok = await save({ plannerSource: "api" }, done ? t("settings.planner.saved") : t("settings.planner.savedNeedsProvider"));
     } else {
-      ok = await save({ plannerSource: "cli", chatCli: value as Settings["chatCli"] }, "Chat planner saved.");
+      ok = await save({ plannerSource: "cli", chatCli: value as Settings["chatCli"] }, t("settings.planner.saved"));
     }
     if (!ok) el.value = usingApi ? "api" : (settings?.chatCli ?? planners[0]?.kind ?? "");
   }
 
   // The provider fields are saved together, on Save provider, so a half-typed URL is never used.
   let apiDraft = $state<PlannerApi>({ baseUrl: "", model: "", apiKey: "" });
-  let apiErrors = $state<{ baseUrl?: string; model?: string }>({});
+  // Keys, not text, so an error on screen follows a language switch.
+  let apiErrors = $state<{ baseUrl?: Key; model?: Key }>({});
   let showKey = $state(false);
 
   async function saveProvider(e: SubmitEvent) {
@@ -62,14 +64,14 @@
     const next = { baseUrl: apiDraft.baseUrl.trim(), model: apiDraft.model.trim(), apiKey: apiDraft.apiKey.trim() };
     apiErrors = {
       baseUrl: !next.baseUrl
-        ? "Add the provider's base URL."
+        ? "settings.provider.needUrl"
         : /^https?:\/\//i.test(next.baseUrl)
           ? undefined
-          : "The base URL must start with http:// or https://.",
-      model: next.model ? undefined : "Add the model name.",
+          : "settings.provider.badUrl",
+      model: next.model ? undefined : "settings.provider.needModel",
     };
     if (apiErrors.baseUrl || apiErrors.model) return;
-    await save({ plannerApi: next }, `Chat now asks ${next.model}.`);
+    await save({ plannerApi: next }, t("settings.provider.saved", { model: next.model }));
     if (settings) apiDraft = { ...settings.plannerApi };
   }
 
@@ -90,7 +92,7 @@
     confirmBypass = false;
     modeChoice = m;
     // A failed save leaves the stored mode in charge, so the choice shows it again.
-    if (!(await save({ permissionMode: m }, `New sessions use ${modeLabel(m)}.`))) modeChoice = settings?.permissionMode ?? "ask";
+    if (!(await save({ permissionMode: m }, t("settings.perm.saved", { mode: modeLabel(m) })))) modeChoice = settings?.permissionMode ?? "ask";
   }
 
   function keepMode() {
@@ -102,8 +104,13 @@
   let sizeChoice = $state(100);
 
   async function pickSize() {
-    await save({ textSize: sizeChoice }, `Text size is ${sizeChoice}%.`);
+    await save({ textSize: sizeChoice }, t("settings.text.saved", { size: sizeChoice }));
     sizeChoice = settings?.textSize ?? 100;
+  }
+
+  async function pickLanguage(el: HTMLSelectElement) {
+    // The toast is written after the save, so it reads in the language just picked.
+    if (await saveControl(el, { language: el.value as Settings["language"] })) showToast(t("settings.language.saved"));
   }
 
   let defaultRoots = $state<string[]>([]);
@@ -122,9 +129,9 @@
 
   // Notification rules per CLI and per project folder (PRD FR-41). No rule means all three go out.
   const NOTICES = [
-    { key: "waiting", label: "Waiting" },
-    { key: "done", label: "Done" },
-    { key: "error", label: "Error" },
+    { key: "waiting", label: "settings.notify.col.waiting" },
+    { key: "done", label: "settings.notify.col.done" },
+    { key: "error", label: "settings.notify.col.error" },
   ] as const;
   const ALL: NotifyRule = { waiting: true, done: true, error: true };
   const ruleClis = $derived(app.clis.filter((c) => c.path || settings?.notifyClis[c.kind]));
@@ -151,13 +158,13 @@
     if (!settings || !folder) return;
     const ok = await save(
       { notifyProjects: { ...settings.notifyProjects, [folder]: { ...ALL } } },
-      `Added ${folderName(folder)}. Turn off what it should not send.`,
+      t("settings.notify.added", { folder: folderName(folder) }),
     );
     if (ok) folderPick = "";
   }
 
   async function browseFolderRule() {
-    const picked = await openDialog({ directory: true, multiple: false, title: "Choose a project folder" });
+    const picked = await openDialog({ directory: true, multiple: false, title: t("settings.notify.dialogTitle") });
     if (typeof picked === "string") addFolderRule(picked);
   }
 
@@ -168,7 +175,7 @@
 
   async function allowAutoRun(folder: string) {
     if (!settings) return;
-    const ok = await save({ autoRunFolders: [...settings.autoRunFolders, folder] }, `Cards for ${folderName(folder)} now start without asking.`);
+    const ok = await save({ autoRunFolders: [...settings.autoRunFolders, folder] }, t("settings.autoRun.added", { folder: folderName(folder) }));
     if (ok) {
       autoConfirm = "";
       autoPick = "";
@@ -176,35 +183,35 @@
   }
 
   async function browseAutoRun() {
-    const picked = await openDialog({ directory: true, multiple: false, title: "Choose a folder whose cards may start without asking" });
+    const picked = await openDialog({ directory: true, multiple: false, title: t("settings.autoRun.dialogTitle") });
     if (typeof picked === "string") autoConfirm = picked;
   }
 
   async function removeAutoRun(folder: string) {
     if (!settings) return;
-    await save({ autoRunFolders: settings.autoRunFolders.filter((f) => f !== folder) }, `Cards for ${folderName(folder)} wait for Run again.`);
+    await save({ autoRunFolders: settings.autoRunFolders.filter((f) => f !== folder) }, t("settings.autoRun.removed", { folder: folderName(folder) }));
   }
 
   async function removeFolderRule(folder: string) {
     if (!settings) return;
     const rules = { ...settings.notifyProjects };
     delete rules[folder];
-    await save({ notifyProjects: rules }, `${folderName(folder)} sends every notification again.`);
+    await save({ notifyProjects: rules }, t("settings.notify.removed", { folder: folderName(folder) }));
   }
 
   async function addRoot() {
     if (!settings) return;
-    const picked = await openDialog({ directory: true, multiple: false, title: "Choose a folder that holds your projects" });
+    const picked = await openDialog({ directory: true, multiple: false, title: t("settings.projects.dialogTitle") });
     if (typeof picked !== "string") return;
     const base = settings.projectRoots.length ? settings.projectRoots : [];
     if (base.some((r) => r.toLowerCase() === picked.toLowerCase())) return;
-    await save({ projectRoots: [...base, picked] }, `Added ${picked}.`);
+    await save({ projectRoots: [...base, picked] }, t("settings.projects.added", { path: picked }));
     countProjects();
   }
 
   async function removeRoot(r: string) {
     if (!settings) return;
-    await save({ projectRoots: settings.projectRoots.filter((x) => x !== r) }, `Stopped scanning ${r}.`);
+    await save({ projectRoots: settings.projectRoots.filter((x) => x !== r) }, t("settings.projects.removed", { path: r }));
     countProjects();
   }
 
@@ -245,18 +252,19 @@
       if (message) showToast(message);
       return true;
     } catch (e) {
-      showToast(errorText(e));
+      showToast(tb(errorText(e)));
       return false;
     }
   }
 
   /** Checkboxes and selects show what was picked, not what is stored; a failed save puts them back. */
-  async function saveControl(el: HTMLInputElement | HTMLSelectElement, patch: Partial<Settings>, message?: string) {
+  async function saveControl(el: HTMLInputElement | HTMLSelectElement, patch: Partial<Settings>, message?: string): Promise<boolean> {
     const was = el instanceof HTMLInputElement ? !el.checked : null;
     const stored = settings;
-    if (await save(patch, message)) return;
+    if (await save(patch, message)) return true;
     if (el instanceof HTMLInputElement) el.checked = Boolean(was);
     else if (stored) el.value = String(stored[Object.keys(patch)[0] as keyof Settings]);
+    return false;
   }
 
   async function newCode() {
@@ -278,12 +286,12 @@
     switching = false;
     if (enabled && app.companion?.running) {
       await newCode();
-      showToast(`Phone access is on at ${address}.`);
+      showToast(t("settings.phone.onToast", { address }));
     } else if (enabled && app.companion?.error) {
       showToast(app.companion.error);
     } else if (!enabled) {
       pairing = null;
-      showToast("Phone access is off. Paired phones cannot connect.");
+      showToast(t("settings.phone.offToast"));
     }
   }
 
@@ -291,9 +299,9 @@
     try {
       await api.removeDevice(d.id);
       devices = await api.listDevices();
-      showToast(`Removed ${d.name}. It has to pair again to connect.`);
+      showToast(t("settings.phone.removed", { name: d.name }));
     } catch (e) {
-      showToast(errorText(e));
+      showToast(tb(errorText(e)));
     }
   }
 
@@ -305,9 +313,9 @@
     try {
       await api.deleteHistory();
       clearStep = false;
-      showToast("Finished sessions were deleted with their terminal logs.");
+      showToast(t("settings.history.deleted"));
     } catch (e) {
-      showToast(errorText(e));
+      showToast(tb(errorText(e)));
     } finally {
       // Whatever was deleted leaves every list, even when one session could not go.
       refreshSessions();
@@ -315,104 +323,103 @@
     }
   }
 
-  const KEEP = [
-    { days: 0, label: "Forever" },
-    { days: 90, label: "90 days" },
-    { days: 30, label: "30 days" },
-    { days: 7, label: "7 days" },
-    { days: 1, label: "1 day" },
-  ];
+  // Days a finished session is kept; 0 keeps it until it is deleted by hand.
+  const KEEP = [0, 90, 30, 7, 1];
+
+  function keepLabel(days: number) {
+    return days ? plural(days, "settings.history.dayOne", "settings.history.days") : t("settings.history.forever");
+  }
 
   async function pickKeep(el: HTMLSelectElement) {
     const days = Number(el.value);
-    await saveControl(el, { keepDays: days }, days ? `Finished sessions older than ${KEEP.find((k) => k.days === days)?.label} are deleted from now on.` : "Finished sessions are kept until you delete them.");
+    await saveControl(el, { keepDays: days }, days ? t("settings.history.keepSaved", { age: keepLabel(days) }) : t("settings.history.keepForever"));
     info = await api.appInfo().catch(() => info);
   }
 
   async function copy(text: string) {
     try {
       await navigator.clipboard.writeText(text);
-      showToast(`Copied ${text}`);
+      showToast(t("settings.copied", { text }));
     } catch {
-      showToast("Could not copy. Select the text and copy it by hand.");
+      showToast(t("settings.copyFailed"));
     }
   }
 </script>
 
-<svelte:head><title>Settings · OpenCompanion</title></svelte:head>
+<svelte:head><title>{t("settings.pageTitle")}</title></svelte:head>
 
 <main class="main" id="settings-main">
-  <header class="page-head"><h1 class="grow">Settings</h1></header>
+  <header class="page-head"><h1 class="grow">{t("settings.title")}</h1></header>
 
   {#if loadError}
     <div class="state-box" role="alert">
-      <h2>Settings could not be loaded</h2>
-      <p>{loadError}</p>
-      <button class="btn secondary" type="button" onclick={load}>Try again</button>
+      <h2>{t("settings.loadError")}</h2>
+      <p>{tb(loadError)}</p>
+      <button class="btn secondary" type="button" onclick={load}>{t("settings.tryAgain")}</button>
     </div>
   {:else if !settings}
-    <p class="hint" role="status">Loading settings…</p>
+    <p class="hint" role="status">{t("settings.loading")}</p>
   {:else}
     <section class="card" id="phone" aria-labelledby="pa-title">
       <div class="row" style="align-items:flex-start">
         <div class="grow">
-          <h2 id="pa-title">Phone access</h2>
-          <p class="desc">Lets a phone on the same network watch sessions and answer permission prompts. Off until you turn it on.</p>
+          <h2 id="pa-title">{t("settings.phone.title")}</h2>
+          <p class="desc">{t("settings.phone.desc")}</p>
         </div>
         <button class="switch" type="button" role="switch" aria-checked={settings.companionEnabled} aria-labelledby="pa-title" disabled={switching} onclick={() => setPhone(!settings?.companionEnabled)}></button>
       </div>
 
       {#if !settings.companionEnabled}
         <div class="off-note">
-          <p class="meta" style="margin:0;font-size:14px">Phone access is off. Nothing is listening on your network.</p>
+          <p class="meta" style="margin:0;font-size:14px">{t("settings.phone.offNote")}</p>
           <div class="row">
             <label class="port">
-              <span class="meta">Port</span>
+              <span class="meta">{t("settings.phone.port")}</span>
               <input class="input mono" type="number" min="1024" max="65535" bind:value={portDraft} />
             </label>
-            <button class="btn primary" type="button" disabled={switching} onclick={() => setPhone(true)}><DeviceMobile size={16} aria-hidden="true" />Turn on phone access</button>
+            <button class="btn primary" type="button" disabled={switching} onclick={() => setPhone(true)}><DeviceMobile size={16} aria-hidden="true" />{t("settings.phone.turnOn")}</button>
           </div>
         </div>
       {:else if app.companion?.error}
-        <div class="warn" role="alert"><Warning size={18} aria-hidden="true" /><span>{app.companion.error} Pick another port, then turn phone access off and on again.</span></div>
-        <label class="port"><span class="meta">Port</span><input class="input mono" type="number" min="1024" max="65535" bind:value={portDraft} /></label>
+        <div class="warn" role="alert"><Warning size={18} aria-hidden="true" /><span>{t("settings.phone.portError", { error: app.companion.error })}</span></div>
+        <label class="port"><span class="meta">{t("settings.phone.port")}</span><input class="input mono" type="number" min="1024" max="65535" bind:value={portDraft} /></label>
       {:else}
         <div class="pair">
           <div class="qr-col">
             {#if qrSvg && left > 0}
-              <div class="qr" role="img" aria-label="Pairing QR code for {pairing?.url}">{@html qrSvg}</div>
-              <span class="meta">Pairing code</span>
+              <div class="qr" role="img" aria-label={t("settings.phone.qrLabel", { url: pairing?.url ?? "" })}>{@html qrSvg}</div>
+              <span class="meta">{t("settings.phone.code")}</span>
               <span class="code">{pairing?.code.slice(0, 3)} {pairing?.code.slice(3)}</span>
               <!-- Not a live region: a screen reader would read the countdown every second. The expiry is announced once, below. -->
-              <span class="meta">Expires in {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}</span>
+              <span class="meta">{t("settings.phone.expiresIn", { time: `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` })}</span>
             {:else}
-              <div class="qr empty"><span class="meta" role="status">{pairError || "The code expired. Press New code for another."}</span></div>
+              <div class="qr empty"><span class="meta" role="status">{pairError || t("settings.phone.expired")}</span></div>
             {/if}
-            <button class="btn secondary sm" type="button" style="align-self:flex-start" onclick={newCode}><ArrowClockwise size={16} aria-hidden="true" />New code</button>
+            <button class="btn secondary sm" type="button" style="align-self:flex-start" onclick={newCode}><ArrowClockwise size={16} aria-hidden="true" />{t("settings.phone.newCode")}</button>
           </div>
           <div class="pair-info">
             <div class="field">
-              <span class="label">Address on this network</span>
+              <span class="label">{t("settings.phone.address")}</span>
               <div class="addr">
-                <code>{address || "No network address found"}</code>
-                {#if address}<button class="icon-btn" type="button" aria-label="Copy address" onclick={() => copy(address)}><Copy size={18} aria-hidden="true" /></button>{/if}
+                <code>{address || t("settings.phone.noAddress")}</code>
+                {#if address}<button class="icon-btn" type="button" aria-label={t("settings.phone.copyAddress")} onclick={() => copy(address)}><Copy size={18} aria-hidden="true" /></button>{/if}
               </div>
             </div>
-            <p style="margin:0;font-size:14px;line-height:1.45">On your phone, join the same Wi-Fi and scan the code with the camera. The phone asks for a name, then shows your sessions. You can also open the address and type the code.</p>
-            <div class="warn"><Warning size={18} aria-hidden="true" /><span>This connection uses plain HTTP. On a network you do not trust, or away from home, reach your computer through a VPN with HTTPS, such as Tailscale.</span></div>
+            <p style="margin:0;font-size:14px;line-height:1.45">{t("settings.phone.howTo")}</p>
+            <div class="warn"><Warning size={18} aria-hidden="true" /><span>{t("settings.phone.http")}</span></div>
           </div>
         </div>
         <div class="field">
-          <span class="label">Paired devices</span>
+          <span class="label">{t("settings.phone.devices")}</span>
           {#if devices.length === 0}
-            <p class="meta" style="margin:0">No phones paired yet.</p>
+            <p class="meta" style="margin:0">{t("settings.phone.noDevices")}</p>
           {:else}
             <div class="devices">
               {#each devices as d (d.id)}
                 <div class="device">
                   <DeviceMobile size={20} aria-hidden="true" />
-                  <span class="grow"><b>{d.name}</b><span class="meta">{d.lastSeen ? `Last seen ${ago(d.lastSeen, now)}` : "Not seen yet"}</span></span>
-                  <button class="btn secondary sm" type="button" onclick={() => removeDevice(d)}>Remove</button>
+                  <span class="grow"><b>{d.name}</b><span class="meta">{d.lastSeen ? t("settings.phone.lastSeen", { when: ago(d.lastSeen, now) }) : t("settings.phone.notSeen")}</span></span>
+                  <button class="btn secondary sm" type="button" onclick={() => removeDevice(d)}>{t("settings.remove")}</button>
                 </div>
               {/each}
             </div>
@@ -420,17 +427,17 @@
         </div>
       {/if}
       {#if !on && settings.companionEnabled && !app.companion?.error}
-        <p class="meta" role="status" style="margin:0">Starting…</p>
+        <p class="meta" role="status" style="margin:0">{t("settings.phone.starting")}</p>
       {/if}
     </section>
 
     <section class="card" id="permissions" aria-labelledby="perm-title">
       <div>
-        <h2 id="perm-title">Permission mode</h2>
-        <p class="desc">How much the CLIs may do on their own in sessions OpenCompanion starts. New session and Board runs can pick another mode for a single session. Chat's planner is not affected: it stays read-only.</p>
+        <h2 id="perm-title">{t("settings.perm.title")}</h2>
+        <p class="desc">{t("settings.perm.desc")}</p>
       </div>
       <fieldset class="bare">
-        <legend class="sr-only">Default permission mode</legend>
+        <legend class="sr-only">{t("settings.perm.legend")}</legend>
         <div class="modes">
           {#each MODES as m (m.id)}
             <label class="opt stack" class:bypass={m.id === "bypass"}>
@@ -445,10 +452,10 @@
         <div class="warn bypass-warn" role="alert">
           <Warning size={18} aria-hidden="true" />
           <div class="grow">
-            <p style="margin:0 0 10px"><b>Turn on Bypass for every new session?</b> The CLIs will change or delete files and run any command without asking, and nothing will reach Needs you. Sessions that are already running keep their mode.</p>
+            <p style="margin:0 0 10px"><b>{t("settings.perm.bypassAsk")}</b> {t("settings.perm.bypassWhat")}</p>
             <div class="row" style="gap:10px;flex-wrap:wrap">
-              <button class="btn danger" type="button" onclick={() => applyMode("bypass")}>Use Bypass</button>
-              <button class="btn secondary" type="button" onclick={keepMode}>Keep {modeLabel(settings.permissionMode)}</button>
+              <button class="btn danger" type="button" onclick={() => applyMode("bypass")}>{t("settings.perm.useBypass")}</button>
+              <button class="btn secondary" type="button" onclick={keepMode}>{t("settings.perm.keep", { mode: modeLabel(settings.permissionMode) })}</button>
             </div>
           </div>
         </div>
@@ -457,8 +464,8 @@
       {/if}
       <div class="table-wrap">
         <table>
-          <caption class="sr-only">What each mode passes to each CLI</caption>
-          <thead><tr><th scope="col">Mode</th><th scope="col">Claude Code</th><th scope="col">Codex CLI</th><th scope="col">OpenCode</th></tr></thead>
+          <caption class="sr-only">{t("settings.perm.caption")}</caption>
+          <thead><tr><th scope="col">{t("settings.perm.mode")}</th><th scope="col">Claude Code</th><th scope="col">Codex CLI</th><th scope="col">OpenCode</th></tr></thead>
           <tbody>
             {#each MODES as m (m.id)}
               <tr class:current={settings.permissionMode === m.id}>
@@ -475,8 +482,8 @@
 
     <div class="two">
       <section class="card" id="chat" aria-labelledby="planner-title">
-        <h2 id="planner-title">Chat planner</h2>
-        <label class="meta" for="planner-select">What turns your chat messages into session suggestions: a CLI running headless, or a model you reach through an OpenAI-compatible API. Neither can run commands or change files.</label>
+        <h2 id="planner-title">{t("settings.planner.title")}</h2>
+        <label class="meta" for="planner-select">{t("settings.planner.label")}</label>
         <select
           class="select"
           id="planner-select"
@@ -484,159 +491,156 @@
           onchange={(e) => pickPlanner(e.currentTarget)}
         >
           {#each planners as c (c.kind)}<option value={c.kind}>{c.label} {c.version ?? ""}</option>{/each}
-          {#if planners.length === 0}<option value="">No CLI can plan yet</option>{/if}
-          <option value="api">Custom provider (OpenAI-compatible API)</option>
+          {#if planners.length === 0}<option value="">{t("settings.planner.noCli")}</option>{/if}
+          <option value="api">{t("settings.planner.custom")}</option>
         </select>
         {#if usingApi}
           <form class="provider" id="provider-form" novalidate onsubmit={saveProvider}>
             <div class="field">
-              <label class="label" for="provider-url">Base URL</label>
+              <label class="label" for="provider-url">{t("settings.provider.baseUrl")}</label>
               <input
                 class="input mono"
                 id="provider-url"
                 bind:value={apiDraft.baseUrl}
                 oninput={() => (apiErrors.baseUrl = undefined)}
-                placeholder="Starts with http:// or https://"
+                placeholder={t("settings.provider.baseUrlPlaceholder")}
                 spellcheck="false"
                 autocomplete="off"
                 aria-invalid={apiErrors.baseUrl ? "true" : undefined}
                 aria-describedby="provider-url-help{apiErrors.baseUrl ? ' provider-url-error' : ''}"
               />
-              <p class="help" id="provider-url-help">The address before /chat/completions. OpenRouter: https://openrouter.ai/api/v1. Ollama: http://localhost:11434/v1. LM Studio: http://localhost:1234/v1.</p>
-              {#if apiErrors.baseUrl}<p class="error" id="provider-url-error">{apiErrors.baseUrl}</p>{/if}
+              <p class="help" id="provider-url-help">{t("settings.provider.baseUrlHelp")}</p>
+              {#if apiErrors.baseUrl}<p class="error" id="provider-url-error">{t(apiErrors.baseUrl)}</p>{/if}
             </div>
             <div class="field">
-              <label class="label" for="provider-model">Model</label>
+              <label class="label" for="provider-model">{t("settings.provider.model")}</label>
               <input
                 class="input mono"
                 id="provider-model"
                 bind:value={apiDraft.model}
                 oninput={() => (apiErrors.model = undefined)}
-                placeholder="As the provider writes it"
+                placeholder={t("settings.provider.modelPlaceholder")}
                 spellcheck="false"
                 autocomplete="off"
                 aria-invalid={apiErrors.model ? "true" : undefined}
                 aria-describedby={apiErrors.model ? "provider-model-error" : undefined}
               />
-              {#if apiErrors.model}<p class="error" id="provider-model-error">{apiErrors.model}</p>{/if}
+              {#if apiErrors.model}<p class="error" id="provider-model-error">{t(apiErrors.model)}</p>{/if}
             </div>
             <div class="field">
-              <label class="label" for="provider-key">API key</label>
+              <label class="label" for="provider-key">{t("settings.provider.apiKey")}</label>
               <div class="row" style="gap:10px">
                 <input
                   class="input mono grow"
                   id="provider-key"
                   type={showKey ? "text" : "password"}
                   bind:value={apiDraft.apiKey}
-                  placeholder="Empty for Ollama or LM Studio"
+                  placeholder={t("settings.provider.apiKeyPlaceholder")}
                   spellcheck="false"
                   autocomplete="off"
                   aria-describedby="provider-key-help"
                 />
-                <button class="btn secondary" type="button" aria-pressed={showKey} onclick={() => (showKey = !showKey)}>{showKey ? "Hide" : "Show"}</button>
+                <button class="btn secondary" type="button" aria-pressed={showKey} onclick={() => (showKey = !showKey)}>{showKey ? t("settings.provider.hide") : t("settings.provider.show")}</button>
               </div>
-              <p class="help" id="provider-key-help">Kept in OpenCompanion's database on this computer and sent only to the base URL above.</p>
+              <p class="help" id="provider-key-help">{t("settings.provider.apiKeyHelp")}</p>
             </div>
-            <button class="btn primary" type="submit" id="btn-save-provider">Save provider</button>
+            <button class="btn primary" type="submit" id="btn-save-provider">{t("settings.provider.save")}</button>
           </form>
         {/if}
         <label class="check-row">
-          <input type="checkbox" checked={settings.plannerCanRead && !usingApi} disabled={usingApi} onchange={(e) => saveControl(e.currentTarget, { plannerCanRead: e.currentTarget.checked }, "Planner access saved.")} />
-          <span>Let the planner read my project folders</span>
+          <input type="checkbox" checked={settings.plannerCanRead && !usingApi} disabled={usingApi} onchange={(e) => saveControl(e.currentTarget, { plannerCanRead: e.currentTarget.checked }, t("settings.planner.canReadSaved"))} />
+          <span>{t("settings.planner.canRead")}</span>
         </label>
-        <p class="meta" style="margin:0">
-          {#if usingApi}A custom provider has no file tools, so it sees folder names and what they hold (git, package.json), not the files. Pick a CLI to let the planner read them.
-          {:else}Read-only: it can look at files to find the right project and write a sharper prompt. It cannot run commands or change anything. Off means it only sees folder names.{/if}
-        </p>
+        <p class="meta" style="margin:0">{usingApi ? t("settings.planner.readApi") : t("settings.planner.readCli")}</p>
         <div class="field" id="auto-run">
-          <span class="label">Run cards without asking</span>
-          <p class="help">Cards the planner proposes for these folders start at once, with your default permission mode but never Bypass. Every other card waits for Run.</p>
+          <span class="label">{t("settings.autoRun.title")}</span>
+          <p class="help">{t("settings.autoRun.help")}</p>
           {#if settings.autoRunFolders.length}
             <ul class="roots">
               {#each settings.autoRunFolders as f (f)}
                 <li>
                   <span class="mono grow" title={f}>{shortPath(f)}</span>
-                  <button class="btn ghost sm" type="button" aria-label="Stop running cards without asking in {folderName(f)}" onclick={() => removeAutoRun(f)}>Remove</button>
+                  <button class="btn ghost sm" type="button" aria-label={t("settings.autoRun.stop", { folder: folderName(f) })} onclick={() => removeAutoRun(f)}>{t("settings.remove")}</button>
                 </li>
               {/each}
             </ul>
           {:else}
-            <p class="meta" style="margin:0">None: every card waits for Run.</p>
+            <p class="meta" style="margin:0">{t("settings.autoRun.none")}</p>
           {/if}
           {#if autoConfirm}
             <div class="warn bypass-warn" role="alert">
               <Warning size={18} aria-hidden="true" />
               <div class="grow">
-                <p style="margin:0 0 10px"><b>Let cards for {folderName(autoConfirm)} start without Run?</b> The planner writes their prompts, so a card can start work in this folder that you did not read first.</p>
+                <p style="margin:0 0 10px"><b>{t("settings.autoRun.confirmAsk", { folder: folderName(autoConfirm) })}</b> {t("settings.autoRun.confirmWhy")}</p>
                 <div class="row" style="gap:10px;flex-wrap:wrap">
-                  <button class="btn danger" type="button" onclick={() => allowAutoRun(autoConfirm)}>Start them without asking</button>
-                  <button class="btn secondary" type="button" onclick={() => (autoConfirm = "")}>Keep asking</button>
+                  <button class="btn danger" type="button" onclick={() => allowAutoRun(autoConfirm)}>{t("settings.autoRun.allow")}</button>
+                  <button class="btn secondary" type="button" onclick={() => (autoConfirm = "")}>{t("settings.autoRun.keepAsking")}</button>
                 </div>
               </div>
             </div>
           {:else}
             <div class="add-rule">
-              <label class="sr-only" for="auto-run-folder">Folder whose cards may start without asking</label>
+              <label class="sr-only" for="auto-run-folder">{t("settings.autoRun.pickLabel")}</label>
               <select class="select" id="auto-run-folder" bind:value={autoPick}>
-                <option value="">Choose a project folder…</option>
+                <option value="">{t("settings.chooseFolder")}</option>
                 {#each autoAddable as f (f.path)}<option value={f.path}>{f.name} · {shortPath(f.path)}</option>{/each}
               </select>
-              <button class="btn secondary sm" type="button" aria-label="Add auto-run folder" disabled={!autoPick} onclick={() => (autoConfirm = autoPick)}>Add</button>
-              <button class="btn ghost sm" type="button" aria-label="Browse for an auto-run folder" onclick={browseAutoRun}>Browse…</button>
+              <button class="btn secondary sm" type="button" aria-label={t("settings.autoRun.addLabel")} disabled={!autoPick} onclick={() => (autoConfirm = autoPick)}>{t("settings.add")}</button>
+              <button class="btn ghost sm" type="button" aria-label={t("settings.autoRun.browseLabel")} onclick={browseAutoRun}>{t("settings.browse")}</button>
             </div>
           {/if}
         </div>
       </section>
 
       <section class="card" id="projects" aria-labelledby="projects-title">
-        <h2 id="projects-title">Project folders</h2>
+        <h2 id="projects-title">{t("settings.projects.title")}</h2>
         <p class="meta" style="margin:0">
-          Where your projects live. OpenCompanion lists the folders inside them, plus folders you used before, for Chat and New session.
-          {#if projectCount !== null}{projectCount} projects found.{/if}
+          {t("settings.projects.desc")}
+          {#if projectCount !== null}{plural(projectCount, "settings.projects.foundOne", "settings.projects.found")}{/if}
         </p>
         <ul class="roots">
           {#each shownRoots as r (r)}
             <li>
               <span class="mono grow" title={r}>{r}</span>
               {#if settings.projectRoots.length}
-                <button class="btn ghost sm" type="button" aria-label="Stop scanning {r}" onclick={() => removeRoot(r)}>Remove</button>
+                <button class="btn ghost sm" type="button" aria-label={t("settings.projects.stop", { path: r })} onclick={() => removeRoot(r)}>{t("settings.remove")}</button>
               {/if}
             </li>
           {/each}
-          {#if shownRoots.length === 0}<li class="meta">No project folder found yet. Add the folder that holds your projects.</li>{/if}
+          {#if shownRoots.length === 0}<li class="meta">{t("settings.projects.empty")}</li>{/if}
         </ul>
-        {#if !settings.projectRoots.length && shownRoots.length}<p class="meta" style="margin:0">Found automatically. Adding a folder replaces this list.</p>{/if}
-        <button class="btn secondary" type="button" style="align-self:flex-start" onclick={addRoot}>Add folder</button>
+        {#if !settings.projectRoots.length && shownRoots.length}<p class="meta" style="margin:0">{t("settings.projects.auto")}</p>{/if}
+        <button class="btn secondary" type="button" style="align-self:flex-start" onclick={addRoot}>{t("settings.projects.add")}</button>
       </section>
 
       <section class="card" id="notifications" aria-labelledby="notif-title">
-        <h2 id="notif-title">Notifications</h2>
+        <h2 id="notif-title">{t("settings.notify.title")}</h2>
         <div class="checks">
-          <label><input type="checkbox" checked={settings.notifyWaiting} onchange={(e) => saveControl(e.currentTarget, { notifyWaiting: e.currentTarget.checked })} />A session is waiting for you</label>
-          <label><input type="checkbox" checked={settings.notifyDone} onchange={(e) => saveControl(e.currentTarget, { notifyDone: e.currentTarget.checked })} />A session is done</label>
-          <label><input type="checkbox" checked={settings.notifyError} onchange={(e) => saveControl(e.currentTarget, { notifyError: e.currentTarget.checked })} />A session stopped with an error</label>
+          <label><input type="checkbox" checked={settings.notifyWaiting} onchange={(e) => saveControl(e.currentTarget, { notifyWaiting: e.currentTarget.checked })} />{t("settings.notify.waiting")}</label>
+          <label><input type="checkbox" checked={settings.notifyDone} onchange={(e) => saveControl(e.currentTarget, { notifyDone: e.currentTarget.checked })} />{t("settings.notify.done")}</label>
+          <label><input type="checkbox" checked={settings.notifyError} onchange={(e) => saveControl(e.currentTarget, { notifyError: e.currentTarget.checked })} />{t("settings.notify.error")}</label>
         </div>
         <table class="rules" id="notify-by-cli">
-          <caption>By CLI</caption>
-          <thead><tr><th scope="col"><span class="sr-only">CLI</span></th>{#each NOTICES as n (n.key)}<th scope="col">{n.label}</th>{/each}</tr></thead>
+          <caption>{t("settings.notify.byCli")}</caption>
+          <thead><tr><th scope="col"><span class="sr-only">{t("settings.notify.cli")}</span></th>{#each NOTICES as n (n.key)}<th scope="col">{t(n.label)}</th>{/each}</tr></thead>
           <tbody>
             {#each ruleClis as c (c.kind)}
               {@const rule = settings.notifyClis[c.kind] ?? ALL}
               <tr>
                 <th scope="row">{c.label}</th>
                 {#each NOTICES as n (n.key)}
-                  <td><input type="checkbox" aria-label="{c.label}: {n.label}" checked={rule[n.key]} onchange={(e) => setCliRule(e.currentTarget, c.kind, n.key)} /></td>
+                  <td><input type="checkbox" aria-label="{c.label}: {t(n.label)}" checked={rule[n.key]} onchange={(e) => setCliRule(e.currentTarget, c.kind, n.key)} /></td>
                 {/each}
               </tr>
             {:else}
-              <tr><td colspan="4" class="meta">No CLI is installed yet.</td></tr>
+              <tr><td colspan="4" class="meta">{t("settings.notify.noCli")}</td></tr>
             {/each}
           </tbody>
         </table>
         <table class="rules" id="notify-by-folder">
-          <caption>By project folder</caption>
+          <caption>{t("settings.notify.byFolder")}</caption>
           {#if ruleFolders.length}
-            <thead><tr><th scope="col"><span class="sr-only">Folder</span></th>{#each NOTICES as n (n.key)}<th scope="col">{n.label}</th>{/each}<th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+            <thead><tr><th scope="col"><span class="sr-only">{t("settings.notify.folder")}</span></th>{#each NOTICES as n (n.key)}<th scope="col">{t(n.label)}</th>{/each}<th scope="col"><span class="sr-only">{t("settings.remove")}</span></th></tr></thead>
           {/if}
           <tbody>
             {#each ruleFolders as f (f)}
@@ -644,61 +648,67 @@
               <tr>
                 <th scope="row"><span class="mono" title={f}>{folderName(f)}</span></th>
                 {#each NOTICES as n (n.key)}
-                  <td><input type="checkbox" aria-label="{folderName(f)}: {n.label}" checked={rule[n.key]} onchange={(e) => setFolderRule(e.currentTarget, f, n.key)} /></td>
+                  <td><input type="checkbox" aria-label="{folderName(f)}: {t(n.label)}" checked={rule[n.key]} onchange={(e) => setFolderRule(e.currentTarget, f, n.key)} /></td>
                 {/each}
-                <td><button class="btn ghost sm" type="button" aria-label="Remove the rule for {folderName(f)}" onclick={() => removeFolderRule(f)}>Remove</button></td>
+                <td><button class="btn ghost sm" type="button" aria-label={t("settings.notify.removeRule", { folder: folderName(f) })} onclick={() => removeFolderRule(f)}>{t("settings.remove")}</button></td>
               </tr>
             {:else}
-              <tr><td colspan="5" class="meta">Every project folder sends all of them.</td></tr>
+              <tr><td colspan="5" class="meta">{t("settings.notify.noFolders")}</td></tr>
             {/each}
           </tbody>
         </table>
         <div class="add-rule">
-          <label class="sr-only" for="notify-folder">Project folder to add a rule for</label>
+          <label class="sr-only" for="notify-folder">{t("settings.notify.pickLabel")}</label>
           <select class="select" id="notify-folder" bind:value={folderPick}>
-            <option value="">Choose a project folder…</option>
+            <option value="">{t("settings.chooseFolder")}</option>
             {#each addable as f (f.path)}<option value={f.path}>{f.name} · {shortPath(f.path)}</option>{/each}
           </select>
-          <button class="btn secondary sm" type="button" aria-label="Add notification rule" disabled={!folderPick} onclick={() => addFolderRule(folderPick)}>Add</button>
-          <button class="btn ghost sm" type="button" aria-label="Browse for a notification folder" onclick={browseFolderRule}>Browse…</button>
+          <button class="btn secondary sm" type="button" aria-label={t("settings.notify.addLabel")} disabled={!folderPick} onclick={() => addFolderRule(folderPick)}>{t("settings.add")}</button>
+          <button class="btn ghost sm" type="button" aria-label={t("settings.notify.browseLabel")} onclick={browseFolderRule}>{t("settings.browse")}</button>
         </div>
-        <p class="meta" style="margin:0">A notification goes out only when the switch above, its CLI and its folder all allow it. The phone follows the same rules.</p>
+        <p class="meta" style="margin:0">{t("settings.notify.footer")}</p>
       </section>
 
       <section class="card" id="text-size" aria-labelledby="text-title">
-        <h2 id="text-title">Text size</h2>
-        <p class="meta" style="margin:0">Makes text, and the buttons and spacing around it, bigger or smaller on every screen. The phone page keeps the text size set on the phone.</p>
+        <h2 id="text-title">{t("settings.text.title")}</h2>
+        <p class="meta" style="margin:0">{t("settings.text.desc")}</p>
         <fieldset class="bare">
-          <legend class="sr-only">Text size</legend>
+          <legend class="sr-only">{t("settings.text.title")}</legend>
           <div class="sizes">
             {#each TEXT_SIZES as s (s)}
               <label class="opt stack">
                 <input type="radio" name="text-size" value={s} bind:group={sizeChoice} onchange={pickSize} />
                 <span class="sample" style="font-size:{(15 * s) / 100}px" aria-hidden="true">A</span>
                 <b>{s}%</b>
-                {#if s === 100}<small>Default</small>{/if}
+                {#if s === 100}<small>{t("settings.text.default")}</small>{/if}
               </label>
             {/each}
           </div>
         </fieldset>
       </section>
 
+      <section class="card" id="language" aria-labelledby="lang-title">
+        <h2 id="lang-title">{t("settings.language.title")}</h2>
+        <label class="meta" for="lang-select">{t("settings.language.label")}</label>
+        <!-- Each language is named in itself; the lang attribute lets a screen reader pronounce it. -->
+        <select class="select" id="lang-select" value={settings.language} aria-describedby="lang-help" onchange={(e) => pickLanguage(e.currentTarget)}>
+          {#each LANGS as l (l.id)}<option value={l.id} lang={l.id}>{l.label}</option>{/each}
+        </select>
+        <p class="meta" id="lang-help" style="margin:0">{t("settings.language.help")}</p>
+      </section>
+
       <section class="card" id="closing" aria-labelledby="close-title">
-        <h2 id="close-title">Window and sign-in</h2>
+        <h2 id="close-title">{t("settings.window.title")}</h2>
         <label class="check-row">
           <input
             type="checkbox"
             checked={settings.closeToTray}
             onchange={(e) =>
-              saveControl(e.currentTarget, { closeToTray: e.currentTarget.checked }, e.currentTarget.checked ? "Closing the window now keeps OpenCompanion in the tray." : "Closing the window now quits OpenCompanion.")}
+              saveControl(e.currentTarget, { closeToTray: e.currentTarget.checked }, e.currentTarget.checked ? t("settings.window.trayOnSaved") : t("settings.window.trayOffSaved"))}
           />
-          <span>Keep running in the tray</span>
+          <span>{t("settings.window.tray")}</span>
         </label>
-        <p class="meta" style="margin:0">
-          {settings.closeToTray
-            ? "Sessions keep running and your phone can still reach them. Click the tray icon to open the window again; quit from its menu to stop the sessions."
-            : "Closing the window quits OpenCompanion and stops every session it started."}
-        </p>
+        <p class="meta" style="margin:0">{settings.closeToTray ? t("settings.window.trayOn") : t("settings.window.trayOff")}</p>
         {#if info?.canStartAtLogin}
           <label class="check-row">
             <input
@@ -708,38 +718,38 @@
                 saveControl(
                   e.currentTarget,
                   { startAtLogin: e.currentTarget.checked },
-                  e.currentTarget.checked ? "OpenCompanion starts in the tray when you sign in." : "OpenCompanion no longer starts when you sign in.",
+                  e.currentTarget.checked ? t("settings.window.loginOnSaved") : t("settings.window.loginOffSaved"),
                 )}
             />
-            <span>Start in the tray when I sign in to Windows</span>
+            <span>{t("settings.window.login")}</span>
           </label>
         {/if}
       </section>
 
       <section class="card" aria-labelledby="scan-title">
-        <h2 id="scan-title">Outside sessions</h2>
-        <label class="meta" for="scan-select">How often OpenCompanion looks for CLIs running in other terminals. The scan reads the process list only.</label>
-        <select class="select" id="scan-select" value={String(settings.scanSeconds)} onchange={(e) => saveControl(e.currentTarget, { scanSeconds: Number(e.currentTarget.value) }, "Scan interval saved.")}>
-          <option value="5">Every 5 seconds</option>
-          <option value="10">Every 10 seconds</option>
-          <option value="30">Every 30 seconds</option>
-          <option value="60">Every minute</option>
+        <h2 id="scan-title">{t("settings.scan.title")}</h2>
+        <label class="meta" for="scan-select">{t("settings.scan.label")}</label>
+        <select class="select" id="scan-select" value={String(settings.scanSeconds)} onchange={(e) => saveControl(e.currentTarget, { scanSeconds: Number(e.currentTarget.value) }, t("settings.scan.saved"))}>
+          <option value="5">{t("settings.scan.everySeconds", { n: 5 })}</option>
+          <option value="10">{t("settings.scan.everySeconds", { n: 10 })}</option>
+          <option value="30">{t("settings.scan.everySeconds", { n: 30 })}</option>
+          <option value="60">{t("settings.scan.everyMinute")}</option>
         </select>
       </section>
 
       <section class="card" aria-labelledby="history-title">
-        <h2 id="history-title">History</h2>
+        <h2 id="history-title">{t("settings.history.title")}</h2>
         <p class="meta" style="margin:0">
-          Sessions, their events and terminal logs are stored on this computer only{info ? `, in ${info.dataDir}` : ""}.
-          {#if info}{info.counts.sessions} sessions are stored.{/if}
+          {info ? t("settings.history.whereDir", { dir: info.dataDir }) : t("settings.history.where")}
+          {#if info}{plural(info.counts.sessions, "settings.history.countOne", "settings.history.count")}{/if}
         </p>
-        <label class="meta" for="keep-select">Keep finished sessions for</label>
+        <label class="meta" for="keep-select">{t("settings.history.keepLabel")}</label>
         <select class="select" id="keep-select" value={String(settings.keepDays)} onchange={(e) => pickKeep(e.currentTarget)}>
-          {#each KEEP as k (k.days)}<option value={String(k.days)}>{k.label}</option>{/each}
+          {#each KEEP as days (days)}<option value={String(days)}>{keepLabel(days)}</option>{/each}
         </select>
-        <p class="meta" style="margin:0">Older ones go with their events and terminal logs, checked every hour. Files the CLIs changed in your projects are never touched.</p>
+        <p class="meta" style="margin:0">{t("settings.history.olderNote")}</p>
         <button class="btn secondary" type="button" style="align-self:flex-start" onclick={clearHistory}>
-          {clearStep ? "Press again to delete finished sessions" : "Delete finished sessions"}
+          {clearStep ? t("settings.history.deleteAgain") : t("settings.history.delete")}
         </button>
       </section>
     </div>

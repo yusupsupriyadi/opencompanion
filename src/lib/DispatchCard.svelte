@@ -9,6 +9,7 @@
   import { refocus } from "./focus";
   import StatusChip from "./StatusChip.svelte";
   import { CLI_LABEL, ago, folderName, shortPath } from "./format";
+  import { t, tb } from "./i18n.svelte";
   import { app, showToast } from "./store.svelte";
 
   let { card, messageId, onchange }: { card: DispatchCard; messageId: string; onchange: (m: ChatMessage) => void } = $props();
@@ -23,6 +24,7 @@
   const labelId = $derived(`card-${card.id}`);
   // A follow-up goes to a session that already runs (PRD FR-25); it starts nothing.
   const follow = $derived(Boolean(card.target));
+  const modeWord = (mode: Mode) => t(mode === "interactive" ? "chat.card.modeInteractive" : "chat.card.modeHeadless");
 
   function edit() {
     draft = { cli: card.cli, title: card.title, folder: card.folder, prompt: card.prompt, mode: card.mode };
@@ -48,7 +50,7 @@
   const run = () =>
     act(
       () => api.chatRunCard(messageId, card.id),
-      follow ? `Sent to ${CLI_LABEL[card.cli]} in ${folderName(card.folder)}.` : `Started ${CLI_LABEL[card.cli]} in ${folderName(card.folder)}.`,
+      t(follow ? "chat.card.sentTo" : "chat.card.startedIn", { cli: CLI_LABEL[card.cli], folder: folderName(card.folder) }),
     );
   const save = () =>
     act(async () => {
@@ -59,58 +61,58 @@
   const discard = () => act(() => api.chatDiscardCard(messageId, card.id));
   const undo = () => act(() => api.chatDiscardCard(messageId, card.id, true));
 
-  const toBoard = () => act(() => api.chatCardToBoard(messageId, card.id), "Added to the Board in Todo.");
+  const toBoard = () => act(() => api.chatCardToBoard(messageId, card.id), t("chat.card.addedToBoard"));
 </script>
 
 <div class="slot" bind:this={slot}>
 {#if card.state === "discarded"}
   <div class="discarded">
-    <span class="grow">Discarded the {CLI_LABEL[card.cli]} card for {folderName(card.folder)}.</span>
-    <button class="btn secondary sm" type="button" disabled={busy} onclick={undo}>Undo</button>
+    <span class="grow">{t("chat.card.discarded", { cli: CLI_LABEL[card.cli], folder: folderName(card.folder) })}</span>
+    <button class="btn secondary sm" type="button" disabled={busy} onclick={undo}>{t("chat.card.undo")}</button>
   </div>
 {:else}
   <article class="dcard" aria-labelledby={labelId}>
     <div class="row" style="gap:10px">
       <CliMark kind={editing ? draft.cli : card.cli} />
       <div class="target grow">
-        <b id={labelId}>{follow ? `Follow-up for ${card.title}` : card.title || `${CLI_LABEL[card.cli]} · ${card.mode}`}</b>
-        <span>{#if card.title}{CLI_LABEL[card.cli]} · {card.mode} · {/if}<span class="mono" title={card.folder}>{shortPath(card.folder)}</span></span>
+        <b id={labelId}>{follow ? t("chat.card.followUpFor", { title: card.title }) : card.title || `${CLI_LABEL[card.cli]} · ${modeWord(card.mode)}`}</b>
+        <span>{#if card.title}{CLI_LABEL[card.cli]} · {modeWord(card.mode)} · {/if}<span class="mono" title={card.folder}>{shortPath(card.folder)}</span></span>
       </div>
-      {#if session}<StatusChip status={session.status} />{:else if card.state === "started"}<span class="chip idle">{follow ? "Sent" : "Started"}</span>{:else}<span class="chip idle">{follow ? "Follow-up" : "Ready"}</span>{/if}
+      {#if session}<StatusChip status={session.status} />{:else if card.state === "started"}<span class="chip idle">{follow ? t("chat.card.chipSent") : t("chat.card.chipStarted")}</span>{:else}<span class="chip idle">{follow ? t("chat.card.chipFollowUp") : t("chat.card.chipReady")}</span>{/if}
     </div>
 
     {#if editing && follow}
       <label class="field">
-        <span class="label">Message for the session</span>
+        <span class="label">{t("chat.card.messageLabel")}</span>
         <textarea class="prompt" bind:value={draft.prompt}></textarea>
       </label>
     {:else if editing}
       <div class="edit-grid">
         <label class="field span">
-          <span class="label">Title</span>
-          <input class="input" bind:value={draft.title} placeholder="Name the task in a few words" autocomplete="off" />
+          <span class="label">{t("chat.card.titleLabel")}</span>
+          <input class="input" bind:value={draft.title} placeholder={t("chat.card.titlePlaceholder")} autocomplete="off" />
         </label>
         <label class="field">
-          <span class="label">CLI</span>
+          <span class="label">{t("chat.card.cliLabel")}</span>
           <select class="select" bind:value={draft.cli}>
             {#each app.clis as c (c.kind)}
-              <option value={c.kind} disabled={!c.path}>{c.label}{c.path ? "" : " (not installed)"}</option>
+              <option value={c.kind} disabled={!c.path}>{c.path ? c.label : t("chat.card.notInstalled", { cli: c.label })}</option>
             {/each}
           </select>
         </label>
         <label class="field">
-          <span class="label">Mode</span>
+          <span class="label">{t("chat.card.modeLabel")}</span>
           <select class="select" bind:value={draft.mode}>
-            <option value="headless">Headless</option>
-            <option value="interactive">Interactive</option>
+            <option value="headless">{t("chat.card.optionHeadless")}</option>
+            <option value="interactive">{t("chat.card.optionInteractive")}</option>
           </select>
         </label>
         <label class="field span">
-          <span class="label">Folder</span>
+          <span class="label">{t("chat.card.folderLabel")}</span>
           <input class="input mono" bind:value={draft.folder} spellcheck="false" />
         </label>
         <label class="field span">
-          <span class="label">Prompt</span>
+          <span class="label">{t("chat.card.promptLabel")}</span>
           <textarea class="prompt" bind:value={draft.prompt}></textarea>
         </label>
       </div>
@@ -119,33 +121,33 @@
       {#if card.reason}<p class="why">{card.reason}</p>{/if}
     {/if}
 
-    {#if card.problem && card.state === "proposed"}<p class="err-text" style="margin:0">{card.problem}</p>{/if}
-    {#if failure}<p class="err-text" role="alert" style="margin:0">{failure}</p>{/if}
+    {#if card.problem && card.state === "proposed"}<p class="err-text" style="margin:0">{tb(card.problem)}</p>{/if}
+    {#if failure}<p class="err-text" role="alert" style="margin:0">{tb(failure)}</p>{/if}
 
     <div class="acts">
       {#if card.state === "started"}
         {#if card.sessionId}
-          <a class="btn secondary" href="/session?id={card.sessionId}"><TerminalWindow size={16} aria-hidden="true" />Open session</a>
+          <a class="btn secondary" href="/session?id={card.sessionId}"><TerminalWindow size={16} aria-hidden="true" />{t("chat.card.openSession")}</a>
         {/if}
-        {#if follow}<span class="meta">Sent to this session.</span>
-        {:else if card.auto}<span class="meta">Started by itself: {folderName(card.folder)} runs cards without asking.</span>
-        {:else if session}<span class="meta">Started {ago(session.startedAt, app.now)}</span>{/if}
+        {#if follow}<span class="meta">{t("chat.card.sentHere")}</span>
+        {:else if card.auto}<span class="meta">{t("chat.card.autoStarted", { folder: folderName(card.folder) })}</span>
+        {:else if session}<span class="meta">{t("chat.card.startedAgo", { ago: ago(session.startedAt, app.now) })}</span>{/if}
       {:else if editing}
-        <button class="btn primary" type="button" disabled={busy} onclick={save}>Save card</button>
-        <button class="btn ghost" type="button" onclick={() => (editing = false)}>Cancel</button>
+        <button class="btn primary" type="button" disabled={busy} onclick={save}>{t("chat.card.save")}</button>
+        <button class="btn ghost" type="button" onclick={() => (editing = false)}>{t("chat.card.cancel")}</button>
       {:else}
         <button class="btn primary" type="button" disabled={busy || Boolean(card.problem)} onclick={run}>
-          {#if follow}<PaperPlaneTilt size={16} weight="fill" aria-hidden="true" />Send to session{:else}<Play size={16} aria-hidden="true" />Run in {folderName(card.folder) || "…"}{/if}
+          {#if follow}<PaperPlaneTilt size={16} weight="fill" aria-hidden="true" />{t("chat.card.sendToSession")}{:else}<Play size={16} aria-hidden="true" />{t("chat.card.runIn", { folder: folderName(card.folder) || "…" })}{/if}
         </button>
-        <button class="btn secondary" type="button" disabled={busy} onclick={edit}><PencilSimple size={16} aria-hidden="true" />Edit</button>
+        <button class="btn secondary" type="button" disabled={busy} onclick={edit}><PencilSimple size={16} aria-hidden="true" />{t("chat.card.edit")}</button>
         {#if follow}
           <!-- A follow-up belongs to its session, so it has no Board card. -->
         {:else if card.taskId}
-          <a class="btn secondary" href="/board"><Kanban size={16} aria-hidden="true" />On the Board</a>
+          <a class="btn secondary" href="/board"><Kanban size={16} aria-hidden="true" />{t("chat.card.onBoard")}</a>
         {:else}
-          <button class="btn secondary" type="button" disabled={busy} onclick={toBoard}><Kanban size={16} aria-hidden="true" />Add to board</button>
+          <button class="btn secondary" type="button" disabled={busy} onclick={toBoard}><Kanban size={16} aria-hidden="true" />{t("chat.card.addToBoard")}</button>
         {/if}
-        <button class="btn ghost" type="button" disabled={busy} onclick={discard}>Discard</button>
+        <button class="btn ghost" type="button" disabled={busy} onclick={discard}>{t("chat.card.discard")}</button>
       {/if}
     </div>
   </article>

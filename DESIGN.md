@@ -377,7 +377,7 @@ Bottom tab bar di tiga layar utama (Sessions, Chat, Board): tinggi 56 + safe are
 
 ## 13. Bahasa dan suara
 
-- UI bahasa Inggris untuk MVP. i18n ID/EN direncanakan (PRD FR-63).
+- UI bahasa Inggris atau Indonesia (Settings › Language, PRD FR-63). Teks Indonesia mengikuti glosarium yang sama di semua layar (Sesi, Kartu, Jalankan, Kirim, Hentikan, Lanjutkan, Setujui, Tolak, Menunggu Anda, Butuh Anda, Ringkasan, Pengaturan, Siang/Senja), dengan aturan suara yang sama: spesifik, tanpa em dash, tanpa buzzword. Nama produk, CLI, flag, path, dan nama tombol keyboard tidak diterjemahkan. Tombol di HP boleh membungkus teks supaya nama folder panjang tidak meluber.
 - Sebut CLI dan folder secara spesifik: "Codex CLI is waiting for you in ai-remote", bukan "Something needs your attention".
 - Tombol menyebut aksinya: "Start Claude Code in uninote", "Run in psikotes", "Copy command".
 - Tanpa em dash, tanpa buzzword, tanpa emoji dekoratif.

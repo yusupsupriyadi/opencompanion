@@ -19,16 +19,17 @@
   import type { SessionView } from "./api";
   import CliMark from "./CliMark.svelte";
   import { CLI_LABEL, STATUS, folderName, isLive } from "./format";
+  import { plural, t } from "./i18n.svelte";
   import { app, askDelete, askNewSession, currentTheme, setTheme } from "./store.svelte";
 
   const NAV = [
-    { href: "/", label: "Overview", icon: House },
-    { href: "/board", label: "Board", icon: Kanban },
-    { href: "/chat", label: "Chat", icon: ChatsCircle },
-    { href: "/clis", label: "CLIs", icon: TerminalWindow },
-    { href: "/skills", label: "Skills", icon: Books },
-    { href: "/settings", label: "Settings", icon: GearSix },
-  ];
+    { href: "/", key: "shell.nav.overview", icon: House },
+    { href: "/board", key: "shell.nav.board", icon: Kanban },
+    { href: "/chat", key: "shell.nav.chat", icon: ChatsCircle },
+    { href: "/clis", key: "shell.nav.clis", icon: TerminalWindow },
+    { href: "/skills", key: "shell.nav.skills", icon: Books },
+    { href: "/settings", key: "shell.nav.settings", icon: GearSix },
+  ] as const;
 
   const path = $derived(page.url.pathname);
   const currentSession = $derived(path === "/session" ? page.url.searchParams.get("id") : null);
@@ -109,18 +110,18 @@
 </script>
 
 <aside class="sidebar" aria-label="OpenCompanion">
-  <a class="brand" href="/" aria-label="OpenCompanion, Overview"><span class="lbl">OpenCompanion</span><Cloud size={20} aria-hidden="true" /></a>
-  <nav class="nav" aria-label="Main">
+  <a class="brand" href="/" aria-label={t("shell.sidebar.brand")}><span class="lbl">OpenCompanion</span><Cloud size={20} aria-hidden="true" /></a>
+  <nav class="nav" aria-label={t("shell.nav.label")}>
     {#each NAV as n (n.href)}
-      <a href={n.href} aria-current={active(n.href) ? "page" : undefined} title={n.label}>
-        <n.icon size={18} aria-hidden="true" /><span class="lbl">{n.label}</span>
+      <a href={n.href} aria-current={active(n.href) ? "page" : undefined} title={t(n.key)}>
+        <n.icon size={18} aria-hidden="true" /><span class="lbl">{t(n.key)}</span>
       </a>
     {/each}
   </nav>
   <div class="side-sessions">
     <div class="side-head">
-      <span class="side-label">Sessions</span>
-      <button class="icon-btn side-add" type="button" aria-label="New session" title="New session" onclick={() => askNewSession()}>
+      <span class="side-label">{t("shell.sidebar.sessions")}</span>
+      <button class="icon-btn side-add" type="button" aria-label={t("shell.newSession")} title={t("shell.newSession")} onclick={() => askNewSession()}>
         <Plus size={16} aria-hidden="true" />
       </button>
     </div>
@@ -144,17 +145,17 @@
                 <span class="mono ellipsis" id="side-folder-{i}">{folderName(g.cwd)}</span>
                 {#if shut}
                   {#if g.sessions.some((s) => s.status === "waiting")}
-                    <span class="head-wait" title="Waiting for you"><HandPalm size={14} aria-hidden="true" /><span class="sr-only">Waiting for you</span></span>
+                    <span class="head-wait" title={t("shell.status.waiting")}><HandPalm size={14} aria-hidden="true" /><span class="sr-only">{t("shell.status.waiting")}</span></span>
                   {/if}
-                  <span class="count">{g.sessions.length} <span class="sr-only">{g.sessions.length === 1 ? "session" : "sessions"}</span></span>
+                  <span class="count">{g.sessions.length} <span class="sr-only">{plural(g.sessions.length, "shell.sidebar.countOne", "shell.sidebar.countMany")}</span></span>
                 {/if}
               </button>
               <div class="row-actions">
                 <button
                   class="icon-btn row-btn"
                   type="button"
-                  aria-label="New session in {folderName(g.cwd)}"
-                  title="New session in {folderName(g.cwd)}"
+                  aria-label={t("shell.sidebar.newSessionIn", { folder: folderName(g.cwd) })}
+                  title={t("shell.sidebar.newSessionIn", { folder: folderName(g.cwd) })}
                   onclick={() => askNewSession(g.cwd)}
                 >
                   <Plus size={14} aria-hidden="true" />
@@ -163,8 +164,8 @@
                   class="icon-btn row-btn pin-btn"
                   type="button"
                   aria-pressed={g.pinned}
-                  aria-label="Pin folder: {folderName(g.cwd)}"
-                  title={g.pinned ? "Unpin folder" : "Pin folder"}
+                  aria-label={t("shell.sidebar.pinFolderNamed", { folder: folderName(g.cwd) })}
+                  title={g.pinned ? t("shell.sidebar.unpinFolder") : t("shell.sidebar.pinFolder")}
                   onclick={() => pinFolder(g)}
                 >
                   <PushPin size={14} weight={g.pinned ? "fill" : "regular"} aria-hidden="true" />
@@ -173,7 +174,7 @@
             </div>
             <div class="folder-items" id="side-folder-items-{i}" hidden={shut}>
               {#if g.sessions.length === 0}
-                <p class="folder-empty">No recent sessions</p>
+                <p class="folder-empty">{t("shell.sidebar.noRecent")}</p>
               {/if}
               {#each g.sessions as s (s.id)}
                 {@const sessionPinned = pinnedSessions.includes(s.id)}
@@ -190,7 +191,13 @@
                   </a>
                   <div class="row-actions">
                     {#if !isLive(s)}
-                      <button class="icon-btn row-btn del" type="button" aria-label="Delete session: {s.title}" title="Delete session" onclick={() => askDelete(s)}>
+                      <button
+                        class="icon-btn row-btn del"
+                        type="button"
+                        aria-label={t("shell.sidebar.deleteSessionNamed", { title: s.title })}
+                        title={t("shell.deleteSession")}
+                        onclick={() => askDelete(s)}
+                      >
                         <Trash size={14} aria-hidden="true" />
                       </button>
                     {/if}
@@ -198,8 +205,8 @@
                       class="icon-btn row-btn pin-btn"
                       type="button"
                       aria-pressed={sessionPinned}
-                      aria-label="Pin session: {s.title}"
-                      title={sessionPinned ? "Unpin session" : "Pin session"}
+                      aria-label={t("shell.sidebar.pinSessionNamed", { title: s.title })}
+                      title={sessionPinned ? t("shell.sidebar.unpinSession") : t("shell.sidebar.pinSession")}
                       onclick={() => pinSession(s.id)}
                     >
                       <PushPin size={14} weight={sessionPinned ? "fill" : "regular"} aria-hidden="true" />
@@ -214,17 +221,17 @@
     {/if}
   </div>
   <div class="side-foot">
-    <a class="phone-row" href="/settings#phone" title="Phone access">
+    <a class="phone-row" href="/settings#phone" title={t("shell.sidebar.phone")}>
       <DeviceMobile size={18} aria-hidden="true" />
-      <span class="lbl grow">Phone access</span>
-      <span class="chip {phoneOn ? 'run' : 'idle'}">{phoneOn ? "On" : "Off"}</span>
+      <span class="lbl grow">{t("shell.sidebar.phone")}</span>
+      <span class="chip {phoneOn ? 'run' : 'idle'}">{phoneOn ? t("shell.sidebar.on") : t("shell.sidebar.off")}</span>
     </a>
-    <div class="seg" role="group" aria-label="Theme">
-      <button type="button" title="Day" aria-pressed={currentTheme() === "light"} onclick={() => setTheme("light")}>
-        <Sun size={16} aria-hidden="true" /><span class="lbl">Day</span>
+    <div class="seg" role="group" aria-label={t("shell.sidebar.theme")}>
+      <button type="button" title={t("shell.sidebar.day")} aria-pressed={currentTheme() === "light"} onclick={() => setTheme("light")}>
+        <Sun size={16} aria-hidden="true" /><span class="lbl">{t("shell.sidebar.day")}</span>
       </button>
-      <button type="button" title="Dusk" aria-pressed={currentTheme() === "dark"} onclick={() => setTheme("dark")}>
-        <Moon size={16} aria-hidden="true" /><span class="lbl">Dusk</span>
+      <button type="button" title={t("shell.sidebar.dusk")} aria-pressed={currentTheme() === "dark"} onclick={() => setTheme("dark")}>
+        <Moon size={16} aria-hidden="true" /><span class="lbl">{t("shell.sidebar.dusk")}</span>
       </button>
     </div>
   </div>

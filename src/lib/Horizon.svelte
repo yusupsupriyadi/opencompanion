@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from "./i18n.svelte";
+
   // Activity track (DESIGN.md section 6): ground line, soil specks, one mark per real event.
   let {
     marks,
@@ -20,11 +22,7 @@
       }));
   });
 
-  const label = $derived(
-    marks.length === 0
-      ? "Activity: no commands, file edits or approvals yet"
-      : `Activity: ${marks.length} commands, file edits and approvals`,
-  );
+  const label = $derived(marks.length === 0 ? t("shell.horizon.empty") : t("shell.horizon.count", { n: marks.length }));
 </script>
 
 <span class="horizon" class:full role="img" aria-label={label}>

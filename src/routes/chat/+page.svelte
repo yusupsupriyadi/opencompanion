@@ -18,6 +18,7 @@
   import PlannerModel from "$lib/PlannerModel.svelte";
   import StatusChip from "$lib/StatusChip.svelte";
   import { CLI_LABEL, ago, folderName, isLive } from "$lib/format";
+  import { plural, t, tb } from "$lib/i18n.svelte";
   import { app, showToast } from "$lib/store.svelte";
 
   let threads = $state<ChatThread[]>([]);
@@ -171,7 +172,7 @@
 
   function announce(m: ChatMessage) {
     const n = m.cards.length;
-    announcement = m.role === "error" ? m.text : n ? `The planner answered with ${n} session card${n === 1 ? "" : "s"}.` : "The planner answered.";
+    announcement = m.role === "error" ? m.text : n ? plural(n, "chat.announce.cardsOne", "chat.announce.cardsMany") : t("chat.announce.answered");
   }
 
   onMount(() => {
@@ -231,7 +232,7 @@
         sendError = errorText(err);
         draft = text;
       } else {
-        showToast(`The planner could not answer in the other chat: ${errorText(err)}`);
+        showToast(t("chat.thread.otherChatFailed", { error: errorText(err) }));
       }
     } finally {
       pending = null;
@@ -252,11 +253,11 @@
     try {
       await api.chatDeleteThread(gone.id);
       threads = threads.filter((t) => t.id !== gone.id);
-      showToast(`Deleted "${gone.title}".`);
+      showToast(t("chat.delete.done", { title: gone.title }));
       await goto("/chat");
     } catch (err) {
       confirmDelete = false;
-      showToast(`The chat could not be deleted: ${errorText(err)}`);
+      showToast(t("chat.delete.failed", { error: errorText(err) }));
     }
   }
 
@@ -273,41 +274,41 @@
   }
 </script>
 
-<svelte:head><title>{current ? `${current.title} · ` : ""}Chat · OpenCompanion</title></svelte:head>
+<svelte:head><title>{current ? `${current.title} · ` : ""}{t("chat.heading")} · OpenCompanion</title></svelte:head>
 <svelte:window onkeydown={closePeek} />
 
 <div class="chat-wrap" class:docked={railOpen && wide.current}>
   <nav class="history" class:open={listOpen} id="chat-history" aria-labelledby="history-title">
     <div class="history-head">
-      <h2 id="history-title" class="grow">Chats</h2>
+      <h2 id="history-title" class="grow">{t("chat.history.title")}</h2>
       <button class="btn secondary sm" type="button" id="btn-new-chat" onclick={newChat}>
-        <Plus size={16} aria-hidden="true" />New chat
+        <Plus size={16} aria-hidden="true" />{t("chat.history.new")}
       </button>
     </div>
     <button class="history-toggle" type="button" aria-expanded={listOpen} aria-controls="chat-history-list" onclick={() => (listOpen = !listOpen)}>
-      <span class="grow ellipsis">{current?.title ?? "New chat"}</span>
-      {#if threadsState === "ready"}<span class="meta">{threads.length} saved</span>{/if}
+      <span class="grow ellipsis">{current?.title ?? t("chat.history.new")}</span>
+      {#if threadsState === "ready"}<span class="meta">{t("chat.history.saved", { n: threads.length })}</span>{/if}
       <CaretDown size={16} aria-hidden="true" />
     </button>
     <div class="history-list" id="chat-history-list">
       {#if threadsState === "loading"}
-        <p class="meta" role="status">Loading your chats…</p>
+        <p class="meta" role="status">{t("chat.history.loading")}</p>
       {:else if threadsState === "error"}
-        <p class="err-text" role="alert">The chat list could not be loaded: {threadsError}</p>
-        <button class="btn secondary sm" type="button" onclick={() => loadThreads()}>Try again</button>
+        <p class="err-text" role="alert">{t("chat.history.loadFailed", { error: threadsError })}</p>
+        <button class="btn secondary sm" type="button" onclick={() => loadThreads()}>{t("chat.tryAgain")}</button>
       {:else if threads.length === 0}
-        <p class="meta">No chats yet. Your first message starts one, and every chat stays here with its own history.</p>
+        <p class="meta">{t("chat.history.empty")}</p>
       {:else}
-        {#each threads as t (t.id)}
+        {#each threads as chat (chat.id)}
           <a
             class="chat-item"
-            href="/chat?id={t.id}"
-            aria-current={t.id === currentId ? "page" : undefined}
-            title={t.title}
+            href="/chat?id={chat.id}"
+            aria-current={chat.id === currentId ? "page" : undefined}
+            title={chat.title}
             onclick={() => (listOpen = false)}
           >
-            <b class="ellipsis">{t.title}</b>
-            <span>{pending?.threadId === t.id || answering.includes(t.id) ? "Planner is answering…" : ago(t.updatedAt, app.now)}</span>
+            <b class="ellipsis">{chat.title}</b>
+            <span>{pending?.threadId === chat.id || answering.includes(chat.id) ? t("chat.history.answering") : ago(chat.updatedAt, app.now)}</span>
           </a>
         {/each}
       {/if}
@@ -316,10 +317,10 @@
 
   <main class="chat-col" id="chat-main">
     <header class="page-head">
-      <h1 class="sr-only">Chat</h1>
+      <h1 class="sr-only">{t("chat.heading")}</h1>
       {#if current}
         <button class="btn ghost" type="button" id="btn-delete-chat" onclick={deleteChat} disabled={thinkingHere || answeringHere}>
-          <Trash size={16} aria-hidden="true" />{confirmDelete ? "Press again to delete" : "Delete chat"}
+          <Trash size={16} aria-hidden="true" />{confirmDelete ? t("chat.delete.confirm") : t("chat.delete.button")}
         </button>
       {/if}
       <button
@@ -329,8 +330,8 @@
         bind:this={railBtn}
         aria-expanded={railOpen}
         aria-controls="chat-live-rail"
-        aria-label="Live sessions"
-        title={railOpen ? "Hide live sessions" : "Show live sessions"}
+        aria-label={t("chat.live.title")}
+        title={railOpen ? t("chat.live.hide") : t("chat.live.show")}
         onclick={toggleRail}
       >
         <SidebarSimple size={20} weight={railOpen ? "fill" : "regular"} mirrored aria-hidden="true" />
@@ -346,17 +347,17 @@
     <div class="thread" bind:this={thread}>
       {#if missing}
         <div class="state-box" role="alert">
-          <h2>This chat is gone</h2>
-          <p>It was deleted, so its messages are no longer stored. Sessions started from its cards keep running.</p>
-          <button class="btn secondary" type="button" onclick={newChat}>Start a new chat</button>
+          <h2>{t("chat.gone.title")}</h2>
+          <p>{t("chat.gone.body")}</p>
+          <button class="btn secondary" type="button" onclick={newChat}>{t("chat.gone.start")}</button>
         </div>
       {:else if loadState === "loading"}
-        <p class="hint" role="status">Loading the conversation…</p>
+        <p class="hint" role="status">{t("chat.thread.loading")}</p>
       {:else if loadState === "error"}
         <div class="state-box" role="alert">
-          <h2>The conversation could not be loaded</h2>
-          <p>{loadError}</p>
-          <button class="btn secondary" type="button" onclick={() => open(currentId)}>Try again</button>
+          <h2>{t("chat.thread.loadFailed")}</h2>
+          <p>{tb(loadError)}</p>
+          <button class="btn secondary" type="button" onclick={() => open(currentId)}>{t("chat.tryAgain")}</button>
         </div>
       {/if}
 
@@ -366,8 +367,8 @@
             <p class="me">{m.text}</p>
           {:else}
             <div class="planner">
-              <span class="who">Planner</span>
-              {#if m.text}<p class:err-text={m.role === "error"}>{m.text}</p>{/if}
+              <span class="who">{t("chat.thread.planner")}</span>
+              {#if m.text}<p class:err-text={m.role === "error"}>{tb(m.text)}</p>{/if}
               {#each m.cards as c (c.id)}
                 <DispatchCard card={c} messageId={m.id} onchange={replace} />
               {/each}
@@ -379,19 +380,19 @@
       {#if thinkingHere && pending}
         <p class="me">{pending.text}</p>
         <div class="planner">
-          <span class="who">Planner</span>
-          <p class="thinking" role="status"><SpinnerGap size={18} class="spin" aria-hidden="true" />{#if provider}{provider.model || "The custom provider"} is reading your message.{:else}{planner?.label ?? "The planner"} is reading your message. This usually takes 10 to 30 seconds.{/if}</p>
+          <span class="who">{t("chat.thread.planner")}</span>
+          <p class="thinking" role="status"><SpinnerGap size={18} class="spin" aria-hidden="true" />{#if provider}{t("chat.thread.readingProvider", { name: provider.model || t("chat.thread.customProvider") })}{:else}{t("chat.thread.readingCli", { name: planner?.label ?? t("chat.thread.thePlanner") })}{/if}</p>
         </div>
       {:else if answeringHere && loadState === "ready"}
         <div class="planner">
-          <span class="who">Planner</span>
-          <p class="thinking" role="status"><SpinnerGap size={18} class="spin" aria-hidden="true" />The planner is still answering the last message. Its answer shows up here.</p>
+          <span class="who">{t("chat.thread.planner")}</span>
+          <p class="thinking" role="status"><SpinnerGap size={18} class="spin" aria-hidden="true" />{t("chat.thread.stillAnswering")}</p>
         </div>
       {/if}
     </div>
 
     <form class="composer" onsubmit={send}>
-      <label class="sr-only" for="composer-input">Message the planner</label>
+      <label class="sr-only" for="composer-input">{t("chat.composer.label")}</label>
       <FolderMention bind:this={mention} textarea={input} />
       <textarea
         id="composer-input"
@@ -400,35 +401,35 @@
         bind:value={draft}
         {onkeydown}
         disabled={missing}
-        placeholder="Describe a task. Name a CLI, type @ for a folder, or let the planner pick one."
+        placeholder={t("chat.composer.placeholder")}
       ></textarea>
-      {#if sendError}<p class="err-text" role="alert" style="margin:0">{sendError}</p>{/if}
+      {#if sendError}<p class="err-text" role="alert" style="margin:0">{tb(sendError)}</p>{/if}
       <div class="composer-bar">
         {#if planner && app.settings?.plannerSource !== "api"}<PlannerModel cli={planner} />{/if}
         <button
           class="btn primary send"
           type="submit"
           id="btn-send"
-          aria-label="Send"
-          title="Send. Shift+Enter adds a line."
+          aria-label={t("chat.composer.send")}
+          title={t("chat.composer.sendHint")}
           disabled={pending !== null || answeringHere || !draft.trim() || !canPlan || missing}
         >
           <PaperPlaneTilt size={16} weight="fill" aria-hidden="true" />
         </button>
       </div>
       {#if pending && !thinkingHere}
-        <p class="meta composer-hint" role="status">The planner is still answering in another chat. Send works again when it is done.</p>
+        <p class="meta composer-hint" role="status">{t("chat.composer.busyElsewhere")}</p>
       {/if}
       {#if autoRun.length}
         <p class="meta composer-hint" id="chat-auto-run">
-          Cards for {autoRun.map(folderName).join(", ")} start without asking; the rest wait for Run. <a class="link" href="/settings#auto-run">Change this</a>
+          {t("chat.composer.autoRun", { folders: autoRun.map(folderName).join(", ") })} <a class="link" href="/settings#auto-run">{t("chat.composer.autoRunChange")}</a>
         </p>
       {/if}
       {#if !canPlan}
         <p class="meta composer-hint" role="status">
-          {#if provider}The custom provider has no base URL or model yet. Add them in Settings.
-          {:else if app.clisState === "loading"}Checking which CLI can plan…
-          {:else}No CLI that can plan is installed.{/if}
+          {#if provider}{t("chat.composer.providerMissing")}
+          {:else if app.clisState === "loading"}{t("chat.composer.checkingClis")}
+          {:else}{t("chat.composer.noPlanner")}{/if}
         </p>
       {/if}
     </form>
@@ -442,9 +443,9 @@
 </div>
 
 {#snippet live()}
-  <h2 id="rail-title">Live sessions</h2>
+  <h2 id="rail-title">{t("chat.live.title")}</h2>
   {#if liveSessions.length === 0}
-    <p class="meta" style="margin:0">Nothing is running. Sessions you start from a card show up here.</p>
+    <p class="meta" style="margin:0">{t("chat.live.empty")}</p>
   {/if}
   {#each liveSessions as s (s.id)}
     <a class="live" href="/session?id={s.id}">
@@ -454,7 +455,7 @@
         <StatusChip status={s.status} />
       </span>
       <Horizon marks={s.marks} start={s.startedAt} end={app.now} live={s.status === "running"} full />
-      <span class="meta" style="font-size:12px"><span title={s.cwd}>{CLI_LABEL[s.cli]} in {folderName(s.cwd)}</span> · {s.lastEvent ?? "Starting"}</span>
+      <span class="meta" style="font-size:12px"><span title={s.cwd}>{t("chat.live.where", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) })}</span> · {s.lastEvent ? tb(s.lastEvent) : t("chat.live.starting")}</span>
     </a>
   {/each}
 {/snippet}

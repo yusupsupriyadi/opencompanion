@@ -1,6 +1,7 @@
 // Phone companion client (PRD section F). Runs in the phone's browser, talks to the desktop's
 // companion server over the LAN with a device token, never to anything else.
 import type { CliInstall, EventRow, PermMode, ProjectFolder, SessionInfo } from "./api";
+import { t } from "./i18n.svelte";
 
 const TOKEN_KEY = "air-token";
 
@@ -57,7 +58,7 @@ export async function call<T>(path: string, init: RequestInit = {}): Promise<T> 
   } catch {
     // One failed request while the live connection is up is a blip, not a desktop that went away.
     if (socket?.readyState !== WebSocket.OPEN) phone.connection = "offline";
-    throw new PhoneError("Can't reach your desktop.", 0);
+    throw new PhoneError(t("phone.unreachable"), 0);
   }
   phone.connection = "online";
   const body = await res.json().catch(() => ({}));
@@ -65,7 +66,7 @@ export async function call<T>(path: string, init: RequestInit = {}): Promise<T> 
     phone.unpaired = true;
     setToken(null);
   }
-  if (!res.ok) throw new PhoneError(body.error ?? `Request failed (${res.status}).`, res.status);
+  if (!res.ok) throw new PhoneError(body.error ?? t("phone.requestFailed", { status: res.status }), res.status);
   return body as T;
 }
 

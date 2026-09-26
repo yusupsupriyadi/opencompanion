@@ -5,6 +5,7 @@
   import Horizon from "./Horizon.svelte";
   import StatusChip from "./StatusChip.svelte";
   import { CLI_LABEL, isLive, shortPath, trackLine } from "./format";
+  import { t } from "./i18n.svelte";
   import { app, askDelete } from "./store.svelte";
 
   let { s }: { s: SessionView } = $props();
@@ -16,7 +17,7 @@
     <CliMark kind={s.cli} />
     <span style="min-width:0">
       <span class="task" title={s.title}>{s.title}</span>
-      <span class="where">{CLI_LABEL[s.cli]} · {s.mode} · <span class="mono" title={s.cwd}>{shortPath(s.cwd)}</span></span>
+      <span class="where">{CLI_LABEL[s.cli]} · {t(`sessions.mode.${s.mode}`)} · <span class="mono" title={s.cwd}>{shortPath(s.cwd)}</span></span>
     </span>
     <span class="track">
       <Horizon marks={s.marks} start={s.startedAt} end={s.endedAt ?? app.now} {live} />
@@ -26,7 +27,7 @@
   </a>
   <!-- Outside the link: a button inside <a> is invalid and would open the session too. -->
   {#if !isLive(s)}
-    <button class="icon-btn del" type="button" aria-label="Delete session: {s.title}" title="Delete session" onclick={() => askDelete(s)}>
+    <button class="icon-btn del" type="button" aria-label={t("sessions.row.deleteNamed", { title: s.title })} title={t("sessions.row.delete")} onclick={() => askDelete(s)}>
       <Trash size={18} aria-hidden="true" />
     </button>
   {/if}

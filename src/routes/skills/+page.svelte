@@ -10,6 +10,7 @@
   import CliMark from "$lib/CliMark.svelte";
   import Dialog from "$lib/Dialog.svelte";
   import { ago, shortPath } from "$lib/format";
+  import { plural, t, tb, type Key } from "$lib/i18n.svelte";
   import { cellFor, copySteps, entryIn, filterSkills, joinPath, skillCounts, skillSources, type Cell, type CopyStep, type SkillFilter } from "$lib/skills";
   import { app, showToast } from "$lib/store.svelte";
 
@@ -23,17 +24,18 @@
   let detailOpen = $state(false);
   let sourceRoot = $state("");
 
-  const STEP_TITLE: Record<CopyStep["kind"], (label: string) => string> = {
-    copy: (l) => `Add to ${l}`,
-    replace: (l) => `Replace in ${l}`,
-    link: (l) => `${l} uses a link`,
-    nested: (l) => `${l} holds a link`,
+  // Keys, not text: t() runs in the template, so the titles and filters follow a language change.
+  const STEP_TITLE: Record<CopyStep["kind"], Key> = {
+    copy: "work.skills.stepCopy",
+    replace: "work.skills.stepReplace",
+    link: "work.skills.stepLink",
+    nested: "work.skills.stepNested",
   };
 
-  const FILTERS: { id: SkillFilter; label: string }[] = [
-    { id: "all", label: "All" },
-    { id: "different", label: "Different" },
-    { id: "problems", label: "Problems" },
+  const FILTERS: { id: SkillFilter; label: Key }[] = [
+    { id: "all", label: "work.skills.filterAll" },
+    { id: "different", label: "work.skills.filterDifferent" },
+    { id: "problems", label: "work.skills.filterProblems" },
   ];
 
   const counts = $derived(scan ? skillCounts(scan.skills) : { all: 0, different: 0, problems: 0 });
@@ -41,18 +43,23 @@
   const folderCount = $derived(scan?.roots.filter((r) => r.exists).length ?? 0);
   const summary = $derived(
     [
-      `${counts.all} ${counts.all === 1 ? "skill" : "skills"} in ${folderCount} ${folderCount === 1 ? "folder" : "folders"}`,
-      `${counts.different} ${counts.different === 1 ? "differs" : "differ"}`,
-      `${counts.problems} ${counts.problems === 1 ? "has a problem" : "have a problem"}`,
+      t("work.skills.skillsInFolders", {
+        skills: plural(counts.all, "work.skills.skillsOne", "work.skills.skillsMany"),
+        folders: plural(folderCount, "work.skills.foldersOne", "work.skills.foldersMany"),
+      }),
+      plural(counts.different, "work.skills.differsOne", "work.skills.differsMany"),
+      plural(counts.problems, "work.skills.problemsOne", "work.skills.problemsMany"),
     ].join(" · "),
   );
   const emptyText = $derived(
     query.trim()
-      ? `No skill matches "${query.trim()}".`
+      ? t("work.skills.noMatch", { query: query.trim() })
       : filter === "different"
-        ? "No skill differs between folders."
-        : "No folder has a problem.",
+        ? t("work.skills.noneDifferent")
+        : t("work.skills.noneProblems"),
   );
+  // The link target sits in code type between the two halves.
+  const linkHint = $derived(t("work.skills.linkHint").split("{path}"));
 
   const detail = $derived(scan?.skills.find((r) => r.name === detailName) ?? null);
   const sources = $derived(detail ? skillSources(detail) : []);
@@ -88,23 +95,23 @@
   async function copy(command: string, rootId: string) {
     try {
       await navigator.clipboard.writeText(command);
-      showToast(`Copied the command for ${rootLabel(rootId)}.`);
+      showToast(t("work.skills.copied", { folder: rootLabel(rootId) }));
     } catch {
-      showToast("Could not copy. Select the command and copy it by hand.");
+      showToast(t("work.skills.copyFailed"));
     }
   }
 </script>
 
-<svelte:head><title>Skills · OpenCompanion</title></svelte:head>
+<svelte:head><title>{t("work.skills.pageTitle")}</title></svelte:head>
 
 {#snippet cellView(c: Cell)}
   {#if c.kind === "missing"}
-    <span class="missing">Missing</span>
+    <span class="missing">{t("work.skills.missing")}</span>
   {:else if c.kind === "same"}
     <span class="ok"><CheckCircle size={16} aria-hidden="true" />{c.label}</span>
   {:else if c.kind === "version"}
     <span class="version">
-      <span class="chip ro">Version {c.variant}</span>
+      <span class="chip ro">{t("work.skills.version", { variant: c.variant })}</span>
       {#if c.modifiedAt}<span class="when">{ago(c.modifiedAt, app.now)}</span>{/if}
     </span>
   {:else}
@@ -115,43 +122,43 @@
 <main class="main" id="skills-main">
   <header class="page-head">
     <div class="grow">
-      <h1>Skills</h1>
-      <p class="sub">Skill folders in your home directory, compared by content. OpenCompanion reads these folders and never changes them.</p>
+      <h1>{t("work.skills.heading")}</h1>
+      <p class="sub">{t("work.skills.sub")}</p>
     </div>
     <button class="btn secondary" type="button" id="btn-rescan-skills" disabled={scanning} onclick={load}>
-      <ArrowClockwise size={16} aria-hidden="true" /><span>{scanning ? "Reading…" : "Rescan"}</span>
+      <ArrowClockwise size={16} aria-hidden="true" /><span>{scanning ? t("work.skills.reading") : t("work.rescan")}</span>
     </button>
   </header>
 
   {#if loadState === "loading"}
-    <p class="hint" role="status">Reading skill folders…</p>
+    <p class="hint" role="status">{t("work.skills.loading")}</p>
   {:else if loadState === "error" || !scan}
     <div class="state-box" role="alert">
-      <h2>Skill folders could not be read</h2>
-      <p>{loadError}</p>
-      <button class="btn secondary" type="button" onclick={load}>Try again</button>
+      <h2>{t("work.skills.loadError")}</h2>
+      <p>{tb(loadError)}</p>
+      <button class="btn secondary" type="button" onclick={load}>{t("work.tryAgain")}</button>
     </div>
   {:else if scan.skills.length === 0}
     <div class="state-box" id="skills-empty">
-      <h2>No skills in these folders yet</h2>
+      <h2>{t("work.skills.empty")}</h2>
       <ul class="paths">
         {#each scan.roots as r (r.id)}
-          <li><span class="mono" title={r.path}>{shortPath(r.path)}</span> <span class="meta">{r.label}{r.exists ? "" : ", folder not found"}</span></li>
+          <li><span class="mono" title={r.path}>{shortPath(r.path)}</span> <span class="meta">{r.exists ? r.label : t("work.skills.rootMissing", { folder: r.label })}</span></li>
         {/each}
       </ul>
-      <p>Skills you add to any of them show up here after Rescan.</p>
+      <p>{t("work.skills.emptyHint")}</p>
     </div>
   {:else}
     <div class="toolbar" id="skills-toolbar">
       <p class="summary">{summary}</p>
-      <div class="seg" role="group" aria-label="Show">
+      <div class="seg" role="group" aria-label={t("work.skills.filterGroup")}>
         {#each FILTERS as f (f.id)}
-          <button type="button" aria-pressed={filter === f.id} onclick={() => (filter = f.id)}>{f.label} <span class="count">{counts[f.id]}</span></button>
+          <button type="button" aria-pressed={filter === f.id} onclick={() => (filter = f.id)}>{t(f.label)} <span class="count">{counts[f.id]}</span></button>
         {/each}
       </div>
       <label class="input-wrap search">
         <MagnifyingGlass size={16} aria-hidden="true" />
-        <input type="search" bind:value={query} aria-label="Search skills" placeholder="Search by name or description" spellcheck="false" />
+        <input type="search" bind:value={query} aria-label={t("work.skills.search")} placeholder={t("work.skills.searchPlaceholder")} spellcheck="false" />
       </label>
     </div>
 
@@ -160,17 +167,17 @@
     {:else}
       <div class="table-wrap">
         <table id="skill-matrix" aria-busy={scanning}>
-          <caption class="sr-only">Skills in each folder</caption>
+          <caption class="sr-only">{t("work.skills.caption")}</caption>
           <thead>
             <tr>
-              <th scope="col" class="skill-col">Skill</th>
+              <th scope="col" class="skill-col">{t("work.skills.colSkill")}</th>
               {#each scan.roots as r (r.id)}
                 <th scope="col" title={r.path}>
                   <span class="root-head">
                     {#if r.cli}<CliMark kind={r.cli} small />{:else}<span class="climark sm" aria-hidden="true"><FolderSimple size={14} /></span>{/if}
                     <b>{r.label}</b>
                   </span>
-                  {#if !r.exists}<span class="chip idle">Folder not found</span>{/if}
+                  {#if !r.exists}<span class="chip idle">{t("work.skills.folderNotFound")}</span>{/if}
                 </th>
               {/each}
             </tr>
@@ -181,11 +188,11 @@
                 <th scope="row">
                   <button class="skill-name" type="button" onclick={() => openDetail(row)}>{row.name}</button>
                   {#if row.description}<span class="desc" title={row.description}>{row.description}</span>{/if}
-                  {#if row.variants > 1}<span class="versions">{row.variants} versions</span>{/if}
+                  {#if row.variants > 1}<span class="versions">{t("work.skills.versions", { n: row.variants })}</span>{/if}
                 </th>
                 {#each scan.roots as r (r.id)}
                   <td>
-                    {#if r.exists}{@render cellView(cellFor(row, r.id))}{:else}<span class="sr-only">Folder not found</span>{/if}
+                    {#if r.exists}{@render cellView(cellFor(row, r.id))}{:else}<span class="sr-only">{t("work.skills.folderNotFound")}</span>{/if}
                   </td>
                 {/each}
               </tr>
@@ -194,7 +201,7 @@
         </table>
       </div>
     {/if}
-    <p class="note">OpenCompanion never copies skills for you. Open a skill to get the command, run it in your own terminal, then press Rescan.</p>
+    <p class="note">{t("work.skills.note")}</p>
   {/if}
 </main>
 
@@ -203,11 +210,11 @@
     <div class="d-body">
       <div class="row">
         <h2 id="skill-title" class="grow">{detail.name}</h2>
-        <button class="icon-btn" type="button" aria-label="Close" onclick={() => (detailOpen = false)}><X size={18} aria-hidden="true" /></button>
+        <button class="icon-btn" type="button" aria-label={t("work.close")} onclick={() => (detailOpen = false)}><X size={18} aria-hidden="true" /></button>
       </div>
       {#if detail.description}<p class="d-desc">{detail.description}</p>{/if}
 
-      <ul class="where" aria-label="Folders">
+      <ul class="where" aria-label={t("work.skills.folders")}>
         {#each scan.roots as r (r.id)}
           {@const e = entryIn(detail, r.id)}
           <li>
@@ -215,23 +222,23 @@
             <span class="grow">
               <b>{r.label}</b>
               <span class="mono path" title={e?.path ?? r.path}>{shortPath(e?.path ?? joinPath(scan.shell, r.path, detail.name))}</span>
-              {#if e?.linkTarget}<span class="mono path" title={e.linkTarget}>links to {shortPath(e.linkTarget)}</span>{/if}
+              {#if e?.linkTarget}<span class="mono path" title={e.linkTarget}>{t("work.skills.linksTo", { path: shortPath(e.linkTarget) })}</span>{/if}
             </span>
-            {#if r.exists}{@render cellView(cellFor(detail, r.id))}{:else}<span class="chip idle">Folder not found</span>{/if}
+            {#if r.exists}{@render cellView(cellFor(detail, r.id))}{:else}<span class="chip idle">{t("work.skills.folderNotFound")}</span>{/if}
           </li>
         {/each}
       </ul>
 
       {#if sources.length === 0}
-        <p class="meta">No folder has a readable copy of this skill, so there is nothing to copy from yet.</p>
+        <p class="meta">{t("work.skills.noSource")}</p>
       {:else if steps.length === 0}
-        <p class="all-same"><CheckCircle size={16} aria-hidden="true" />Every folder that can take this skill already holds this version.</p>
+        <p class="all-same"><CheckCircle size={16} aria-hidden="true" />{t("work.skills.allSame")}</p>
       {:else}
         <div class="field">
-          <label class="label" for="skill-source">Copy from</label>
+          <label class="label" for="skill-source">{t("work.skills.copyFrom")}</label>
           <select class="select" id="skill-source" bind:value={sourceRoot}>
             {#each sources as s (s.rootId)}
-              <option value={s.rootId}>{rootLabel(s.rootId)}{detail.variants > 1 ? `, Version ${s.variant}` : ""}</option>
+              <option value={s.rootId}>{detail.variants > 1 ? t("work.skills.sourceVersion", { variant: s.variant ?? "", folder: rootLabel(s.rootId) }) : rootLabel(s.rootId)}</option>
             {/each}
           </select>
         </div>
@@ -239,17 +246,17 @@
           {#each steps as s (s.rootId)}
             {@const label = rootLabel(s.rootId)}
             <section class="step" aria-labelledby="step-{s.rootId}">
-              <h3 id="step-{s.rootId}">{STEP_TITLE[s.kind](label)}</h3>
+              <h3 id="step-{s.rootId}">{t(STEP_TITLE[s.kind], { folder: label })}</h3>
               {#if s.kind === "nested"}
-                <p class="meta">This folder has a link inside it, and removing it with a command could delete the files that link points to. Replace it by hand, then press Rescan.</p>
+                <p class="meta">{t("work.skills.nestedHint")}</p>
               {:else if s.kind === "link"}
                 <p class="meta">
-                  {#if s.target}This folder links to <span class="mono">{shortPath(s.target)}</span>. Update it there.{:else}This folder is a link whose target is gone. Remove the link, then press Rescan to get a copy command.{/if}
+                  {#if s.target}{linkHint[0]}<span class="mono">{shortPath(s.target)}</span>{linkHint[1]}{:else}{t("work.skills.brokenLinkHint")}{/if}
                 </p>
               {:else}
-                {#if s.kind === "replace"}<p class="meta">Replaces the folder in {label}. Files that exist only in that copy are deleted.</p>{/if}
-                <div class="cmd"><small>{scan.shell === "powershell" ? "PowerShell" : "Terminal"}</small><code>{s.command}</code></div>
-                <div><button class="btn secondary sm" type="button" onclick={() => copy(s.command, s.rootId)}><Copy size={16} aria-hidden="true" />Copy command</button></div>
+                {#if s.kind === "replace"}<p class="meta">{t("work.skills.replaceHint", { folder: label })}</p>{/if}
+                <div class="cmd"><small>{scan.shell === "powershell" ? "PowerShell" : t("work.skills.terminal")}</small><code>{s.command}</code></div>
+                <div><button class="btn secondary sm" type="button" onclick={() => copy(s.command, s.rootId)}><Copy size={16} aria-hidden="true" />{t("work.copyCommand")}</button></div>
               {/if}
             </section>
           {/each}
@@ -257,8 +264,8 @@
       {/if}
 
       <div class="d-foot">
-        <span class="meta grow">Esc to close</span>
-        <button class="btn secondary" type="button" onclick={() => (detailOpen = false)}>Close</button>
+        <span class="meta grow">{t("work.escToClose")}</span>
+        <button class="btn secondary" type="button" onclick={() => (detailOpen = false)}>{t("work.close")}</button>
       </div>
     </div>
   {/if}

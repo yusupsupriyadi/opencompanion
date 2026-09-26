@@ -1,7 +1,8 @@
 import { render, screen, within } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, expect, onTestFinished, test, vi } from "vitest";
 import type { Settings } from "$lib/api";
+import { setLang } from "$lib/i18n.svelte";
 import { app, toast } from "$lib/store.svelte";
 import { CLIS, backend } from "../../test/fixtures";
 import SettingsPage from "./+page.svelte";
@@ -293,4 +294,19 @@ test("a folder runs cards without asking only after a second, explicit press", a
   expect(stored.autoRunFolders).toEqual([uninote]);
   await user.click(screen.getByRole("button", { name: "Stop running cards without asking in uninote" }));
   expect(stored.autoRunFolders).toEqual([]);
+});
+
+test("picking Bahasa Indonesia saves the language and the page then reads in Indonesian", async () => {
+  // The language lives in module state, so the next test starts in English again.
+  onTestFinished(() => setLang("en"));
+  const calls = api();
+  const user = userEvent.setup();
+  render(SettingsPage);
+  await user.selectOptions(await screen.findByLabelText("Show OpenCompanion in"), "id");
+  expect(calls.calls("save_settings").at(-1)).toMatchObject({ settings: { language: "id" } });
+
+  expect(await screen.findByLabelText("Tampilkan OpenCompanion dalam")).toHaveValue("id");
+  expect(screen.getByRole("checkbox", { name: "Tetap berjalan di tray" })).toBeChecked();
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Pengaturan");
+  await vi.waitFor(() => expect(toast.text).toBe("OpenCompanion sekarang memakai Bahasa Indonesia."));
 });

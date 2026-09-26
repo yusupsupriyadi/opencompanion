@@ -19,14 +19,21 @@
   import FolderField from "$lib/FolderField.svelte";
   import SessionForm, { type SessionValues } from "$lib/SessionForm.svelte";
   import { CLI_LABEL, duration, folderName } from "$lib/format";
+  import { t, tb, type Key } from "$lib/i18n.svelte";
   import { app, showToast } from "$lib/store.svelte";
 
-  const COLS: { id: Column; name: string; hint: string; empty: string }[] = [
-    { id: "pending", name: "Pending", hint: "Not ready yet", empty: "Nothing pending. New cards start here." },
-    { id: "todo", name: "Todo", hint: "Ready to hand to a CLI", empty: "No ready tasks. Move a pending card here once it is clear enough to run." },
-    { id: "progress", name: "In progress", hint: "A CLI session is on it", empty: "Nothing in progress. Press Run on a Todo card." },
-    { id: "done", name: "Done", hint: "Finished", empty: "Finished cards land here." },
+  // Keys, not text: t() runs where it is read, so the columns follow a language change.
+  const COLS: { id: Column; name: Key; hint: Key; empty: Key }[] = [
+    { id: "pending", name: "work.board.colPending", hint: "work.board.colPendingHint", empty: "work.board.colPendingEmpty" },
+    { id: "todo", name: "work.board.colTodo", hint: "work.board.colTodoHint", empty: "work.board.colTodoEmpty" },
+    { id: "progress", name: "work.board.colProgress", hint: "work.board.colProgressHint", empty: "work.board.colProgressEmpty" },
+    { id: "done", name: "work.board.colDone", hint: "work.board.colDoneHint", empty: "work.board.colDoneEmpty" },
   ];
+
+  function colName(id: Column): string {
+    const col = COLS.find((c) => c.id === id);
+    return col ? t(col.name) : id;
+  }
 
   let tasks = $state<Task[]>([]);
   let loadState = $state<"loading" | "ready" | "error">("loading");
@@ -102,7 +109,7 @@
   async function saveCard(e: SubmitEvent) {
     e.preventDefault();
     if (!form.title.trim()) {
-      titleError = "Give the card a title.";
+      titleError = t("work.board.titleRequired");
       document.getElementById("cd-title")?.focus();
       return;
     }
@@ -113,7 +120,9 @@
       const saved = await api.saveTask({ id: editing?.id, title: form.title, notes: form.notes, project: form.project, cli: form.cli || null, column: form.column });
       cardOpen = false;
       await load();
-      showToast(moved ? `Moved "${saved.title}" to ${COLS.find((c) => c.id === saved.column)?.name}.` : editing ? "Card saved." : `Added "${saved.title}" to ${COLS.find((c) => c.id === saved.column)?.name}.`);
+      // The title goes last: t() fills vars in order, so a title holding "{column}" stays as typed.
+      const vars = { column: colName(saved.column), title: saved.title };
+      showToast(moved ? t("work.board.movedToast", vars) : editing ? t("work.board.savedToast") : t("work.board.addedToast", vars));
       setTimeout(() => focusCard(saved.id), 0);
     } catch (err) {
       formError = errorText(err);
@@ -132,7 +141,7 @@
       await api.deleteTask(editing.id);
       cardOpen = false;
       await load();
-      showToast(`Deleted "${editing.title}".`);
+      showToast(t("work.board.deletedToast", { title: editing.title }));
     } catch (err) {
       formError = errorText(err);
     }
@@ -148,7 +157,7 @@
     const s = await api.runTask({ id: runTask.id, ...v });
     runOpen = false;
     await load();
-    showToast(`Started ${CLI_LABEL[v.cli]} in ${folderName(v.cwd)}. The card moved to In progress.`);
+    showToast(t("work.board.startedToast", { cli: CLI_LABEL[v.cli], folder: folderName(v.cwd) }));
     await goto(`/session?id=${s.id}`);
   }
 
@@ -170,38 +179,38 @@
     try {
       await api.moveTask(id, col, over && over !== id ? over : null);
       await load();
-      showToast(`Moved "${task.title}" to ${COLS.find((c) => c.id === col)?.name}.`);
+      showToast(t("work.board.movedToast", { column: colName(col), title: task.title }));
     } catch (err) {
-      showToast(errorText(err));
+      showToast(tb(errorText(err)));
     }
   }
 </script>
 
-<svelte:head><title>Board · OpenCompanion</title></svelte:head>
+<svelte:head><title>{t("work.board.pageTitle")}</title></svelte:head>
 
 <main class="main board-main" id="board-main">
   <header class="page-head">
     <div class="grow">
-      <h1>Board</h1>
-      <p class="sub">Tasks for your coding CLIs. Press Run on a Todo card to start a session; the card follows the session and moves to Done when it finishes.</p>
+      <h1>{t("work.board.heading")}</h1>
+      <p class="sub">{t("work.board.sub")}</p>
     </div>
     <div class="board-tools">
-      <label class="sr-only" for="bd-filter">Filter by project</label>
+      <label class="sr-only" for="bd-filter">{t("work.board.filterLabel")}</label>
       <select class="select" id="bd-filter" bind:value={filter}>
-        <option value="">All projects</option>
+        <option value="">{t("work.board.allProjects")}</option>
         {#each projects as p (p)}<option value={p}>{folderName(p)}</option>{/each}
       </select>
-      <button class="btn primary" type="button" id="btn-new-card" onclick={openNew}><Plus size={16} aria-hidden="true" />New card</button>
+      <button class="btn primary" type="button" id="btn-new-card" onclick={openNew}><Plus size={16} aria-hidden="true" />{t("work.board.newCard")}</button>
     </div>
   </header>
 
   {#if loadState === "loading"}
-    <p class="hint" role="status">Loading the board…</p>
+    <p class="hint" role="status">{t("work.board.loading")}</p>
   {:else if loadState === "error"}
     <div class="state-box" role="alert">
-      <h2>The board could not be loaded</h2>
-      <p>{loadError}</p>
-      <button class="btn secondary" type="button" onclick={load}>Try again</button>
+      <h2>{t("work.board.loadError")}</h2>
+      <p>{tb(loadError)}</p>
+      <button class="btn secondary" type="button" onclick={load}>{t("work.tryAgain")}</button>
     </div>
   {:else}
     <div class="board" id="board">
@@ -209,15 +218,15 @@
         <section class="col" aria-labelledby="h-{col.id}">
           <div class="col-head">
             <div class="grow">
-              <h2 id="h-{col.id}">{col.name} <span class="meta" style="font-weight:600">{byCol[col.id].length}</span></h2>
-              <p class="hint-line">{col.hint}</p>
+              <h2 id="h-{col.id}">{t(col.name)} <span class="meta" style="font-weight:600">{byCol[col.id].length}</span></h2>
+              <p class="hint-line">{t(col.hint)}</p>
             </div>
           </div>
           <div
             class="col-body"
             class:drop={dropCol === col.id}
             role="list"
-            aria-label="{col.name} cards"
+            aria-label={t("work.board.colCards", { column: t(col.name) })}
             ondragover={(e) => {
               e.preventDefault();
               dropCol = col.id;
@@ -228,52 +237,52 @@
             ondrop={(e) => ondrop(e, col.id)}
           >
             {#if byCol[col.id].length === 0}
-              <p class="col-empty">{col.empty}</p>
+              <p class="col-empty">{t(col.empty)}</p>
             {/if}
-            {#each byCol[col.id] as t (t.id)}
-              {@const s = sessionOf(t)}
+            {#each byCol[col.id] as card (card.id)}
+              {@const s = sessionOf(card)}
               <div
                 class="tcard"
                 class:needs={s?.status === "waiting"}
-                class:dragging={dragId === t.id}
-                data-card={t.id}
+                class:dragging={dragId === card.id}
+                data-card={card.id}
                 role="listitem"
                 draggable="true"
-                ondragstart={(e) => ondragstart(e, t)}
+                ondragstart={(e) => ondragstart(e, card)}
                 ondragend={() => {
                   dragId = null;
                   dropCol = null;
                 }}
               >
                 <div class="tc-top">
-                  {#if t.cli}<CliMark kind={t.cli} small />{/if}
-                  <button class="tc-title" type="button" onclick={() => openEdit(t)} title="Edit {t.title}">{t.title}</button>
-                  {#if t.column === "todo"}
-                    <button class="tc-act run-act" type="button" aria-label="Run in {t.project ? folderName(t.project) : 'a folder'}" title="Run" onclick={() => openRun(t)}>
+                  {#if card.cli}<CliMark kind={card.cli} small />{/if}
+                  <button class="tc-title" type="button" onclick={() => openEdit(card)} title={t("work.board.editCardTitle", { title: card.title })}>{card.title}</button>
+                  {#if card.column === "todo"}
+                    <button class="tc-act run-act" type="button" aria-label={card.project ? t("work.board.runIn", { folder: folderName(card.project) }) : t("work.board.runInAFolder")} title={t("work.board.run")} onclick={() => openRun(card)}>
                       <Play size={16} aria-hidden="true" />
                     </button>
-                  {:else if t.sessionId}
-                    <a class="tc-act" href="/session?id={t.sessionId}" aria-label="Open session" title="Open session"><ArrowSquareOut size={16} aria-hidden="true" /></a>
+                  {:else if card.sessionId}
+                    <a class="tc-act" href="/session?id={card.sessionId}" aria-label={t("work.board.openSession")} title={t("work.board.openSession")}><ArrowSquareOut size={16} aria-hidden="true" /></a>
                   {/if}
                 </div>
                 <div class="tc-meta">
-                  {#if t.project}
-                    <span title={t.project}><FolderSimple size={14} aria-hidden="true" /><span class="mono">{folderName(t.project)}</span></span>
+                  {#if card.project}
+                    <span title={card.project}><FolderSimple size={14} aria-hidden="true" /><span class="mono">{folderName(card.project)}</span></span>
                   {/if}
-                  {#if t.column === "progress" && s}
+                  {#if card.column === "progress" && s}
                     {#if s.status === "waiting"}
-                      <span class="st-i-wait" title="Waiting for you"><HandPalm size={14} aria-hidden="true" /><span class="sr-only">Waiting for you</span>{duration(app.now - (s.waiting?.since ?? s.updatedAt))}</span>
+                      <span class="st-i-wait" title={t("work.board.waiting")}><HandPalm size={14} aria-hidden="true" /><span class="sr-only">{t("work.board.waiting")}</span>{duration(app.now - (s.waiting?.since ?? s.updatedAt))}</span>
                     {:else if s.status === "error"}
-                      <span class="st-i-err" title="Error"><WarningCircle size={14} aria-hidden="true" /><span>Error</span></span>
+                      <span class="st-i-err" title={t("work.board.error")}><WarningCircle size={14} aria-hidden="true" /><span>{t("work.board.error")}</span></span>
                     {:else if s.status === "stopped"}
-                      <span title="Stopped"><X size={14} aria-hidden="true" /><span>Stopped</span></span>
+                      <span title={t("work.board.stopped")}><X size={14} aria-hidden="true" /><span>{t("work.board.stopped")}</span></span>
                     {:else}
-                      <span class="st-i-run" title="Running"><SpinnerGap size={14} aria-hidden="true" /><span class="sr-only">Running</span>{duration(app.now - s.startedAt)}</span>
+                      <span class="st-i-run" title={t("work.board.running")}><SpinnerGap size={14} aria-hidden="true" /><span class="sr-only">{t("work.board.running")}</span>{duration(app.now - s.startedAt)}</span>
                     {/if}
-                  {:else if t.column === "done" && s}
-                    <span class="st-i-done" title="Finished"><CheckCircle size={14} aria-hidden="true" /><span class="sr-only">Finished, took</span>{duration((s.endedAt ?? s.updatedAt) - s.startedAt)}</span>
-                  {:else if t.notes}
-                    <span title="Has notes"><Note size={14} aria-hidden="true" /><span class="sr-only">Has notes</span></span>
+                  {:else if card.column === "done" && s}
+                    <span class="st-i-done" title={t("work.board.finished")}><CheckCircle size={14} aria-hidden="true" /><span class="sr-only">{t("work.board.finishedTook")}</span>{duration((s.endedAt ?? s.updatedAt) - s.startedAt)}</span>
+                  {:else if card.notes}
+                    <span title={t("work.board.hasNotes")}><Note size={14} aria-hidden="true" /><span class="sr-only">{t("work.board.hasNotes")}</span></span>
                   {/if}
                 </div>
               </div>
@@ -282,51 +291,51 @@
         </section>
       {/each}
     </div>
-    <p class="meta note" style="margin:0">Drag cards between columns, or open a card and change its column.</p>
+    <p class="meta note" style="margin:0">{t("work.board.dragHint")}</p>
   {/if}
 </main>
 
 <Dialog bind:open={cardOpen} labelledby="cd-heading">
   <form class="d-body" novalidate onsubmit={saveCard}>
     <div class="row">
-      <h2 id="cd-heading" class="grow">{editing ? "Edit card" : "New card"}</h2>
-      <button class="icon-btn" type="button" aria-label="Close" onclick={() => (cardOpen = false)}><X size={18} aria-hidden="true" /></button>
+      <h2 id="cd-heading" class="grow">{editing ? t("work.board.editCard") : t("work.board.newCard")}</h2>
+      <button class="icon-btn" type="button" aria-label={t("work.close")} onclick={() => (cardOpen = false)}><X size={18} aria-hidden="true" /></button>
     </div>
     <div class="field">
-      <label class="label" for="cd-title">Title</label>
-      <input class="input" id="cd-title" bind:value={form.title} oninput={() => (titleError = "")} placeholder="What should get done?" aria-invalid={titleError ? "true" : undefined} aria-describedby={titleError ? "cd-title-error" : undefined} autocomplete="off" />
+      <label class="label" for="cd-title">{t("work.board.titleLabel")}</label>
+      <input class="input" id="cd-title" bind:value={form.title} oninput={() => (titleError = "")} placeholder={t("work.board.titlePlaceholder")} aria-invalid={titleError ? "true" : undefined} aria-describedby={titleError ? "cd-title-error" : undefined} autocomplete="off" />
       {#if titleError}<p class="error" id="cd-title-error">{titleError}</p>{/if}
     </div>
     <div class="field">
-      <label class="label" for="cd-notes">Notes</label>
-      <textarea class="textarea" id="cd-notes" bind:value={form.notes} placeholder="Details, acceptance criteria, or open questions. Used as the prompt when you press Run."></textarea>
+      <label class="label" for="cd-notes">{t("work.board.notesLabel")}</label>
+      <textarea class="textarea" id="cd-notes" bind:value={form.notes} placeholder={t("work.board.notesPlaceholder")}></textarea>
     </div>
-    <FolderField id="cd-project" label="Project" bind:value={form.project} />
+    <FolderField id="cd-project" label={t("work.board.projectLabel")} bind:value={form.project} />
     <div class="opts">
       <div class="field">
-        <label class="label" for="cd-cli">CLI</label>
+        <label class="label" for="cd-cli">{t("work.board.cliLabel")}</label>
         <select class="select" id="cd-cli" bind:value={form.cli}>
-          <option value="">Decide later</option>
-          {#each app.clis as c (c.kind)}<option value={c.kind} disabled={!c.path}>{c.label}{c.path ? "" : " (not installed)"}</option>{/each}
+          <option value="">{t("work.board.decideLater")}</option>
+          {#each app.clis as c (c.kind)}<option value={c.kind} disabled={!c.path}>{c.path ? c.label : t("work.board.cliNotInstalled", { cli: c.label })}</option>{/each}
         </select>
       </div>
       <div class="field">
-        <label class="label" for="cd-col">Column</label>
+        <label class="label" for="cd-col">{t("work.board.columnLabel")}</label>
         <select class="select" id="cd-col" bind:value={form.column}>
-          {#each COLS as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
+          {#each COLS as c (c.id)}<option value={c.id}>{t(c.name)}</option>{/each}
         </select>
       </div>
     </div>
-    {#if formError}<p class="err-text" role="alert" style="margin:0">{formError}</p>{/if}
+    {#if formError}<p class="err-text" role="alert" style="margin:0">{tb(formError)}</p>{/if}
     <div class="d-foot">
       {#if editing}
         <button class="btn ghost danger-text" type="button" onclick={deleteCard}>
-          <Trash size={16} aria-hidden="true" /><span>{confirmDelete ? "Press again to delete" : "Delete"}</span>
+          <Trash size={16} aria-hidden="true" /><span>{confirmDelete ? t("work.board.deleteConfirm") : t("work.board.delete")}</span>
         </button>
       {/if}
       <span class="grow"></span>
-      <button class="btn secondary" type="button" onclick={() => (cardOpen = false)}>Cancel</button>
-      <button class="btn primary" type="submit" disabled={saving}>Save card</button>
+      <button class="btn secondary" type="button" onclick={() => (cardOpen = false)}>{t("work.cancel")}</button>
+      <button class="btn primary" type="submit" disabled={saving}>{t("work.board.saveCard")}</button>
     </div>
   </form>
 </Dialog>
@@ -335,7 +344,7 @@
   {#if runTask}
     <SessionForm
       idPrefix="rd"
-      title="Run this card"
+      title={t("work.board.runCard")}
       initial={{ cli: runTask.cli ?? undefined, cwd: runTask.project, mode: "interactive", prompt: runTask.notes || runTask.title }}
       onsubmit={startRun}
       oncancel={() => (runOpen = false)}

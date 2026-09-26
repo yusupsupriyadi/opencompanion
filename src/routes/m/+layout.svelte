@@ -8,20 +8,21 @@
   import Kanban from "phosphor-svelte/lib/Kanban";
   import { onMount } from "svelte";
   import "$lib/phone.css";
-  import { setLang } from "$lib/i18n.svelte";
+  import { setLang, t } from "$lib/i18n.svelte";
   import { connect, getToken, loadSessions, phone, reconnectNow } from "$lib/phone.svelte";
 
   let { children } = $props();
   const onPair = $derived(page.url.pathname.startsWith("/m/pair"));
 
   // The three top-level screens get the tab bar; detail screens and forms own the bottom edge instead.
+  // The labels are getters, so they follow the UI language.
   const TABS = [
-    { href: "/m", label: "Sessions", icon: House },
-    { href: "/m/chat", label: "Chat", icon: ChatsCircle },
-    { href: "/m/board", label: "Board", icon: Kanban },
+    { href: "/m", get label() { return t("phone.nav.sessions"); }, icon: House },
+    { href: "/m/chat", get label() { return t("phone.nav.chat"); }, icon: ChatsCircle },
+    { href: "/m/board", get label() { return t("phone.nav.board"); }, icon: Kanban },
   ];
   const path = $derived(page.url.pathname.replace(/\/$/, "") || "/m");
-  const tabbed = $derived(TABS.some((t) => t.href === path));
+  const tabbed = $derived(TABS.some((tab) => tab.href === path));
   const waiting = $derived(phone.sessions.filter((s) => s.status === "waiting").length);
   const offline = $derived(phone.connection === "offline" && !onPair);
 
@@ -50,13 +51,13 @@
 <div class="phone" class:has-tabs={tabbed} inert={offline}>
   {@render children()}
   {#if tabbed}
-    <nav class="tabs" id="phone-tabs" aria-label="Phone sections">
+    <nav class="tabs" id="phone-tabs" aria-label={t("phone.nav.label")}>
       <div>
-        {#each TABS as t (t.href)}
-          <a href={t.href} aria-current={path === t.href ? "page" : undefined}>
-            <t.icon size={22} weight={path === t.href ? "fill" : "regular"} aria-hidden="true" />
-            {t.label}
-            {#if t.href === "/m" && waiting > 0}<span class="tab-count">{waiting}<span class="sr-only"> waiting for you</span></span>{/if}
+        {#each TABS as tab (tab.href)}
+          <a href={tab.href} aria-current={path === tab.href ? "page" : undefined}>
+            <tab.icon size={22} weight={path === tab.href ? "fill" : "regular"} aria-hidden="true" />
+            {tab.label}
+            {#if tab.href === "/m" && waiting > 0}<span class="tab-count">{waiting}<span class="sr-only"> {t("phone.nav.waiting")}</span></span>{/if}
           </a>
         {/each}
       </div>
@@ -68,15 +69,15 @@
     <header class="bar"><span class="brand grow">OpenCompanion <Cloud size={20} aria-hidden="true" /></span></header>
     <main class="content" id="phone-offline">
       <img class="art" src="/meadow-day.png" alt="" aria-hidden="true" />
-      <h1 class="m-h1">Can't reach your desktop</h1>
-      <p class="m-p">This phone is paired, but your computer did not answer. Things to check:</p>
+      <h1 class="m-h1">{t("phone.offline.title")}</h1>
+      <p class="m-p">{t("phone.offline.lead")}</p>
       <ol class="try">
-        <li>The computer is awake and OpenCompanion is open.</li>
-        <li>Phone access is still on in OpenCompanion Settings.</li>
-        <li>This phone is on the same Wi-Fi, or on your VPN.</li>
+        <li>{t("phone.offline.awake")}</li>
+        <li>{t("phone.offline.access")}</li>
+        <li>{t("phone.offline.network")}</li>
       </ol>
-      <button class="btn primary block" type="button" onclick={reconnectNow}><ArrowClockwise size={16} aria-hidden="true" />Try again</button>
-      <p class="small" style="margin:0">Trying again by itself every few seconds. What you were typing is kept.</p>
+      <button class="btn primary block" type="button" onclick={reconnectNow}><ArrowClockwise size={16} aria-hidden="true" />{t("phone.tryAgain")}</button>
+      <p class="small" style="margin:0">{t("phone.offline.retrying")}</p>
     </main>
   </div>
 {/if}

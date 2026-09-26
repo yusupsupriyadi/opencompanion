@@ -12,14 +12,16 @@
   import Dialog from "$lib/Dialog.svelte";
   import StatusChip from "$lib/StatusChip.svelte";
   import { CLI_LABEL, folderName, isLive, shortPath, waitingTitle } from "$lib/format";
+  import { t, tb } from "$lib/i18n.svelte";
   import { answer as sendAnswer, call, notify, onMessage, phone } from "$lib/phone.svelte";
 
   // The desktop Board, one column at a time (PRD FR-77). New cards and edits stay on the desktop.
+  // The words are getters, so they follow the UI language.
   const COLS: { id: Column; name: string; empty: string }[] = [
-    { id: "pending", name: "Pending", empty: "Nothing pending. New cards made on your computer start here." },
-    { id: "todo", name: "Todo", empty: "No ready tasks. A Chat card lands here when you press Add to board." },
-    { id: "progress", name: "In progress", empty: "Nothing in progress. Run a Todo card to start a session." },
-    { id: "done", name: "Done", empty: "Finished cards land here." },
+    { id: "pending", get name() { return t("phone.board.pending"); }, get empty() { return t("phone.board.emptyPending"); } },
+    { id: "todo", get name() { return t("phone.board.todo"); }, get empty() { return t("phone.board.emptyTodo"); } },
+    { id: "progress", get name() { return t("phone.board.progress"); }, get empty() { return t("phone.board.emptyProgress"); } },
+    { id: "done", get name() { return t("phone.board.done"); }, get empty() { return t("phone.board.emptyDone"); } },
   ];
 
   let tasks = $state<Task[]>([]);
@@ -52,22 +54,22 @@
   });
 
   const byCol = $derived(
-    Object.fromEntries(COLS.map((c) => [c.id, tasks.filter((t) => t.column === c.id).sort((a, b) => a.position - b.position)])) as Record<Column, Task[]>,
+    Object.fromEntries(COLS.map((c) => [c.id, tasks.filter((task) => task.column === c.id).sort((a, b) => a.position - b.position)])) as Record<Column, Task[]>,
   );
   const current = $derived(COLS.find((c) => c.id === col) ?? COLS[1]);
-  const opened = $derived(tasks.find((t) => t.id === openId) ?? null);
+  const opened = $derived(tasks.find((task) => task.id === openId) ?? null);
   const openedSession = $derived(opened ? sessionOf(opened) : undefined);
 
   // A card deleted on the computer while its sheet is open closes the sheet instead of emptying it.
   $effect(() => {
     if (sheetOpen && openId && !opened) {
       sheetOpen = false;
-      notify("That card was deleted on your computer.");
+      notify(t("phone.board.cardDeleted"));
     }
   });
 
-  function sessionOf(t: Task) {
-    return t.sessionId ? phone.sessions.find((s) => s.id === t.sessionId) : undefined;
+  function sessionOf(task: Task) {
+    return task.sessionId ? phone.sessions.find((s) => s.id === task.sessionId) : undefined;
   }
 
   function pick(c: Column) {
@@ -76,20 +78,20 @@
     goto(`/m/board?col=${c}`, { replaceState: true, keepFocus: true, noScroll: true });
   }
 
-  function openCard(t: Task) {
-    openId = t.id;
+  function openCard(task: Task) {
+    openId = task.id;
     failure = "";
     sheetOpen = true;
   }
 
-  async function move(t: Task, to: Column) {
+  async function move(task: Task, to: Column) {
     busy = true;
     failure = "";
     try {
-      await call(`/api/tasks/${t.id}/move`, { method: "POST", body: JSON.stringify({ column: to }) });
+      await call(`/api/tasks/${task.id}/move`, { method: "POST", body: JSON.stringify({ column: to }) });
       await load(true);
       sheetOpen = false;
-      notify(`Moved "${t.title}" to ${COLS.find((c) => c.id === to)?.name}.`);
+      notify(t("phone.board.moved", { column: String(COLS.find((c) => c.id === to)?.name), title: task.title }));
     } catch (e) {
       failure = e instanceof Error ? e.message : String(e);
     } finally {
@@ -110,19 +112,19 @@
   }
 </script>
 
-<svelte:head><title>Board · OpenCompanion</title></svelte:head>
+<svelte:head><title>{t("phone.nav.board")} · OpenCompanion</title></svelte:head>
 
 <header class="bar"><span class="brand grow">OpenCompanion <Cloud size={20} aria-hidden="true" /></span></header>
 <main class="content" id="phone-board">
-  <h1 class="m-h1">Board</h1>
+  <h1 class="m-h1">{t("phone.nav.board")}</h1>
 
   {#if loadState === "loading"}
-    <p class="m-p" role="status">Loading the board…</p>
+    <p class="m-p" role="status">{t("phone.board.loading")}</p>
   {:else if loadState === "error"}
-    <p class="err-text" role="alert" style="margin:0">The board could not be loaded: {loadError}</p>
-    <button class="btn secondary block" type="button" onclick={() => load()}>Try again</button>
+    <p class="err-text" role="alert" style="margin:0">{t("phone.board.loadFailed", { error: loadError })}</p>
+    <button class="btn secondary block" type="button" onclick={() => load()}>{t("phone.tryAgain")}</button>
   {:else}
-    <div class="m-seg" role="group" aria-label="Board column">
+    <div class="m-seg" role="group" aria-label={t("phone.board.columns")}>
       {#each COLS as c (c.id)}
         <button type="button" aria-pressed={col === c.id} onclick={() => pick(c.id)}>
           {c.name} <small>{byCol[c.id].length}</small>
@@ -135,15 +137,15 @@
       {#if byCol[col].length === 0}
         <p class="m-p">{current.empty}</p>
       {/if}
-      {#each byCol[col] as t (t.id)}
-        {@const s = sessionOf(t)}
-        <button class="m-card" class:needs={s?.status === "waiting"} type="button" onclick={() => openCard(t)}>
+      {#each byCol[col] as task (task.id)}
+        {@const s = sessionOf(task)}
+        <button class="m-card" class:needs={s?.status === "waiting"} type="button" onclick={() => openCard(task)}>
           <span class="row">
-            {#if t.cli}<CliMark kind={t.cli} />{/if}
-            <span class="task grow">{t.title}</span>
+            {#if task.cli}<CliMark kind={task.cli} />{/if}
+            <span class="task grow">{task.title}</span>
             {#if s}<StatusChip status={s.status} />{/if}
           </span>
-          <span class="meta">{t.project ? folderName(t.project) : "No folder yet"}{t.cli ? ` · ${CLI_LABEL[t.cli]}` : ""}{t.notes ? " · has notes" : ""}</span>
+          <span class="meta">{task.project ? folderName(task.project) : t("phone.board.noFolder")}{task.cli ? ` · ${CLI_LABEL[task.cli]}` : ""}{task.notes ? ` · ${t("phone.board.hasNotes")}` : ""}</span>
         </button>
       {/each}
     </section>
@@ -164,31 +166,31 @@
       {#if s?.status === "waiting"}
         <section class="m-needs" aria-labelledby="sheet-needs">
           <h3 id="sheet-needs" style="margin:0;font-size:16px;font-weight:800">{waitingTitle(s)}</h3>
-          {#if s.waiting?.detail}<div class="cmd"><small>{s.waiting.tool ?? "Request"}</small><code>{s.waiting.detail}</code></div>{/if}
+          {#if s.waiting?.detail}<div class="cmd"><small>{s.waiting.tool ?? t("phone.request")}</small><code>{s.waiting.detail}</code></div>{/if}
           {#if s.waiting?.canAnswer}
             <div class="pair-btns">
-              <button class="btn accent" type="button" disabled={busy} onclick={() => answer(s.id, true)}><Check size={16} aria-hidden="true" />Approve</button>
-              <button class="btn secondary" type="button" disabled={busy} onclick={() => answer(s.id, false)}><X size={16} aria-hidden="true" />Deny</button>
+              <button class="btn accent" type="button" disabled={busy} onclick={() => answer(s.id, true)}><Check size={16} aria-hidden="true" />{t("phone.approve")}</button>
+              <button class="btn secondary" type="button" disabled={busy} onclick={() => answer(s.id, false)}><X size={16} aria-hidden="true" />{t("phone.deny")}</button>
             </div>
           {:else}
-            <p class="small" style="margin:0">Open the session to answer it.</p>
+            <p class="small" style="margin:0">{t("phone.board.openToAnswer")}</p>
           {/if}
         </section>
       {/if}
 
-      {#if failure}<p class="err-text" role="alert" style="margin:0">{failure}</p>{/if}
+      {#if failure}<p class="err-text" role="alert" style="margin:0">{tb(failure)}</p>{/if}
 
       <div class="sheet-acts">
         {#if (opened.column === "todo" || opened.column === "pending") && !(s && isLive(s))}
-          <a class="btn primary" href="/m/new?task={opened.id}"><Play size={16} aria-hidden="true" />Run {opened.project ? `in ${folderName(opened.project)}` : "this card"}</a>
+          <a class="btn primary" href="/m/new?task={opened.id}"><Play size={16} aria-hidden="true" />{opened.project ? t("phone.runIn", { folder: folderName(opened.project) }) : t("phone.board.runCard")}</a>
         {/if}
         {#if opened.sessionId}
-          <a class="btn secondary" href="/m/session?id={opened.sessionId}"><TerminalWindow size={16} aria-hidden="true" />Open session</a>
+          <a class="btn secondary" href="/m/session?id={opened.sessionId}"><TerminalWindow size={16} aria-hidden="true" />{t("phone.openSession")}</a>
         {/if}
       </div>
 
       <div class="field">
-        <span class="label" id="move-label">Move to</span>
+        <span class="label" id="move-label">{t("phone.board.moveTo")}</span>
         <div class="move-row" role="group" aria-labelledby="move-label">
           {#each COLS.filter((c) => c.id !== opened.column) as c (c.id)}
             <button class="btn secondary" type="button" disabled={busy} onclick={() => move(opened, c.id)}>{c.name}</button>
@@ -196,7 +198,7 @@
         </div>
       </div>
 
-      <button class="btn ghost" type="button" onclick={() => (sheetOpen = false)}>Close</button>
+      <button class="btn ghost" type="button" onclick={() => (sheetOpen = false)}>{t("phone.board.close")}</button>
     </div>
   {/if}
 </Dialog>

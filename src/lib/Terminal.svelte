@@ -5,6 +5,7 @@
   import "@xterm/xterm/css/xterm.css";
   import { onMount } from "svelte";
   import { api } from "./api";
+  import { t } from "./i18n.svelte";
 
   let { id, live, label }: { id: string; live: boolean; label: string } = $props();
 
@@ -33,6 +34,9 @@
     acceptInput = live;
     if (!host) return;
     const box = host;
+    // xterm keeps its screen reader strings in one global; the input label is applied when the terminal opens.
+    Terminal.strings.promptLabel = t("sessions.terminal.input");
+    Terminal.strings.tooMuchOutput = t("sessions.terminal.tooMuchOutput");
     const term = new Terminal({
       fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
       fontSize: 13,
