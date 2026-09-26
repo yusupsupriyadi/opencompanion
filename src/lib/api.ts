@@ -349,6 +349,8 @@ export const api = {
   chatSend: (threadId: string | null, message: string) =>
     invoke<{ thread: ChatThread; user: ChatMessage; reply: ChatMessage }>("chat_send", { threadId, message }),
   chatDeleteThread: (threadId: string) => invoke<void>("chat_delete_thread", { threadId }),
+  /** Threads where the planner is answering now, from this window or from a phone. */
+  chatAnswering: () => invoke<string[]>("chat_answering"),
   chatUpdateCard: (messageId: string, card: DispatchCard) => invoke<ChatMessage>("chat_update_card", { messageId, card }),
   chatDiscardCard: (messageId: string, cardId: string, undo = false) =>
     invoke<ChatMessage>("chat_discard_card", { messageId, cardId, undo }),

@@ -534,7 +534,7 @@ async fn chat_list(State(ctx): State<Ctx>, headers: HeaderMap) -> Response {
     let db = Arc::clone(&ctx.db);
     off_thread(move || {
         let clis = actions::detect_with_settings(&db);
-        Ok(json!({ "threads": db.threads()?, "planner": actions::planner_name(&db, &clis)? }))
+        Ok(json!({ "threads": db.threads()?, "planner": actions::planner_name(&db, &clis)?, "answering": actions::answering() }))
     })
     .await
 }
@@ -547,7 +547,10 @@ async fn chat_thread(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): Ur
         return fail(StatusCode::NOT_FOUND, "This chat was deleted.");
     };
     match ctx.db.chat(&id, 200) {
-        Ok(messages) => Json(json!({ "thread": thread, "messages": messages })).into_response(),
+        Ok(messages) => {
+            let answering = actions::answering().contains(&id);
+            Json(json!({ "thread": thread, "messages": messages, "answering": answering })).into_response()
+        }
         Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e),
     }
 }
@@ -567,7 +570,7 @@ async fn chat_send(State(ctx): State<Ctx>, headers: HeaderMap, Json(body): Json<
     let manager = Arc::clone(&ctx.manager);
     off_thread(move || {
         let own: HashSet<u32> = manager.own_pids().into_iter().collect();
-        let turn = actions::chat_send(&db, manager.data_dir(), &own, body.thread_id, &body.message)?;
+        let turn = actions::chat_send(&db, manager.data_dir(), &own, body.thread_id, &body.message, &|id| manager.chat_changed(id))?;
         manager.chat_changed(&turn.thread.id);
         Ok(turn)
     })

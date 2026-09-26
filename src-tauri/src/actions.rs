@@ -74,7 +74,16 @@ pub struct ChatTurn {
 }
 
 /// One planner turn. Without `thread_id` the message starts a new thread, named after the message.
-pub fn chat_send(db: &Db, data_dir: &Path, own: &HashSet<u32>, thread_id: Option<String>, message: &str) -> Res<ChatTurn> {
+/// One turn per thread at a time; `asked` hears the thread id once the question is stored, so
+/// other screens can show that the planner is answering.
+pub fn chat_send(
+    db: &Db,
+    data_dir: &Path,
+    own: &HashSet<u32>,
+    thread_id: Option<String>,
+    message: &str,
+    asked: &dyn Fn(&str),
+) -> Res<ChatTurn> {
     let text = message.trim().to_string();
     if text.is_empty() {
         return Err("Write a message first.".into());
@@ -83,6 +92,7 @@ pub fn chat_send(db: &Db, data_dir: &Path, own: &HashSet<u32>, thread_id: Option
         Some(id) => db.thread(&id)?.ok_or("This chat was deleted. Start a new chat.")?,
         None => db.create_thread(&db::thread_title(&text))?,
     };
+    let _answering = ANSWERING.claim(&thread.id, "The planner is still answering in this chat. Send again when it is done.")?;
     let history = db.chat(&thread.id, 40)?;
     let msg = |role: &str, text: String, cards: Vec<DispatchCard>| ChatMessage {
         id: db::new_id(),
@@ -94,6 +104,7 @@ pub fn chat_send(db: &Db, data_dir: &Path, own: &HashSet<u32>, thread_id: Option
     };
     let user = msg("user", text.clone(), vec![]);
     db.add_chat(&user)?;
+    asked(&thread.id);
 
     let clis = detect_with_settings(db);
     let settings = db.settings()?;
@@ -182,34 +193,56 @@ pub fn discard_card(db: &Db, message_id: &str, card_id: &str, undo: bool) -> Res
     })
 }
 
-/// Cards whose session is being started, so a press on the phone and one on the desktop at the
-/// same moment start one session, not two.
-static STARTING: Mutex<Vec<String>> = Mutex::new(Vec::new());
+/// Work in progress by id, so the same work cannot run twice when the phone and the desktop ask
+/// at the same moment.
+struct Claims(Mutex<Vec<String>>);
 
-struct Starting(String);
+/// Held while the work runs; dropping it frees the id.
+struct Claim {
+    claims: &'static Claims,
+    id: String,
+}
 
-impl Starting {
-    fn claim(card_id: &str) -> Res<Self> {
-        let mut list = STARTING.lock().map_err(|e| e.to_string())?;
-        if list.iter().any(|c| c == card_id) {
-            return Err("This card is starting its session already.".into());
+impl Claims {
+    const fn new() -> Self {
+        Self(Mutex::new(Vec::new()))
+    }
+
+    fn claim(&'static self, id: &str, busy: &str) -> Res<Claim> {
+        let mut list = self.0.lock().map_err(|e| e.to_string())?;
+        if list.iter().any(|c| c == id) {
+            return Err(busy.into());
         }
-        list.push(card_id.to_string());
-        Ok(Self(card_id.to_string()))
+        list.push(id.to_string());
+        Ok(Claim { claims: self, id: id.to_string() })
+    }
+
+    fn ids(&self) -> Vec<String> {
+        self.0.lock().map(|l| l.clone()).unwrap_or_default()
     }
 }
 
-impl Drop for Starting {
+impl Drop for Claim {
     fn drop(&mut self) {
-        if let Ok(mut list) = STARTING.lock() {
-            list.retain(|c| *c != self.0);
+        if let Ok(mut list) = self.claims.0.lock() {
+            list.retain(|c| *c != self.id);
         }
     }
+}
+
+/// Cards whose session is being started.
+static STARTING: Claims = Claims::new();
+/// Chat threads whose planner turn is running.
+static ANSWERING: Claims = Claims::new();
+
+/// Threads where the planner is answering right now, so every screen can say so and hold Send.
+pub fn answering() -> Vec<String> {
+    ANSWERING.ids()
 }
 
 /// Starts the session a card proposes. Nothing runs from Chat without this.
 pub fn run_card(db: &Db, manager: &Arc<Manager>, message_id: &str, card_id: &str) -> Res<ChatMessage> {
-    let _claim = Starting::claim(card_id)?;
+    let _claim = STARTING.claim(card_id, "This card is starting its session already.")?;
     let clis = detect_with_settings(db);
     let msg = db.chat_message(message_id)?.ok_or("Message not found.")?;
     let mut card = msg.cards.iter().find(|c| c.id == card_id).cloned().ok_or("Card not found.")?;
@@ -332,4 +365,23 @@ pub fn run_task(db: &Db, manager: &Arc<Manager>, input: RunTaskInput) -> Res<Ses
     task.updated_at = db::now_ms();
     db.save_task(&task)?;
     Ok(session)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    static TEST_CLAIMS: Claims = Claims::new();
+
+    #[test]
+    fn work_by_id_runs_once_at_a_time_and_frees_its_id() {
+        let first = TEST_CLAIMS.claim("t1", "busy").unwrap();
+        assert_eq!(TEST_CLAIMS.claim("t1", "busy").err().as_deref(), Some("busy"));
+        let other = TEST_CLAIMS.claim("t2", "busy").unwrap();
+        assert_eq!(TEST_CLAIMS.ids(), ["t1", "t2"]);
+        drop(first);
+        assert_eq!(TEST_CLAIMS.ids(), ["t2"]);
+        assert!(TEST_CLAIMS.claim("t1", "busy").is_ok());
+        drop(other);
+    }
 }

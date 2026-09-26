@@ -8,6 +8,7 @@
 
   let threads = $state<ChatThread[]>([]);
   let planner = $state<string | null>(null);
+  let answering = $state<string[]>([]);
   let loadState = $state<"loading" | "ready" | "error">("loading");
   let loadError = $state("");
   let now = $state(Date.now());
@@ -15,9 +16,10 @@
   async function load(quiet = false) {
     if (!quiet) loadState = "loading";
     try {
-      const r = await call<{ threads: ChatThread[]; planner: string | null }>("/api/chat");
+      const r = await call<{ threads: ChatThread[]; planner: string | null; answering?: string[] }>("/api/chat");
       threads = r.threads;
       planner = r.planner;
+      answering = r.answering ?? [];
       loadState = "ready";
     } catch (e) {
       if (quiet) return;
@@ -65,7 +67,7 @@
         {#each threads as t (t.id)}
           <a href="/m/chat/thread?id={t.id}">
             <b>{t.title}</b>
-            <span class="meta">{ago(t.updatedAt, now)}</span>
+            <span class="meta">{answering.includes(t.id) ? "Planner is answering…" : ago(t.updatedAt, now)}</span>
           </a>
         {/each}
       </nav>

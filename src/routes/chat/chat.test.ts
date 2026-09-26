@@ -1,6 +1,7 @@
+import { listen } from "@tauri-apps/api/event";
 import { render, screen, waitFor, within } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { ChatMessage, ChatThread, Settings } from "$lib/api";
 import { app, forgetModelLists } from "$lib/store.svelte";
 import { page, setUrl } from "../../test/app-state.svelte";
@@ -245,4 +246,34 @@ test("a narrow window opens the live rail over the chat, and Escape closes it", 
   await user.keyboard("{Escape}");
   expect(rail()).not.toBeInTheDocument();
   expect(toggle).toHaveFocus();
+});
+
+test("a chat the planner is still answering says so, holds Send, and shows the answer when it lands", async () => {
+  const handlers: Record<string, (e: { payload: unknown }) => void> = {};
+  vi.mocked(listen).mockImplementation(async (name, handler) => {
+    handlers[name] = handler as (e: { payload: unknown }) => void;
+    return () => undefined;
+  });
+  setUrl("/chat?id=t1");
+  let busy = ["t1"];
+  const asked = [said("t1", "a1", "user", "Codex: fix the failing tests")];
+  backend({
+    chat_threads: () => [docs, tests],
+    chat_history: () => (busy.length ? asked : history.t1),
+    chat_answering: () => busy,
+  });
+  const user = userEvent.setup();
+  render(ChatPage);
+
+  expect(await screen.findByText("The planner is still answering the last message. Its answer shows up here.")).toBeInTheDocument();
+  expect(list().getByRole("link", { name: /Codex: fix the failing tests/ })).toHaveTextContent("Planner is answering…");
+  await user.type(screen.getByLabelText("Message the planner"), "and the docs");
+  expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+
+  busy = [];
+  handlers["chat-changed"]({ payload: "t1" });
+  expect(await screen.findByText("One card for ai-remote.")).toBeInTheDocument();
+  expect(screen.queryByText(/still answering the last message/)).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
+  expect(document.getElementById("chat-announcement")).toHaveTextContent("The planner answered.");
 });

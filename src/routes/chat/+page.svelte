@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
+  import { listen } from "@tauri-apps/api/event";
   import CaretDown from "phosphor-svelte/lib/CaretDown";
   import PaperPlaneTilt from "phosphor-svelte/lib/PaperPlaneTilt";
   import Plus from "phosphor-svelte/lib/Plus";
@@ -33,6 +34,11 @@
   // One planner turn at a time. It stays with its thread when the owner opens another chat.
   let pending = $state<{ threadId: string | null; text: string } | null>(null);
   let sendError = $state("");
+  // Threads the planner is answering in, as the backend knows them: a turn sent before this page
+  // was opened, or one sent from the phone.
+  let answering = $state<string[]>([]);
+  // What a screen reader hears when an answer lands; the thread itself is not a live region.
+  let announcement = $state("");
   let confirmDelete = $state(false);
   let thread: HTMLDivElement | undefined = $state();
   let input: HTMLTextAreaElement | undefined = $state();
@@ -42,6 +48,7 @@
   const current = $derived(threads.find((t) => t.id === currentId));
   const missing = $derived(currentId !== null && threadsState === "ready" && !current);
   const thinkingHere = $derived(pending !== null && pending.threadId === currentId);
+  const answeringHere = $derived(!thinkingHere && currentId !== null && answering.includes(currentId));
 
   const planner = $derived.by(() => {
     const chosen = app.settings?.chatCli;
@@ -113,44 +120,72 @@
     if (thread) thread.scrollTop = thread.scrollHeight;
   }
 
-  async function loadThreads() {
-    threadsState = "loading";
+  async function loadThreads(quiet = false) {
+    if (!quiet) threadsState = "loading";
     try {
       threads = await api.chatThreads();
       threadsState = "ready";
     } catch (e) {
+      if (quiet) return;
       threadsState = "error";
       threadsError = errorText(e);
     }
   }
 
-  async function open(id: string | null) {
-    shownId = id;
-    confirmDelete = false;
-    sendError = "";
+  async function loadAnswering() {
+    answering = (await api.chatAnswering().catch(() => answering)) ?? [];
+  }
+
+  /** `quiet` reloads the thread on screen without the loading state, after a change elsewhere. */
+  async function open(id: string | null, quiet = false) {
+    if (!quiet) {
+      shownId = id;
+      confirmDelete = false;
+      sendError = "";
+    }
     if (id === null) {
       messages = [];
       loadState = "ready";
       return;
     }
-    loadState = "loading";
+    if (!quiet) loadState = "loading";
     try {
       const got = await api.chatHistory(id);
       if (shownId !== id) return;
       // The backend stores the question before the planner answers; the pending bubble shows it already.
       const last = got.at(-1);
       const asked = pending?.threadId === id && last?.role === "user" && last.text === pending.text;
+      const before = messages.length;
       messages = asked ? got.slice(0, -1) : got;
       loadState = "ready";
+      if (quiet && messages.length > before && messages.at(-1)?.role !== "user") announce(messages.at(-1)!);
       scrollDown();
     } catch (e) {
-      if (shownId !== id) return;
+      if (shownId !== id || quiet) return;
       loadState = "error";
       loadError = errorText(e);
     }
   }
 
-  onMount(loadThreads);
+  function announce(m: ChatMessage) {
+    const n = m.cards.length;
+    announcement = m.role === "error" ? m.text : n ? `The planner answered with ${n} session card${n === 1 ? "" : "s"}.` : "The planner answered.";
+  }
+
+  onMount(() => {
+    loadThreads();
+    loadAnswering();
+    // A turn started, finished or a card changed: in this window, in another chat, or on the phone.
+    // The turn this page is waiting for merges its own answer, so only other changes reload.
+    const un = listen<string>("chat-changed", (e) => {
+      loadThreads(true);
+      loadAnswering();
+      if (e.payload === shownId && pending?.threadId !== shownId) open(shownId, true);
+    });
+    return () => {
+      un.then((f) => f());
+    };
+  });
 
   $effect(() => {
     const id = currentId;
@@ -182,7 +217,8 @@
       const turn = await api.chatSend(threadId, text);
       keep(turn.thread);
       if (shownId === threadId) {
-        messages = [...messages.filter((m) => m.id !== turn.user.id), turn.user, turn.reply];
+        messages = [...messages.filter((m) => m.id !== turn.user.id && m.id !== turn.reply.id), turn.user, turn.reply];
+        announce(turn.reply);
         if (threadId === null) {
           shownId = turn.thread.id;
           await goto(`/chat?id=${turn.thread.id}`, { replaceState: true, keepFocus: true, noScroll: true });
@@ -198,7 +234,9 @@
     } finally {
       pending = null;
       scrollDown();
-      input?.focus();
+      // Back to the composer only when focus is still there; the owner may be busy elsewhere by now.
+      const at = document.activeElement;
+      if (!at || at === document.body || at === input) input?.focus();
     }
   }
 
@@ -254,7 +292,7 @@
         <p class="meta" role="status">Loading your chats…</p>
       {:else if threadsState === "error"}
         <p class="err-text" role="alert">The chat list could not be loaded: {threadsError}</p>
-        <button class="btn secondary sm" type="button" onclick={loadThreads}>Try again</button>
+        <button class="btn secondary sm" type="button" onclick={() => loadThreads()}>Try again</button>
       {:else if threads.length === 0}
         <p class="meta">No chats yet. Your first message starts one, and every chat stays here with its own history.</p>
       {:else}
@@ -267,7 +305,7 @@
             onclick={() => (listOpen = false)}
           >
             <b class="ellipsis">{t.title}</b>
-            <span>{pending?.threadId === t.id ? "Planner is answering…" : ago(t.updatedAt, app.now)}</span>
+            <span>{pending?.threadId === t.id || answering.includes(t.id) ? "Planner is answering…" : ago(t.updatedAt, app.now)}</span>
           </a>
         {/each}
       {/if}
@@ -278,7 +316,7 @@
     <header class="page-head">
       <h1 class="sr-only">Chat</h1>
       {#if current}
-        <button class="btn ghost" type="button" id="btn-delete-chat" onclick={deleteChat} disabled={thinkingHere}>
+        <button class="btn ghost" type="button" id="btn-delete-chat" onclick={deleteChat} disabled={thinkingHere || answeringHere}>
           <Trash size={16} aria-hidden="true" />{confirmDelete ? "Press again to delete" : "Delete chat"}
         </button>
       {/if}
@@ -302,7 +340,8 @@
       {/if}
     </header>
 
-    <div class="thread" bind:this={thread} aria-live="polite">
+    <p class="sr-only" role="status" id="chat-announcement">{announcement}</p>
+    <div class="thread" bind:this={thread}>
       {#if missing}
         <div class="state-box" role="alert">
           <h2>This chat is gone</h2>
@@ -341,6 +380,11 @@
           <span class="who">Planner</span>
           <p class="thinking" role="status"><SpinnerGap size={18} class="spin" aria-hidden="true" />{#if provider}{provider.model || "The custom provider"} is reading your message.{:else}{planner?.label ?? "The planner"} is reading your message. This usually takes 10 to 30 seconds.{/if}</p>
         </div>
+      {:else if answeringHere && loadState === "ready"}
+        <div class="planner">
+          <span class="who">Planner</span>
+          <p class="thinking" role="status"><SpinnerGap size={18} class="spin" aria-hidden="true" />The planner is still answering the last message. Its answer shows up here.</p>
+        </div>
       {/if}
     </div>
 
@@ -365,7 +409,7 @@
           id="btn-send"
           aria-label="Send"
           title="Send. Shift+Enter adds a line."
-          disabled={pending !== null || !draft.trim() || !canPlan || missing}
+          disabled={pending !== null || answeringHere || !draft.trim() || !canPlan || missing}
         >
           <PaperPlaneTilt size={16} weight="fill" aria-hidden="true" />
         </button>

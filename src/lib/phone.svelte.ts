@@ -139,6 +139,19 @@ export function notify(text: string) {
   noticeTimer = setTimeout(() => (phone.notice = ""), 6000);
 }
 
+/** One live update from the desktop: sessions change here, then every screen that listens hears it. */
+export function receive(msg: PhoneMessage) {
+  const s = msg.session;
+  if (msg.type === "session" && s) {
+    const i = phone.sessions.findIndex((x) => x.id === s.id);
+    if (i >= 0) phone.sessions[i] = s;
+    else phone.sessions.unshift(s);
+  }
+  if (msg.type === "resync") loadSessions().catch(() => undefined);
+  if (msg.type === "notify") notify(`${msg.title}. ${msg.body}`);
+  listeners.forEach((l) => l(msg));
+}
+
 /** Live updates (PRD FR-52). Reconnects every few seconds while the desktop is away. */
 export function connect() {
   const t = token();
@@ -158,14 +171,7 @@ export function connect() {
     } catch {
       return;
     }
-    if (msg.type === "session" && msg.session) {
-      const i = phone.sessions.findIndex((s) => s.id === msg.session.id);
-      if (i >= 0) phone.sessions[i] = msg.session;
-      else phone.sessions.unshift(msg.session);
-    }
-    if (msg.type === "resync") loadSessions().catch(() => undefined);
-    if (msg.type === "notify") notify(`${msg.title}. ${msg.body}`);
-    listeners.forEach((l) => l(msg));
+    receive(msg);
   };
   ws.onclose = (e) => {
     // A socket replaced by a newer one closes late; the newer one is in charge.

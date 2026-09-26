@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import { goto } from "$app/navigation";
 import type { ChatMessage, DispatchCard } from "$lib/api";
-import { phone } from "$lib/phone.svelte";
+import { phone, receive } from "$lib/phone.svelte";
 import { setUrl } from "../../../../test/app-state.svelte";
 import { phoneServer, sent } from "../../../../test/phone-server";
 import Thread from "./+page.svelte";
@@ -78,4 +78,21 @@ test("a deleted chat says so", async () => {
   render(Thread);
   expect(await screen.findByRole("alert")).toHaveTextContent("This chat was deleted");
   expect(screen.getByRole("link", { name: "Start a new chat" })).toHaveAttribute("href", "/m/chat/thread");
+});
+
+test("a chat the planner is still answering says so and holds Send until the answer lands", async () => {
+  setUrl("/m/chat/thread?id=th1");
+  let busy = true;
+  phoneServer({ "GET /api/chat/th1": () => [200, { thread, messages: busy ? [user] : [user, reply], answering: busy }] });
+  const typist = userEvent.setup();
+  render(Thread);
+
+  expect(await screen.findByText("The planner is still answering the last message. Its answer shows up here.")).toBeInTheDocument();
+  await typist.type(screen.getByLabelText("Message the planner"), "and the docs");
+  expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+
+  busy = false;
+  receive({ type: "chat", threadId: "th1" });
+  expect(await screen.findByText("One session.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
 });

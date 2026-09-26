@@ -313,9 +313,16 @@ async fn chat_send(state: State<'_, AppState>, thread_id: Option<String>, messag
     let db = Arc::clone(&state.db);
     let data_dir = state.data_dir.clone();
     let own: HashSet<u32> = state.manager.own_pids().into_iter().collect();
-    let turn = blocking(move || actions::chat_send(&db, &data_dir, &own, thread_id, &message)).await?;
-    state.companion.broadcast(json!({ "type": "chat", "threadId": turn.thread.id }));
+    let manager = Arc::clone(&state.manager);
+    let turn = blocking(move || actions::chat_send(&db, &data_dir, &own, thread_id, &message, &|id| manager.chat_changed(id))).await?;
+    state.manager.chat_changed(&turn.thread.id);
     Ok(turn)
+}
+
+/// Threads where the planner is answering now, from this window or from the phone.
+#[tauri::command]
+fn chat_answering() -> Vec<String> {
+    actions::answering()
 }
 
 /// Models and thinking levels the chat planner can use with `cli`.
@@ -650,6 +657,7 @@ pub fn run() {
             chat_threads,
             chat_history,
             chat_send,
+            chat_answering,
             chat_update_card,
             chat_discard_card,
             chat_run_card,

@@ -19,6 +19,10 @@
   let shownId = $state<string | null | undefined>(undefined);
   let draft = $state("");
   let pending = $state<string | null>(null);
+  // The planner is answering a message sent before this page opened, or from the desktop.
+  let answering = $state(false);
+  // What a screen reader hears when an answer lands; the thread itself is not a live region.
+  let announcement = $state("");
   let sendError = $state("");
   let dockHeight = $state(0);
 
@@ -37,11 +41,14 @@
     }
     if (!quiet) loadState = "loading";
     try {
-      const r = await call<{ thread: ChatThread; messages: ChatMessage[] }>(`/api/chat/${target}`);
+      const r = await call<{ thread: ChatThread; messages: ChatMessage[]; answering?: boolean }>(`/api/chat/${target}`);
       if (shownId !== target) return;
+      const before = messages.length;
       thread = r.thread;
       messages = r.messages;
+      answering = Boolean(r.answering);
       loadState = "ready";
+      if (quiet && messages.length > before && messages.at(-1)?.role !== "user") announce(messages.at(-1)!);
       if (!quiet) scrollDown();
     } catch (e) {
       if (shownId !== target) return;
@@ -84,6 +91,7 @@
       if (shownId === threadId) {
         thread = turn.thread;
         messages = [...messages.filter((m) => m.id !== turn.user.id && m.id !== turn.reply.id), turn.user, turn.reply];
+        announce(turn.reply);
         if (threadId === null) {
           shownId = turn.thread.id;
           await goto(`/m/chat/thread?id=${turn.thread.id}`, { replaceState: true, keepFocus: true, noScroll: true });
@@ -96,6 +104,11 @@
       pending = null;
       scrollDown();
     }
+  }
+
+  function announce(m: ChatMessage) {
+    const n = m.cards.length;
+    announcement = m.role === "error" ? m.text : n ? `The planner answered with ${n} session card${n === 1 ? "" : "s"}.` : "The planner answered.";
   }
 
   function replace(m: ChatMessage) {
@@ -120,7 +133,8 @@
     <p class="err-text" role="alert" style="margin:0">The conversation could not be loaded: {loadError}</p>
     <button class="btn secondary block" type="button" onclick={() => open(id)}>Try again</button>
   {:else}
-    <div class="m-thread" aria-live="polite">
+    <p class="sr-only" role="status">{announcement}</p>
+    <div class="m-thread">
       {#if messages.length === 0 && !pending}
         <div class="m-planner">
           <span class="who">Planner</span>
@@ -146,6 +160,11 @@
           <span class="who">Planner</span>
           <p class="thinking" role="status"><SpinnerGap size={18} class="spin" aria-hidden="true" />The planner is reading your message. This usually takes 10 to 30 seconds.</p>
         </div>
+      {:else if answering}
+        <div class="m-planner">
+          <span class="who">Planner</span>
+          <p class="thinking" role="status"><SpinnerGap size={18} class="spin" aria-hidden="true" />The planner is still answering the last message. Its answer shows up here.</p>
+        </div>
       {/if}
     </div>
   {/if}
@@ -157,7 +176,7 @@
       <div class="send-row">
         <label class="sr-only" for="pc-input">Message the planner</label>
         <textarea class="textarea" id="pc-input" rows="2" bind:value={draft} placeholder="Describe a task. Name a CLI and a folder, or let the planner pick."></textarea>
-        <button class="btn primary" type="submit" id="btn-chat-send" disabled={pending !== null || !draft.trim()}><PaperPlaneTilt size={16} aria-hidden="true" />Send</button>
+        <button class="btn primary" type="submit" id="btn-chat-send" disabled={pending !== null || answering || !draft.trim()}><PaperPlaneTilt size={16} aria-hidden="true" />Send</button>
       </div>
       {#if sendError}<p class="err-text small" role="alert">{sendError}</p>{:else}<p class="small">Nothing starts until you press Run on a card.</p>{/if}
     </form>
