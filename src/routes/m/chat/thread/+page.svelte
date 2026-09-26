@@ -7,6 +7,7 @@
   import { onMount, tick, untrack } from "svelte";
   import type { ChatMessage, ChatThread } from "$lib/api";
   import PhoneDispatchCard from "$lib/PhoneDispatchCard.svelte";
+  import { folderName } from "$lib/format";
   import { call, onMessage, PhoneError } from "$lib/phone.svelte";
 
   // No `id` is a new chat: the first message creates its thread.
@@ -23,6 +24,8 @@
   let answering = $state(false);
   // What a screen reader hears when an answer lands; the thread itself is not a live region.
   let announcement = $state("");
+  // Folders whose cards start without Run; the note under the composer says so (PRD FR-26).
+  let autoRun = $state<string[]>([]);
   let sendError = $state("");
   let dockHeight = $state(0);
 
@@ -41,12 +44,13 @@
     }
     if (!quiet) loadState = "loading";
     try {
-      const r = await call<{ thread: ChatThread; messages: ChatMessage[]; answering?: boolean }>(`/api/chat/${target}`);
+      const r = await call<{ thread: ChatThread; messages: ChatMessage[]; answering?: boolean; autoRun?: string[] }>(`/api/chat/${target}`);
       if (shownId !== target) return;
       const before = messages.length;
       thread = r.thread;
       messages = r.messages;
       answering = Boolean(r.answering);
+      autoRun = r.autoRun ?? [];
       loadState = "ready";
       if (quiet && messages.length > before && messages.at(-1)?.role !== "user") announce(messages.at(-1)!);
       if (!quiet) scrollDown();
@@ -178,7 +182,9 @@
         <textarea class="textarea" id="pc-input" rows="2" bind:value={draft} placeholder="Describe a task. Name a CLI and a folder, or let the planner pick."></textarea>
         <button class="btn primary" type="submit" id="btn-chat-send" disabled={pending !== null || answering || !draft.trim()}><PaperPlaneTilt size={16} aria-hidden="true" />Send</button>
       </div>
-      {#if sendError}<p class="err-text small" role="alert">{sendError}</p>{:else}<p class="small">Nothing starts until you press Run on a card.</p>{/if}
+      {#if sendError}<p class="err-text small" role="alert">{sendError}</p>
+      {:else if autoRun.length}<p class="small">Cards for {autoRun.map(folderName).join(", ")} start without asking; the rest wait for Run.</p>
+      {:else}<p class="small">Nothing starts until you press Run on a card.</p>{/if}
     </form>
   </div>
 {/if}

@@ -7,8 +7,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use opencompanion_lib::actions::auto_run;
 use opencompanion_lib::cli::CliKind;
-use opencompanion_lib::db::{Db, EventRow, Mode, SessionInfo, Settings, Status, Task};
+use opencompanion_lib::db::{Db, DispatchCard, EventRow, Mode, SessionInfo, Settings, Status, Task};
 use opencompanion_lib::events::SessionEvent;
 use opencompanion_lib::session::{Emit, Manager, StartRequest};
 
@@ -315,4 +316,47 @@ fn permission_mode_comes_from_settings_or_the_session_and_reaches_the_cli() {
     assert_eq!(b.permission_mode.as_deref(), Some("bypass"));
     let seen = messages(&r, &b.id).into_iter().find(|m| m.starts_with("args:")).unwrap();
     assert!(seen.contains("--auto") && seen.contains(r#"env: {"*":"allow"}"#), "{seen}");
+}
+
+fn card(id: &str, folder: &str) -> DispatchCard {
+    DispatchCard {
+        id: id.into(),
+        cli: CliKind::Opencode,
+        title: format!("Task {id}"),
+        folder: folder.into(),
+        prompt: format!("do {id}"),
+        mode: Mode::Headless,
+        reason: String::new(),
+        problem: None,
+        state: "proposed".into(),
+        session_id: None,
+        task_id: None,
+        target: None,
+        auto: false,
+    }
+}
+
+/// PRD FR-26: cards for a folder that runs without asking start at once, never with Bypass;
+/// every other card still waits for Run.
+#[test]
+fn cards_for_an_auto_run_folder_start_by_themselves_without_bypass() {
+    let r = rig("autorun");
+    let other = r.work.parent().unwrap().join("other");
+    std::fs::create_dir_all(&other).unwrap();
+    let mut settings = r.db.settings().unwrap();
+    settings.permission_mode = "bypass".into();
+    settings.auto_run_folders = vec![r.work.display().to_string().to_uppercase()];
+    r.db.save_settings(&settings).unwrap();
+
+    let mut broken = card("broken", &r.work.display().to_string());
+    broken.problem = Some("The card has no prompt.".into());
+    let mut cards = vec![card("here", &r.work.display().to_string()), card("elsewhere", &other.display().to_string()), broken];
+    auto_run(&r.manager, &settings, &mut cards);
+
+    assert!(cards[0].auto && cards[0].state == "started");
+    let id = cards[0].session_id.clone().unwrap();
+    let s = wait_until(&r, &id, "auto session", |s| s.status == Status::Done);
+    assert_eq!((s.permission_mode.as_deref(), s.source.as_str(), s.title.as_str()), (Some("ask"), "chat", "Task here"));
+    assert!(!cards[1].auto && cards[1].state == "proposed" && cards[1].session_id.is_none());
+    assert!(!cards[2].auto && cards[2].state == "proposed");
 }

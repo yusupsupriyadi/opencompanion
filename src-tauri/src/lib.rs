@@ -434,11 +434,9 @@ fn chat_history(state: State<'_, AppState>, thread_id: String) -> Res<Vec<ChatMe
 /// Without `thread_id` the message starts a new thread, named after the message.
 #[tauri::command]
 async fn chat_send(state: State<'_, AppState>, thread_id: Option<String>, message: String) -> Res<ChatTurn> {
-    let db = Arc::clone(&state.db);
-    let data_dir = state.data_dir.clone();
     let own: HashSet<u32> = state.manager.own_pids().into_iter().collect();
     let manager = Arc::clone(&state.manager);
-    let turn = blocking(move || actions::chat_send(&db, &data_dir, &own, thread_id, &message, &|id| manager.chat_changed(id))).await?;
+    let turn = blocking(move || actions::chat_send(&manager, &own, thread_id, &message)).await?;
     state.manager.chat_changed(&turn.thread.id);
     Ok(turn)
 }

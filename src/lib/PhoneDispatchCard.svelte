@@ -74,6 +74,7 @@
         {#if card.sessionId}
           <a class="btn secondary wide" href="/m/session?id={card.sessionId}"><TerminalWindow size={16} aria-hidden="true" />Open session</a>
         {/if}
+        {#if card.auto}<p class="small" style="margin:0">Started by itself: {folderName(card.folder)} runs cards without asking.</p>{/if}
       {:else}
         <button class="btn primary wide" type="button" disabled={busy || Boolean(card.problem)} onclick={run}>
           {#if follow}<PaperPlaneTilt size={16} weight="fill" aria-hidden="true" />Send to session{:else}<Play size={16} aria-hidden="true" />Run in {folderName(card.folder) || "…"}{/if}

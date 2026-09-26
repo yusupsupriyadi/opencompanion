@@ -191,6 +191,15 @@ test("a custom provider plans with no CLI installed, and one without a model can
   expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
 });
 
+test("the composer says plainly which folders run cards without asking", async () => {
+  setUrl("/chat");
+  chats([]);
+  app.settings = { chatCli: "claude", plannerSource: "cli", autoRunFolders: [String.raw`C:\Users\me\Project\uninote`] } as unknown as Settings;
+  render(ChatPage);
+  const note = await screen.findByText(/Cards for uninote start without asking; the rest wait for Run\./);
+  expect(within(note).getByRole("link", { name: "Change this" })).toHaveAttribute("href", "/settings#auto-run");
+});
+
 test("with no CLI that can plan, the composer says why Send is off", async () => {
   setUrl("/chat");
   app.clis = CLIS.map((c) => ({ ...c, path: null }));

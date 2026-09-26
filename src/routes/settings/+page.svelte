@@ -161,6 +161,30 @@
     if (typeof picked === "string") addFolderRule(picked);
   }
 
+  // Folders whose cards start without Run (PRD FR-26). Adding one takes a second, explicit press.
+  let autoPick = $state("");
+  let autoConfirm = $state("");
+  const autoAddable = $derived(knownFolders.filter((f) => !settings?.autoRunFolders.some((a) => a.toLowerCase() === f.path.toLowerCase())));
+
+  async function allowAutoRun(folder: string) {
+    if (!settings) return;
+    const ok = await save({ autoRunFolders: [...settings.autoRunFolders, folder] }, `Cards for ${folderName(folder)} now start without asking.`);
+    if (ok) {
+      autoConfirm = "";
+      autoPick = "";
+    }
+  }
+
+  async function browseAutoRun() {
+    const picked = await openDialog({ directory: true, multiple: false, title: "Choose a folder whose cards may start without asking" });
+    if (typeof picked === "string") autoConfirm = picked;
+  }
+
+  async function removeAutoRun(folder: string) {
+    if (!settings) return;
+    await save({ autoRunFolders: settings.autoRunFolders.filter((f) => f !== folder) }, `Cards for ${folderName(folder)} wait for Run again.`);
+  }
+
   async function removeFolderRule(folder: string) {
     if (!settings) return;
     const rules = { ...settings.notifyProjects };
@@ -524,6 +548,44 @@
           {#if usingApi}A custom provider has no file tools, so it sees folder names and what they hold (git, package.json), not the files. Pick a CLI to let the planner read them.
           {:else}Read-only: it can look at files to find the right project and write a sharper prompt. It cannot run commands or change anything. Off means it only sees folder names.{/if}
         </p>
+        <div class="field" id="auto-run">
+          <span class="label">Run cards without asking</span>
+          <p class="help">Cards the planner proposes for these folders start at once, with your default permission mode but never Bypass. Every other card waits for Run.</p>
+          {#if settings.autoRunFolders.length}
+            <ul class="roots">
+              {#each settings.autoRunFolders as f (f)}
+                <li>
+                  <span class="mono grow" title={f}>{shortPath(f)}</span>
+                  <button class="btn ghost sm" type="button" aria-label="Stop running cards without asking in {folderName(f)}" onclick={() => removeAutoRun(f)}>Remove</button>
+                </li>
+              {/each}
+            </ul>
+          {:else}
+            <p class="meta" style="margin:0">None: every card waits for Run.</p>
+          {/if}
+          {#if autoConfirm}
+            <div class="warn bypass-warn" role="alert">
+              <Warning size={18} aria-hidden="true" />
+              <div class="grow">
+                <p style="margin:0 0 10px"><b>Let cards for {folderName(autoConfirm)} start without Run?</b> The planner writes their prompts, so a card can start work in this folder that you did not read first.</p>
+                <div class="row" style="gap:10px;flex-wrap:wrap">
+                  <button class="btn danger" type="button" onclick={() => allowAutoRun(autoConfirm)}>Start them without asking</button>
+                  <button class="btn secondary" type="button" onclick={() => (autoConfirm = "")}>Keep asking</button>
+                </div>
+              </div>
+            </div>
+          {:else}
+            <div class="add-rule">
+              <label class="sr-only" for="auto-run-folder">Folder whose cards may start without asking</label>
+              <select class="select" id="auto-run-folder" bind:value={autoPick}>
+                <option value="">Choose a project folder…</option>
+                {#each autoAddable as f (f.path)}<option value={f.path}>{f.name} · {shortPath(f.path)}</option>{/each}
+              </select>
+              <button class="btn secondary sm" type="button" aria-label="Add auto-run folder" disabled={!autoPick} onclick={() => (autoConfirm = autoPick)}>Add</button>
+              <button class="btn ghost sm" type="button" aria-label="Browse for an auto-run folder" onclick={browseAutoRun}>Browse…</button>
+            </div>
+          {/if}
+        </div>
       </section>
 
       <section class="card" id="projects" aria-labelledby="projects-title">
@@ -597,8 +659,8 @@
             <option value="">Choose a project folder…</option>
             {#each addable as f (f.path)}<option value={f.path}>{f.name} · {shortPath(f.path)}</option>{/each}
           </select>
-          <button class="btn secondary sm" type="button" disabled={!folderPick} onclick={() => addFolderRule(folderPick)}>Add</button>
-          <button class="btn ghost sm" type="button" onclick={browseFolderRule}>Browse…</button>
+          <button class="btn secondary sm" type="button" aria-label="Add notification rule" disabled={!folderPick} onclick={() => addFolderRule(folderPick)}>Add</button>
+          <button class="btn ghost sm" type="button" aria-label="Browse for a notification folder" onclick={browseFolderRule}>Browse…</button>
         </div>
         <p class="meta" style="margin:0">A notification goes out only when the switch above, its CLI and its folder all allow it. The phone follows the same rules.</p>
       </section>

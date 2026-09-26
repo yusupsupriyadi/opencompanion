@@ -70,6 +70,8 @@
     return { model, host, ready: Boolean(model && /^https?:\/\//i.test(url)) };
   });
   const canPlan = $derived(provider ? provider.ready : planner !== null);
+  // PRD FR-26 asks for a plain sign whenever cards can start without Run.
+  const autoRun = $derived(app.settings?.autoRunFolders ?? []);
   const liveSessions = $derived(app.sessions.filter(isLive));
 
   // A wide window docks the rail and remembers when it was hidden; a narrower one opens it over the conversation.
@@ -416,6 +418,11 @@
       </div>
       {#if pending && !thinkingHere}
         <p class="meta composer-hint" role="status">The planner is still answering in another chat. Send works again when it is done.</p>
+      {/if}
+      {#if autoRun.length}
+        <p class="meta composer-hint" id="chat-auto-run">
+          Cards for {autoRun.map(folderName).join(", ")} start without asking; the rest wait for Run. <a class="link" href="/settings#auto-run">Change this</a>
+        </p>
       {/if}
       {#if !canPlan}
         <p class="meta composer-hint" role="status">

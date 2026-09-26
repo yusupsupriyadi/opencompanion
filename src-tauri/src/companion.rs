@@ -527,7 +527,12 @@ async fn chat_list(State(ctx): State<Ctx>, headers: HeaderMap) -> Response {
     let db = Arc::clone(&ctx.db);
     off_thread(move || {
         let clis = actions::detect_with_settings(&db);
-        Ok(json!({ "threads": db.threads()?, "planner": actions::planner_name(&db, &clis)?, "answering": actions::answering() }))
+        Ok(json!({
+            "threads": db.threads()?,
+            "planner": actions::planner_name(&db, &clis)?,
+            "answering": actions::answering(),
+            "autoRun": db.settings()?.auto_run_folders,
+        }))
     })
     .await
 }
@@ -542,7 +547,8 @@ async fn chat_thread(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): Ur
     match ctx.db.chat(&id, 200) {
         Ok(messages) => {
             let answering = actions::answering().contains(&id);
-            Json(json!({ "thread": thread, "messages": messages, "answering": answering })).into_response()
+            let auto_run = ctx.db.settings().map(|s| s.auto_run_folders).unwrap_or_default();
+            Json(json!({ "thread": thread, "messages": messages, "answering": answering, "autoRun": auto_run })).into_response()
         }
         Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e),
     }
@@ -559,11 +565,10 @@ async fn chat_send(State(ctx): State<Ctx>, headers: HeaderMap, Json(body): Json<
     if let Err(r) = authed(&ctx, &headers) {
         return r;
     }
-    let db = Arc::clone(&ctx.db);
     let manager = Arc::clone(&ctx.manager);
     off_thread(move || {
         let own: HashSet<u32> = manager.own_pids().into_iter().collect();
-        let turn = actions::chat_send(&db, manager.data_dir(), &own, body.thread_id, &body.message, &|id| manager.chat_changed(id))?;
+        let turn = actions::chat_send(&manager, &own, body.thread_id, &body.message)?;
         manager.chat_changed(&turn.thread.id);
         Ok(turn)
     })

@@ -303,6 +303,7 @@ fn follow_ups_from(v: &Value, clis: &[CliInstall], sessions: &[SessionInfo]) -> 
                 session_id: None,
                 task_id: None,
                 target: Some(s.id.clone()),
+                auto: false,
             };
             validate_target(&mut card, clis, Some(s));
             Some(card)
@@ -332,6 +333,7 @@ fn cards_from(v: &Value, clis: &[CliInstall], known: &[ProjectFolder]) -> Vec<Di
                 session_id: None,
                 task_id: None,
                 target: None,
+                auto: false,
             };
             validate(&mut card, clis);
             Some(card)
@@ -771,6 +773,7 @@ mod tests {
             session_id: None,
             task_id: None,
             target: None,
+            auto: false,
         };
         validate(&mut card, &clis());
         assert!(card.problem.unwrap().contains("does not exist"));

@@ -229,6 +229,7 @@ fn the_phone_starts_sessions_sends_messages_and_works_the_board() {
         session_id: None,
         task_id: None,
         target: Some(id.clone()),
+        auto: false,
     };
     db.add_chat(&ChatMessage {
         id: "msg-f".into(),
@@ -288,6 +289,7 @@ fn the_phone_starts_sessions_sends_messages_and_works_the_board() {
         session_id: None,
         task_id: None,
         target: None,
+        auto: false,
     };
     let reply = ChatMessage {
         id: "msg-a".into(),

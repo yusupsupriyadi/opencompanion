@@ -127,7 +127,9 @@
         {#if card.sessionId}
           <a class="btn secondary" href="/session?id={card.sessionId}"><TerminalWindow size={16} aria-hidden="true" />Open session</a>
         {/if}
-        {#if follow}<span class="meta">Sent to this session.</span>{:else if session}<span class="meta">Started {ago(session.startedAt, app.now)}</span>{/if}
+        {#if follow}<span class="meta">Sent to this session.</span>
+        {:else if card.auto}<span class="meta">Started by itself: {folderName(card.folder)} runs cards without asking.</span>
+        {:else if session}<span class="meta">Started {ago(session.startedAt, app.now)}</span>{/if}
       {:else if editing}
         <button class="btn primary" type="button" disabled={busy} onclick={save}>Save card</button>
         <button class="btn ghost" type="button" onclick={() => (editing = false)}>Cancel</button>

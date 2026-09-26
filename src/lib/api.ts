@@ -194,6 +194,8 @@ export interface DispatchCard {
   taskId?: string | null;
   /** A follow-up for this existing session: Send gives it the prompt instead of starting one. */
   target?: string | null;
+  /** Started without Run, because its folder runs cards without asking. */
+  auto?: boolean;
 }
 
 export interface ChatMessage {
@@ -246,6 +248,8 @@ export interface Settings {
   trayHintShown: boolean;
   /** Start at sign-in, into the tray (Windows); read from Windows each time. */
   startAtLogin: boolean;
+  /** Folders whose Chat cards start without Run, with the folders inside them. */
+  autoRunFolders: string[];
 }
 
 /** Mirrors `db::NotifyRule`: which notifications one CLI or one folder sends. */

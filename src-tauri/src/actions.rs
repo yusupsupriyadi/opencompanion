@@ -2,13 +2,14 @@
 //! and moving or running Board cards. Each caller tells its own listeners what changed.
 
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
 use crate::cli::{self, CliInstall, CliKind};
 use crate::db::{self, ChatMessage, ChatThread, Db, DispatchCard, Mode, PlannerSource, SessionInfo, Settings, Task};
+use crate::headless::PermMode;
 use crate::monitor;
 use crate::models;
 use crate::orchestrator;
@@ -74,16 +75,10 @@ pub struct ChatTurn {
 }
 
 /// One planner turn. Without `thread_id` the message starts a new thread, named after the message.
-/// One turn per thread at a time; `asked` hears the thread id once the question is stored, so
-/// other screens can show that the planner is answering.
-pub fn chat_send(
-    db: &Db,
-    data_dir: &Path,
-    own: &HashSet<u32>,
-    thread_id: Option<String>,
-    message: &str,
-    asked: &dyn Fn(&str),
-) -> Res<ChatTurn> {
+/// One turn per thread at a time; other screens hear once the question is stored, so they can
+/// show that the planner is answering.
+pub fn chat_send(manager: &Arc<Manager>, own: &HashSet<u32>, thread_id: Option<String>, message: &str) -> Res<ChatTurn> {
+    let (db, data_dir) = (manager.db().as_ref(), manager.data_dir());
     let text = message.trim().to_string();
     if text.is_empty() {
         return Err("Write a message first.".into());
@@ -104,7 +99,7 @@ pub fn chat_send(
     };
     let user = msg("user", text.clone(), vec![]);
     db.add_chat(&user)?;
-    asked(&thread.id);
+    manager.chat_changed(&thread.id);
 
     let clis = detect_with_settings(db);
     let settings = db.settings()?;
@@ -171,10 +166,47 @@ pub fn chat_send(
             }
         }
     };
+    let mut reply = reply;
+    auto_run(manager, &settings, &mut reply.cards);
     db.add_chat(&reply)?;
     thread.updated_at = reply.created_at;
     db.touch_thread(&thread.id, thread.updated_at)?;
     Ok(ChatTurn { thread, user, reply })
+}
+
+/// Auto-run (PRD FR-26): a valid new-session card for a folder the owner lets run without asking
+/// starts now. It gets the default permission mode, except Bypass: nothing runs without checks
+/// unless a person pressed Run on it.
+pub fn auto_run(manager: &Arc<Manager>, settings: &Settings, cards: &mut [DispatchCard]) {
+    let mode = match PermMode::parse(&settings.permission_mode) {
+        PermMode::Bypass => PermMode::Ask,
+        m => m,
+    };
+    for card in cards.iter_mut() {
+        if card.state != "proposed" || card.problem.is_some() || card.target.is_some() || !settings.auto_runs(&card.folder) {
+            continue;
+        }
+        let started = manager.start(StartRequest {
+            cli: card.cli,
+            cwd: card.folder.clone(),
+            mode: card.mode,
+            prompt: card.prompt.clone(),
+            title: Some(card.title.clone()),
+            permission_mode: Some(mode.as_str().to_string()),
+            source: Some("chat".into()),
+            task_id: None,
+            cols: None,
+            rows: None,
+        });
+        match started {
+            Ok(s) => {
+                card.state = "started".into();
+                card.session_id = Some(s.id);
+                card.auto = true;
+            }
+            Err(e) => card.problem = Some(format!("It did not start by itself: {e}")),
+        }
+    }
 }
 
 pub fn with_card(db: &Db, message_id: &str, card_id: &str, f: impl FnOnce(&mut DispatchCard) -> Res<()>) -> Res<ChatMessage> {

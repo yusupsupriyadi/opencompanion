@@ -161,6 +161,9 @@ pub struct DispatchCard {
     /// instead of starting a session. `cli`, `folder` and `mode` are that session's.
     #[serde(default)]
     pub target: Option<String>,
+    /// Started without Run, because its folder runs cards without asking (PRD FR-26).
+    #[serde(default)]
+    pub auto: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -270,6 +273,8 @@ pub struct Settings {
     pub tray_hint_shown: bool,
     /// Start at sign-in, into the tray (PRD FR-64). Windows keeps the real answer; this mirrors it.
     pub start_at_login: bool,
+    /// Folders whose Chat cards start without Run (PRD FR-26), with folders inside them.
+    pub auto_run_folders: Vec<String>,
 }
 
 /// The kinds of notification a session sends.
@@ -363,14 +368,18 @@ impl Settings {
             Notice::Done => self.notify_done,
             Notice::Error => self.notify_error,
         };
-        let here = crate::projects::norm(cwd);
-        let inside = |folder: &str| {
-            let f = crate::projects::norm(folder);
-            here == f || here.starts_with(&format!("{f}\\"))
-        };
         global
             && self.notify_clis.get(cli.bin()).is_none_or(|r| r.allows(notice))
-            && self.notify_projects.iter().filter(|(f, _)| inside(f)).all(|(_, r)| r.allows(notice))
+            && self
+                .notify_projects
+                .iter()
+                .filter(|(f, _)| crate::projects::contains(f, cwd))
+                .all(|(_, r)| r.allows(notice))
+    }
+
+    /// Whether a card for `folder` starts without Run (PRD FR-26).
+    pub fn auto_runs(&self, folder: &str) -> bool {
+        self.auto_run_folders.iter().any(|f| crate::projects::contains(f, folder))
     }
 
     /// Text size as a webview zoom factor, so text and the controls around it scale together.
@@ -407,6 +416,7 @@ impl Default for Settings {
             close_to_tray: true,
             tray_hint_shown: false,
             start_at_login: false,
+            auto_run_folders: Vec::new(),
         }
     }
 }
@@ -1276,6 +1286,7 @@ mod tests {
             session_id: Some(session.into()),
             task_id: None,
             target: None,
+            auto: false,
         };
         db.add_chat(&ChatMessage {
             id: "m1".into(),

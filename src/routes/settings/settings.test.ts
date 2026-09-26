@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/svelte";
+import { render, screen, within } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import type { Settings } from "$lib/api";
@@ -30,6 +30,7 @@ const base: Settings = {
   closeToTray: true,
   trayHintShown: false,
   startAtLogin: false,
+  autoRunFolders: [],
 };
 
 let stored: Settings;
@@ -250,10 +251,45 @@ test("each CLI and each project folder can turn off some notifications", async (
   expect(stored.notifyClis).toEqual({});
 
   await user.selectOptions(screen.getByLabelText("Project folder to add a rule for"), uninote);
-  await user.click(screen.getByRole("button", { name: "Add" }));
+  await user.click(screen.getByRole("button", { name: "Add notification rule" }));
   expect(stored.notifyProjects).toEqual({ [uninote]: { waiting: true, done: true, error: true } });
   await user.click(screen.getByRole("checkbox", { name: "uninote: Error" }));
   expect(stored.notifyProjects[uninote].error).toBe(false);
   await user.click(screen.getByRole("button", { name: "Remove the rule for uninote" }));
   expect(stored.notifyProjects).toEqual({});
+});
+
+test("a folder runs cards without asking only after a second, explicit press", async () => {
+  const uninote = String.raw`C:\Users\me\Project\uninote`;
+  api();
+  backend({
+    get_settings: () => stored,
+    save_settings: (a) => {
+      stored = a?.settings as Settings;
+      return stored;
+    },
+    companion_status: () => ({ running: false, address: null, port: 8765, error: null }),
+    list_devices: () => [],
+    app_info: () => ({ version: "0.1.0", dataDir: String.raw`C:\data`, counts: { sessions: 0, devices: 0 } }),
+    default_project_roots: () => [],
+    project_folders: () => [{ path: uninote, name: "uninote", markers: [], source: "recent" }],
+  });
+  const user = userEvent.setup();
+  render(SettingsPage);
+
+  expect(await screen.findByText("None: every card waits for Run.")).toBeInTheDocument();
+  const picker = screen.getByLabelText("Folder whose cards may start without asking");
+  await within(picker).findByRole("option", { name: /uninote/ });
+  await user.selectOptions(picker, uninote);
+  await user.click(screen.getByRole("button", { name: "Add auto-run folder" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("Let cards for uninote start without Run?");
+  await user.click(screen.getByRole("button", { name: "Keep asking" }));
+  expect(stored.autoRunFolders).toEqual([]);
+
+  await user.selectOptions(screen.getByLabelText("Folder whose cards may start without asking"), uninote);
+  await user.click(screen.getByRole("button", { name: "Add auto-run folder" }));
+  await user.click(screen.getByRole("button", { name: "Start them without asking" }));
+  expect(stored.autoRunFolders).toEqual([uninote]);
+  await user.click(screen.getByRole("button", { name: "Stop running cards without asking in uninote" }));
+  expect(stored.autoRunFolders).toEqual([]);
 });

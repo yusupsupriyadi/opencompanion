@@ -73,6 +73,12 @@ fn same_path(a: &Path, b: &Path) -> bool {
     norm(&a.display().to_string()) == norm(&b.display().to_string())
 }
 
+/// Whether `path` is `folder` or inside it, whatever the case or the slashes.
+pub fn contains(folder: &str, path: &str) -> bool {
+    let (f, p) = (norm(folder), norm(path));
+    p == f || p.starts_with(&format!("{f}\\"))
+}
+
 pub(crate) fn norm(p: &str) -> String {
     p.trim_end_matches(['\\', '/']).replace('/', "\\").to_lowercase()
 }

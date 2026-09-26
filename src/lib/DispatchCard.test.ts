@@ -108,6 +108,13 @@ test("a follow-up card sends its message to the session and never becomes a Boar
   expect(onchange).toHaveBeenCalledWith(msg(sent));
 });
 
+test("a card that started by itself says why", () => {
+  backend({});
+  render(DispatchCard, { card: card({ state: "started", sessionId: "s2", auto: true }), messageId: "m1", onchange: vi.fn() });
+  expect(screen.getByText("Started by itself: comic-translate runs cards without asking.")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Open session" })).toHaveAttribute("href", "/session?id=s2");
+});
+
 test("a sent follow-up says so and links to its session", () => {
   backend({});
   render(DispatchCard, { card: card({ target: "s1", state: "started", sessionId: "s1" }), messageId: "m1", onchange: vi.fn() });
