@@ -55,7 +55,7 @@ Terminal (panel gelap di kedua tema, "teduh di bawah pohon"):
 
 Scrim modal: `#33361F73` (ink 45%). Panel di atas ilustrasi memakai glass (di bawah).
 
-Latar aplikasi: `meadow-day` (`static/meadow-day.png`, 1672 × 941) di belakang aplikasi (fixed, fit: utuh tanpa terpotong atau ditarik, posisi 70% bawah; pita sisa di tepi jendela diisi salinan lukisan yang sama versi cover dengan blur 32px), terlihat langsung di area kerja. Di Siang lukisan tampil utuh tanpa lapisan warna (keputusan pemilik produk, 26 September 2026); di Senja ada `haze`:
+Latar aplikasi: `meadow-day` (`static/meadow-day.png`, 3824 × 1632) di belakang aplikasi (fixed, fill: memenuhi jendela, tepinya boleh terpotong tetapi tidak ditarik, posisi 70% bawah agar tokoh di batang kayu tetap terlihat; keputusan pemilik produk, 28 September 2026), terlihat langsung di area kerja. Di Siang lukisan tampil utuh tanpa lapisan warna (keputusan pemilik produk, 26 September 2026); di Senja ada `haze`:
 
 | Token | Siang | Senja |
 |---|---|---|
@@ -191,7 +191,7 @@ Aturan: tampil penuh di momen tanpa data (onboarding, empty state, offline mobil
 | File | Status | Dipakai di | Prompt |
 |---|---|---|---|
 | `design/meadow-day.png` (1408 × 768) | sudah dibuat | D1 Onboarding, D8 empty state | "Soft painterly anime-inspired landscape painting, gouache and watercolor texture, warm late-afternoon light. Pale butter-yellow sky (#FBF3CF) with large soft cream and pale teal clouds filling the upper 60 percent of the image, calm and mostly empty so text can sit on it. A rolling green meadow hill across the lower third, sloping gently from left to right, a dark green pine forest along the ridge, tiny yellow wildflowers in the foreground grass. A tiny distant figure in a blue jacket sits on a fallen log in the lower right, seen from behind. No text, no animals, no buildings." |
-| `static/meadow-day.png` (1672 × 941) | dipakai aplikasi | latar desktop, D1 Onboarding, header ponsel | versi baru dari pemilik produk: langit biru pekat dengan awan sore, padang dan tokoh yang sama; prompt tidak tercatat |
+| `static/meadow-day.png` (3824 × 1632) | dipakai aplikasi | latar desktop, D1 Onboarding, header ponsel | versi baru dari pemilik produk: langit biru pekat dengan awan sore, padang dan tokoh yang sama; prompt tidak tercatat |
 | `design/meadow-portrait.png` | belum | M1 Pair device, M4 offline | "Same painterly gouache and watercolor style and palette as a warm late-afternoon meadow painting. Tall vertical composition. Upper half: pale butter-yellow sky (#FBF3CF) with soft cream clouds, calm and empty. Lower half: a green meadow slope with a dark pine ridge, small yellow wildflowers in the foreground, a tiny figure in a blue jacket sitting on a fallen log, seen from behind. No text, no animals, no buildings." |
 | `design/meadow-dusk.png` | belum | D8 empty state versi Senja, M4 versi Senja | "The same meadow painting at dusk, gouache and watercolor texture. Deep blue-green night sky (#1B1F1A to #2E3529) with a few first stars and a thin band of warm light on the horizon. The meadow and pine ridge in deep greens, a tiny figure in a blue jacket on a fallen log with a small warm lantern beside them. Upper 60 percent calm and mostly empty. No text, no animals, no buildings." |
 

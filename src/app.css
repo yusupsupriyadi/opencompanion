@@ -76,11 +76,9 @@ svg { flex: none; }
    a 38% haze. */
 /* The shell never scrolls: only the sidebar and the page inside it do, so the sidebar stays put over the painting. */
 .app { display: grid; grid-template-columns: 240px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 12px; padding: var(--titlebar) 12px 12px; height: 100vh; min-height: 620px; position: relative; isolation: isolate; overflow: hidden; }
-/* The painting fits the window whole (contain), never cropped or stretched. The band left at the window's edges is the
-   same painting, cover-scaled and blurred, so no flat bar shows. */
-.app::before, .app::after { content: ""; position: fixed; z-index: -1; background-repeat: no-repeat; }
-.app::before { inset: -48px; background-color: var(--bg); background-image: url(/meadow-day.png); background-position: 70% 100%; background-size: cover; filter: blur(32px) var(--art-filter); }
-.app::after { inset: 0; background-image: var(--haze), url(/meadow-day.png); background-position: 0 0, 70% 100%; background-size: 100% 100%, contain; filter: var(--art-filter); }
+/* The painting fills the window (cover), cropped at the edges but never stretched. Anchored at 70% bottom so the figure
+   on the log stays in view. */
+.app::after { content: ""; position: fixed; inset: 0; z-index: -1; background-color: var(--bg); background-image: var(--haze), url(/meadow-day.png); background-position: 0 0, 70% 100%; background-size: 100% 100%, cover; background-repeat: no-repeat; filter: var(--art-filter); }
 .app > .sidebar { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); }
 /* Text over the painting uses ink only, so hierarchy comes from size and weight. */
 .page-head, .section-head, .hint, .col-head, .board-main > .meta, .planner, .activity, .detail-side, .note, .not-found, .phones figcaption { --ink-2: var(--ink); }
