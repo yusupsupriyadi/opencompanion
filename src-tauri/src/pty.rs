@@ -215,13 +215,18 @@ impl PtySession {
             }
             thread::sleep(Duration::from_millis(50));
         }
+        self.kill();
+        None
+    }
+
+    /// Ends the process and everything it started, without asking first.
+    pub fn kill(&mut self) {
         // The whole tree: the CLI's own children would outlive it otherwise.
         if let Some(pid) = self.child.process_id() {
             crate::proc::kill_tree(pid);
         }
         let _ = self.child.kill();
         let _ = self.child.wait();
-        None
     }
 }
 

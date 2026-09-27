@@ -7,13 +7,14 @@ import * as phone from "./i18n/phone";
 import * as sessions from "./i18n/sessions";
 import * as settings from "./i18n/settings";
 import * as shell from "./i18n/shell";
+import * as terminal from "./i18n/terminal";
 import * as work from "./i18n/work";
 
 export type Lang = "en" | "id";
 
-const en = { ...shell.en, ...sessions.en, ...chat.en, ...work.en, ...settings.en, ...phone.en };
+const en = { ...shell.en, ...sessions.en, ...chat.en, ...work.en, ...settings.en, ...phone.en, ...terminal.en };
 export type Key = keyof typeof en;
-const id: Record<Key, string> = { ...shell.id, ...sessions.id, ...chat.id, ...work.id, ...settings.id, ...phone.id };
+const id: Record<Key, string> = { ...shell.id, ...sessions.id, ...chat.id, ...work.id, ...settings.id, ...phone.id, ...terminal.id };
 const DICTS: Record<Lang, Record<Key, string>> = { en, id };
 
 export const LANGS: { id: Lang; label: string }[] = [

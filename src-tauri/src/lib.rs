@@ -13,6 +13,7 @@ pub mod projects;
 pub mod pty;
 pub mod session;
 pub mod skills;
+pub mod terminal;
 pub mod transcript;
 pub mod waiting;
 
@@ -37,6 +38,7 @@ struct AppState {
     manager: Arc<session::Manager>,
     companion: Arc<Companion>,
     monitor: Arc<Mutex<monitor::Monitor>>,
+    terminals: Arc<terminal::Terminals>,
     data_dir: PathBuf,
 }
 
@@ -85,6 +87,20 @@ impl Emit for TauriEmit {
         if let Some(c) = self.companion.get() {
             c.broadcast(json!({ "type": "notify", "title": title, "body": body, "sessionId": session_id }));
         }
+    }
+}
+
+/// Forwards terminal output and state to the webview only: terminals never reach the phone.
+struct TerminalEvents {
+    app: AppHandle,
+}
+
+impl terminal::TerminalEmit for TerminalEvents {
+    fn output(&self, id: &str, data: &str, seq: u64) {
+        let _ = self.app.emit("terminal-output", json!({ "id": id, "data": data, "seq": seq }));
+    }
+    fn changed(&self, info: &terminal::TerminalInfo) {
+        let _ = self.app.emit("terminal-changed", info);
     }
 }
 
@@ -440,6 +456,52 @@ fn folder_exists(path: String) -> bool {
     !path.trim().is_empty() && std::path::Path::new(path.trim()).is_dir()
 }
 
+// Terminals
+
+#[tauri::command]
+async fn terminal_shells() -> Res<Vec<terminal::Shell>> {
+    blocking(|| Ok(terminal::available_shells())).await
+}
+
+#[tauri::command]
+fn terminal_list(state: State<'_, AppState>) -> Vec<terminal::TerminalInfo> {
+    state.terminals.list()
+}
+
+#[tauri::command]
+async fn terminal_open(state: State<'_, AppState>, cwd: String, shell: Option<String>, cols: Option<u16>, rows: Option<u16>) -> Res<terminal::TerminalInfo> {
+    let terminals = Arc::clone(&state.terminals);
+    blocking(move || terminals.open(&cwd, shell.as_deref(), cols, rows)).await
+}
+
+#[tauri::command]
+fn terminal_write(state: State<'_, AppState>, id: String, data: String) -> Res<()> {
+    state.terminals.write(&id, &data)
+}
+
+#[tauri::command]
+fn terminal_resize(state: State<'_, AppState>, id: String, cols: u16, rows: u16) -> Res<()> {
+    state.terminals.resize(&id, cols, rows)
+}
+
+#[tauri::command]
+fn terminal_output(state: State<'_, AppState>, id: String) -> OutputSnapshot {
+    let (data, seq) = state.terminals.output_snapshot(&id);
+    OutputSnapshot { data, seq }
+}
+
+#[tauri::command]
+async fn terminal_restart(state: State<'_, AppState>, id: String, cols: Option<u16>, rows: Option<u16>) -> Res<terminal::TerminalInfo> {
+    let terminals = Arc::clone(&state.terminals);
+    blocking(move || terminals.restart(&id, cols, rows)).await
+}
+
+#[tauri::command]
+async fn terminal_close(state: State<'_, AppState>, id: String) -> Res<()> {
+    let terminals = Arc::clone(&state.terminals);
+    blocking(move || terminals.close(&id)).await
+}
+
 // Chat
 
 #[tauri::command]
@@ -771,6 +833,7 @@ pub fn run() {
                 manager,
                 companion,
                 monitor: Arc::new(Mutex::new(monitor::Monitor::new())),
+                terminals: terminal::Terminals::new(Arc::new(TerminalEvents { app: app.handle().clone() })),
                 data_dir,
             });
             Ok(())
@@ -799,6 +862,14 @@ pub fn run() {
             project_folders,
             default_project_roots,
             folder_exists,
+            terminal_shells,
+            terminal_list,
+            terminal_open,
+            terminal_write,
+            terminal_resize,
+            terminal_output,
+            terminal_restart,
+            terminal_close,
             chat_threads,
             chat_history,
             chat_send,
@@ -830,6 +901,7 @@ pub fn run() {
         if let RunEvent::Exit = event {
             if let Some(state) = handle.try_state::<AppState>() {
                 state.manager.kill_all();
+                state.terminals.kill_all();
                 state.companion.stop();
             }
         }

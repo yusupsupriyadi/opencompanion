@@ -20,8 +20,8 @@ beforeEach(() => {
 
 test("every nav item points at a screen that exists", () => {
   render(Sidebar);
-  const hrefs = ["Overview", "Board", "Chat", "CLIs", "Skills", "Settings"].map((n) => screen.getByRole("link", { name: n }).getAttribute("href"));
-  expect(hrefs).toEqual(["/", "/board", "/chat", "/clis", "/skills", "/settings"]);
+  const hrefs = ["Overview", "Board", "Chat", "Terminal", "CLIs", "Skills", "Settings"].map((n) => screen.getByRole("link", { name: n }).getAttribute("href"));
+  expect(hrefs).toEqual(["/", "/board", "/chat", "/terminal", "/clis", "/skills", "/settings"]);
   expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
 });
 

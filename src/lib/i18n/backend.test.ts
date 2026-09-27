@@ -5,6 +5,7 @@ test("backend messages read in Indonesian, with their names and numbers kept", (
   expect(translateBackend("This folder does not exist.", "id")).toBe("Folder ini tidak ada.");
   expect(translateBackend("Exited with code 1", "id")).toBe("Keluar dengan kode 1");
   expect(translateBackend("Codex CLI is not installed on this computer.", "id")).toBe("Codex CLI tidak terpasang di komputer ini.");
+  expect(translateBackend("That shell is not installed on this computer.", "id")).toBe("Shell itu tidak terpasang di komputer ini.");
   expect(translateBackend("Approved Write on Pixel 8", "id")).toBe("Disetujui: Write dari Pixel 8");
   expect(translateBackend("The provider did not answer within 300 s.", "id")).toBe("Provider tidak menjawab dalam 300 detik.");
   expect(translateBackend("Claude Code did not answer within 300 s.", "id")).toBe("Claude Code tidak menjawab dalam 300 detik.");

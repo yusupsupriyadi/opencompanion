@@ -60,7 +60,7 @@ enum Runner {
 }
 
 /// Keeps the tail of a PTY stream so a terminal view can be rebuilt after navigation.
-const OUTPUT_KEEP: usize = 512 * 1024;
+pub(crate) const OUTPUT_KEEP: usize = 512 * 1024;
 /// Output silence after which an interactive session counts as Idle.
 const IDLE_AFTER: Duration = Duration::from_secs(8);
 
@@ -163,8 +163,19 @@ fn split_args(raw: Option<&String>) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Drops the start of `out` so at most `max` bytes are left, cut at a character boundary.
+pub(crate) fn keep_tail(out: &mut String, max: usize) {
+    if out.len() > max {
+        let mut cut = out.len() - max;
+        while !out.is_char_boundary(cut) {
+            cut += 1;
+        }
+        out.drain(..cut);
+    }
+}
+
 /// Decodes a byte chunk, holding back an incomplete UTF-8 sequence for the next chunk.
-fn decode_utf8(carry: &mut Vec<u8>, chunk: &[u8]) -> String {
+pub(crate) fn decode_utf8(carry: &mut Vec<u8>, chunk: &[u8]) -> String {
     carry.extend_from_slice(chunk);
     match std::str::from_utf8(carry) {
         Ok(s) => {
@@ -573,13 +584,7 @@ impl Manager {
                 let seq = {
                     let mut out = sink_live.output.lock().unwrap_or_else(|p| p.into_inner());
                     out.push_str(&text);
-                    if out.len() > OUTPUT_KEEP {
-                        let mut cut = out.len() - OUTPUT_KEEP;
-                        while !out.is_char_boundary(cut) {
-                            cut += 1;
-                        }
-                        out.drain(..cut);
-                    }
+                    keep_tail(&mut out, OUTPUT_KEEP);
                     sink_live.output_seq.fetch_add(1, Ordering::SeqCst) + 1
                 };
                 sink_self.emit.output(&session_id, &text, seq);

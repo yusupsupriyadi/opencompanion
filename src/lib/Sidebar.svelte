@@ -13,6 +13,7 @@
   import Plus from "phosphor-svelte/lib/Plus";
   import PushPin from "phosphor-svelte/lib/PushPin";
   import Sun from "phosphor-svelte/lib/Sun";
+  import TerminalIcon from "phosphor-svelte/lib/Terminal";
   import TerminalWindow from "phosphor-svelte/lib/TerminalWindow";
   import Trash from "phosphor-svelte/lib/Trash";
   import type { SessionView } from "./api";
@@ -26,6 +27,7 @@
     { href: "/", key: "shell.nav.overview", icon: House },
     { href: "/board", key: "shell.nav.board", icon: Kanban },
     { href: "/chat", key: "shell.nav.chat", icon: ChatsCircle },
+    { href: "/terminal", key: "shell.nav.terminal", icon: TerminalIcon },
     { href: "/clis", key: "shell.nav.clis", icon: TerminalWindow },
     { href: "/skills", key: "shell.nav.skills", icon: Books },
     { href: "/settings", key: "shell.nav.settings", icon: GearSix },

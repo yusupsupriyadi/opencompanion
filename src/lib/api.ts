@@ -346,6 +346,25 @@ export interface StartRequest {
   rows?: number;
 }
 
+/** Mirrors `terminal::Shell`: a shell found on this computer. */
+export interface ShellInfo {
+  id: string;
+  label: string;
+  path: string;
+}
+
+/** Mirrors `terminal::TerminalInfo`: a plain shell, not an AI session. */
+export interface TerminalInfo {
+  id: string;
+  cwd: string;
+  shell: string;
+  shellLabel: string;
+  pid: number | null;
+  running: boolean;
+  exitCode: number | null;
+  startedAt: number;
+}
+
 export type Load<T> =
   | { state: "loading" }
   | { state: "ready"; data: T }
@@ -385,6 +404,21 @@ export const api = {
   projectFolders: () => invoke<ProjectFolder[]>("project_folders"),
   defaultProjectRoots: () => invoke<string[]>("default_project_roots"),
   folderExists: (path: string) => invoke<boolean>("folder_exists", { path }),
+
+  /** Installed shells, the default first. */
+  terminalShells: () => invoke<ShellInfo[]>("terminal_shells"),
+  /** Open terminals in tab order. */
+  terminalList: () => invoke<TerminalInfo[]>("terminal_list"),
+  /** `shell` null starts the default one. */
+  terminalOpen: (cwd: string, shell: string | null, cols?: number, rows?: number) =>
+    invoke<TerminalInfo>("terminal_open", { cwd, shell, cols, rows }),
+  terminalWrite: (id: string, data: string) => invoke<void>("terminal_write", { id, data }),
+  terminalResize: (id: string, cols: number, rows: number) => invoke<void>("terminal_resize", { id, cols, rows }),
+  /** Like `sessionOutput`, for a terminal. */
+  terminalOutput: (id: string) => invoke<{ data: string; seq: number }>("terminal_output", { id }),
+  terminalRestart: (id: string) => invoke<TerminalInfo>("terminal_restart", { id }),
+  /** Ends the shell and what it started, such as a dev server. */
+  terminalClose: (id: string) => invoke<void>("terminal_close", { id }),
 
   chatThreads: () => invoke<ChatThread[]>("chat_threads"),
   chatHistory: (threadId: string) => invoke<ChatMessage[]>("chat_history", { threadId }),

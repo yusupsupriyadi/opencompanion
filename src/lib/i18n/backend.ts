@@ -39,6 +39,11 @@ const RULES: Rule[] = [
   [/^Marked done by you$/, "Ditandai selesai oleh Anda"],
   [/^Marked done on (.+)$/, "Ditandai selesai dari $1"],
   [/^Exited with code (-?\d+)$/, "Keluar dengan kode $1"],
+  // Terminals
+  [/^Terminal not found\.$/, "Terminal tidak ditemukan."],
+  [/^This terminal has exited\.$/, "Terminal ini sudah berhenti."],
+  [/^That shell is not installed on this computer\.$/, "Shell itu tidak terpasang di komputer ini."],
+  [/^No shell was found on this computer\.$/, "Tidak ada shell yang ditemukan di komputer ini."],
   [/^OpenCompanion was closed while this session ran$/, "OpenCompanion ditutup saat sesi ini berjalan"],
   [/^OpenCompanion was closed$/, "OpenCompanion ditutup"],
   [/^Waiting for your next message$/, "Menunggu pesan Anda berikutnya"],

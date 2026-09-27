@@ -7,7 +7,8 @@
   import { api } from "./api";
   import { t } from "./i18n.svelte";
 
-  let { id, live, label }: { id: string; live: boolean; label: string } = $props();
+  // `session` is an AI CLI session; `terminal` a plain shell from the Terminal screen.
+  let { id, live, label, kind = "session" }: { id: string; live: boolean; label: string; kind?: "session" | "terminal" } = $props();
 
   let host: HTMLDivElement | undefined = $state();
   // Read inside the xterm callbacks, which outlive the first render.
@@ -34,6 +35,15 @@
     acceptInput = live;
     if (!host) return;
     const box = host;
+    const io: {
+      event: string;
+      send: (id: string, data: string) => Promise<unknown>;
+      resize: (id: string, cols: number, rows: number) => Promise<void>;
+      snapshot: (id: string) => Promise<{ data: string; seq: number }>;
+    } =
+      kind === "terminal"
+        ? { event: "terminal-output", send: api.terminalWrite, resize: api.terminalResize, snapshot: api.terminalOutput }
+        : { event: "session-output", send: api.sendInput, resize: api.resizeSession, snapshot: api.sessionOutput };
     // xterm keeps its screen reader strings in one global; the input label is applied when the terminal opens.
     Terminal.strings.promptLabel = t("sessions.terminal.input");
     Terminal.strings.tooMuchOutput = t("sessions.terminal.tooMuchOutput");
@@ -85,6 +95,20 @@
     // Tab belongs to the CLI while it runs, so Ctrl+Tab and Ctrl+Shift+Tab leave the terminal
     // instead. A closed terminal takes no keys, and Tab moves on as everywhere else.
     term.attachCustomKeyEventHandler((e) => {
+      // A shell has no clipboard keys of its own, so they work as in Windows Terminal: Ctrl+C copies
+      // a selection (and interrupts without one), Ctrl+V lets the browser paste into xterm. The AI
+      // CLIs read Ctrl+V themselves, to paste images, so sessions keep it.
+      if (kind === "terminal" && e.ctrlKey && !e.altKey && !e.metaKey) {
+        const key = e.key.toLowerCase();
+        if (key === "v") return false;
+        if (key === "c" && term.hasSelection()) {
+          if (e.type === "keydown") {
+            navigator.clipboard?.writeText(term.getSelection()).catch(() => undefined);
+            term.clearSelection();
+          }
+          return false;
+        }
+      }
       if (e.key !== "Tab") return true;
       if (!acceptInput) return false;
       if (!e.ctrlKey) return true;
@@ -97,7 +121,7 @@
 
     let chain: Promise<unknown> = Promise.resolve();
     const send = (data: string) => {
-      chain = chain.then(() => api.sendInput(id, data)).catch(() => undefined);
+      chain = chain.then(() => io.send(id, data)).catch(() => undefined);
     };
     term.onData((d) => {
       if (!acceptInput) return;
@@ -105,9 +129,9 @@
       if (clean) send(clean);
     });
     term.onResize(({ cols, rows }) => {
-      if (acceptInput) api.resizeSession(id, cols, rows).catch(() => undefined);
+      if (acceptInput) io.resize(id, cols, rows).catch(() => undefined);
     });
-    if (acceptInput) api.resizeSession(id, term.cols, term.rows).catch(() => undefined);
+    if (acceptInput) io.resize(id, term.cols, term.rows).catch(() => undefined);
 
     // Listening starts before the snapshot is read, and chunks up to the snapshot's last one are
     // skipped, so output that arrives in between is neither lost nor written twice.
@@ -119,13 +143,13 @@
       term.write(chunk.data);
       shown = chunk.seq;
     };
-    const unlisten = listen<{ id: string; data: string; seq: number }>("session-output", (e) => {
+    const unlisten = listen<{ id: string; data: string; seq: number }>(io.event, (e) => {
       if (e.payload.id !== id) return;
       if (shown < 0) early.push(e.payload);
       else show(e.payload);
     });
     unlisten
-      .then(() => api.sessionOutput(id))
+      .then(() => io.snapshot(id))
       .catch(() => ({ data: "", seq: 0 }))
       .then((snap) => {
         if (gone) return;
