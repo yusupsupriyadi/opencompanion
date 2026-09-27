@@ -114,3 +114,29 @@ button.m-card { width: 100%; text-align: left; font: inherit; color: inherit; cu
 /* The bottom edge holds the tabs or an action bar, so the phone's toast drops in under the top bar instead. */
 .phone ~ .toast { top: calc(64px + env(safe-area-inset-top)); bottom: auto; transform: translate(-50%, -12px); }
 .phone ~ .toast.show { transform: translate(-50%, 0); }
+
+/* Chat thread: the desktop's Chat in one column. The top bar opens the chat history and the live sessions as sheets. */
+.m-bar-btn { position: relative; width: 44px; height: 44px; color: var(--ink); }
+.m-count { position: absolute; top: 4px; right: 2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--surface-2); border: 1px solid var(--line-strong); color: var(--ink); font-size: 11px; font-weight: 700; line-height: 16px; text-align: center; }
+.m-thread-head { align-items: flex-start; }
+.m-thread-head .m-title { flex: 1; min-width: 0; }
+.m-thread-head .btn { flex: none; }
+/* The composer rides above the on-screen keyboard, so the home-indicator gap below it goes. */
+.dock.keys-up { padding-bottom: 12px; }
+.m-composer { position: relative; --mention-max: min(300px, 32vh); }
+.m-composer .textarea { font-size: 16px; min-height: 48px; max-height: 160px; resize: none; }
+.m-composer-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.m-composer-bar .pickers { flex: 1 1 auto; }
+.m-composer-bar > .btn { margin-left: auto; }
+.m-sheet { gap: 14px; }
+.m-sheet h2 { font-size: 20px; }
+.m-list a[aria-current="page"] { background: var(--surface-2); border-color: var(--line-strong); }
+.m-live-list { display: flex; flex-direction: column; gap: 8px; }
+.m-live { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: var(--r-md); background: var(--bg); border: 1px solid var(--line); }
+.m-live:active { background: var(--surface-2); }
+.m-live b { min-width: 0; font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-live .meta { font-size: 12px; overflow-wrap: anywhere; }
+.m-edit { display: flex; flex-direction: column; gap: 14px; }
+.m-dcard .field .input, .m-dcard .field .select, .m-dcard .field .textarea { font-size: 16px; min-height: 44px; }
+.m-dcard .field .textarea { min-height: 110px; }
+.m-dcard .acts .small { margin: 0; }

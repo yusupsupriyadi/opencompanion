@@ -6,8 +6,13 @@
   import { shortPath } from "./format";
   import { t } from "./i18n.svelte";
 
-  /** `@` in the composer lists project folders; picking one writes its path into the message. */
-  let { textarea }: { textarea: HTMLTextAreaElement | undefined } = $props();
+  /** `@` in the composer lists project folders; picking one writes its path into the message.
+   * The phone passes its own `list` and no Browse: a folder dialog would open on the computer. */
+  let {
+    textarea,
+    list = api.projectFolders,
+    canBrowse = true,
+  }: { textarea: HTMLTextAreaElement | undefined; list?: () => Promise<ProjectFolder[]>; canBrowse?: boolean } = $props();
 
   const LIST_ID = "folder-mention-list";
   const MAX = 8;
@@ -45,7 +50,7 @@
   });
 
   // The folders, then "Browse" last.
-  const count = $derived(matches.length + 1);
+  const count = $derived(matches.length + (canBrowse ? 1 : 0));
   const optionId = (i: number) => `folder-mention-${i}`;
 
   function readToken(ta: HTMLTextAreaElement) {
@@ -86,7 +91,7 @@
     const ta = textarea;
     if (!ta) return;
     ta.setAttribute("aria-autocomplete", "list");
-    if (open) {
+    if (open && count > 0) {
       ta.setAttribute("aria-controls", LIST_ID);
       ta.setAttribute("aria-activedescendant", optionId(active));
     } else {
@@ -98,7 +103,7 @@
   async function load() {
     loadState = "loading";
     try {
-      folders = await api.projectFolders();
+      folders = await list();
       loadState = "ready";
     } catch (e) {
       loadState = "error";
@@ -138,6 +143,7 @@
   /** The list's keys. True when the key was used, so the composer does not also send. */
   export function keydown(e: KeyboardEvent): boolean {
     if (!open || !token || e.isComposing) return false;
+    if (count === 0 && e.key !== "Escape") return false;
     if (e.key === "ArrowDown") active = (active + 1) % count;
     else if (e.key === "ArrowUp") active = (active - 1 + count) % count;
     else if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") choose(active);
@@ -155,10 +161,11 @@
     {:else if loadState === "error"}
       <p class="err-text" role="alert">{t("chat.mention.loadFailed", { error: loadError })}</p>
     {:else if matches.length === 0}
-      <p class="meta" role="status">{t("chat.mention.noMatch", { query: token.query })}</p>
+      <p class="meta" role="status">{t(canBrowse ? "chat.mention.noMatch" : "chat.mention.noMatchType", { query: token.query })}</p>
     {:else}
       <p class="sr-only" role="status">{t("chat.mention.count", { n: matches.length })}</p>
     {/if}
+    {#if count > 0}
     <!-- Keys go through the text box (aria-activedescendant); a click writes the path. -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <ul class="options" role="listbox" id={LIST_ID} aria-label={t("chat.mention.listLabel")}>
@@ -177,19 +184,22 @@
           <span class="mono path">{shortPath(f.path)}</span>
         </li>
       {/each}
-      <li
-        role="option"
-        id={optionId(matches.length)}
-        aria-selected={active === matches.length}
-        class:active={active === matches.length}
-        onmousedown={(e) => e.preventDefault()}
-        onclick={() => choose(matches.length)}
-      >
-        <FolderSimplePlus size={16} aria-hidden="true" />
-        <b>{t("chat.mention.browse")}</b>
-      </li>
+      {#if canBrowse}
+        <li
+          role="option"
+          id={optionId(matches.length)}
+          aria-selected={active === matches.length}
+          class:active={active === matches.length}
+          onmousedown={(e) => e.preventDefault()}
+          onclick={() => choose(matches.length)}
+        >
+          <FolderSimplePlus size={16} aria-hidden="true" />
+          <b>{t("chat.mention.browse")}</b>
+        </li>
+      {/if}
     </ul>
     <p class="keys">{t("chat.mention.keys")}</p>
+    {/if}
   </div>
 {/if}
 
@@ -221,7 +231,8 @@
     list-style: none;
     margin: 0;
     padding: 0;
-    max-height: 300px;
+    /* The phone lowers it, so the list fits above the composer with the on-screen keyboard up. */
+    max-height: var(--mention-max, 300px);
     overflow-y: auto;
   }
   .options li {

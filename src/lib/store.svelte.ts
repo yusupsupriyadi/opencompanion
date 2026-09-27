@@ -15,7 +15,8 @@ import { setLang } from "./i18n.svelte";
 
 type LoadState = "loading" | "ready" | "error";
 
-const MARK_KINDS = new Set(["tool_call", "file_changed", "permission_request", "permission_denied", "tool_failed", "error"]);
+/** Session events that put a mark on the horizon track. */
+export const MARK_KINDS = new Set(["tool_call", "file_changed", "permission_request", "permission_denied", "tool_failed", "error"]);
 
 /** Desktop app state, fed by backend events so every screen shows the same sessions. */
 export const app = $state({
@@ -161,6 +162,8 @@ export async function startDesktop() {
   await listen<SessionInfo>("session-updated", (e) => upsert(e.payload));
   await listen<EventRow>("session-event", (e) => addMark(e.payload));
   await listen<string>("session-deleted", (e) => forget(e.payload));
+  // The phone changed a setting, such as the planner's model.
+  await listen("settings-changed", () => loadSettings().catch(() => undefined));
   refreshSessions();
   refreshClis();
   refreshOutside();

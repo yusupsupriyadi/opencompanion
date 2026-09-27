@@ -26,10 +26,10 @@ use tauri::{AppHandle, Emitter, Manager as _, RunEvent, State};
 #[cfg(not(windows))]
 use tauri_plugin_notification::NotificationExt;
 
-use crate::actions::{cli_args, detect_with_settings, ChatTurn, RunTaskInput};
+use crate::actions::{detect_with_settings, ChatTurn, RunTaskInput};
 use crate::cli::{CliInstall, CliKind};
 use crate::companion::{Companion, CompanionStatus, Pairing};
-use crate::db::{ChatMessage, ChatModel, ChatThread, Db, DispatchCard, EventRow, Project, SessionInfo, Settings, Task};
+use crate::db::{ChatMessage, ChatThread, Db, DispatchCard, EventRow, Project, SessionInfo, Settings, Task};
 use crate::session::{Emit, StartRequest};
 
 struct AppState {
@@ -72,6 +72,12 @@ impl Emit for TauriEmit {
         let _ = self.app.emit("chat-changed", thread_id);
         if let Some(c) = self.companion.get() {
             c.broadcast(json!({ "type": "chat", "threadId": thread_id }));
+        }
+    }
+    fn settings_changed(&self) {
+        let _ = self.app.emit("settings-changed", ());
+        if let Some(c) = self.companion.get() {
+            c.broadcast(json!({ "type": "settings" }));
         }
     }
     fn notify(&self, title: &str, body: &str, session_id: &str) {
@@ -462,59 +468,24 @@ fn chat_answering() -> Vec<String> {
 async fn chat_models(state: State<'_, AppState>, cli: CliKind) -> Res<models::ModelList> {
     let db = Arc::clone(&state.db);
     let work_dir = state.data_dir.join("planner");
-    blocking(move || {
-        let install = detect_with_settings(&db)
-            .into_iter()
-            .find(|c| c.kind == cli)
-            .ok_or(format!("{} is not installed.", cli.label()))?;
-        models::list(&install, &work_dir, &cli_args(&db.settings()?, cli))
-    })
-    .await
+    blocking(move || actions::planner_models(&db, &work_dir, cli)).await
 }
 
 /// Keeps the planner's model and thinking level for `cli`. Only this entry of Settings changes.
 #[tauri::command]
 fn chat_set_model(state: State<'_, AppState>, cli: CliKind, model: String, effort: String) -> Res<Settings> {
-    let mut settings = state.db.settings()?;
-    let choice = ChatModel {
-        model: model.trim().to_string(),
-        effort: effort.trim().to_string(),
-    };
-    if choice == ChatModel::default() {
-        settings.chat_models.remove(cli.bin());
-    } else {
-        settings.chat_models.insert(cli.bin().to_string(), choice);
-    }
-    state.db.save_settings(&settings)?;
+    let settings = actions::set_chat_model(&state.db, cli, &model, &effort)?;
+    // An open phone chat shows the same picker.
+    state.companion.broadcast(json!({ "type": "settings" }));
     Ok(settings)
 }
 
 #[tauri::command]
 async fn chat_update_card(state: State<'_, AppState>, message_id: String, card: DispatchCard) -> Res<ChatMessage> {
     let db = Arc::clone(&state.db);
-    blocking(move || {
-        let clis = detect_with_settings(&db);
-        actions::with_card(&db, &message_id, &card.id.clone(), |c| {
-            if c.state != "proposed" {
-                return Err("This card already ran or was discarded.".into());
-            }
-            c.prompt = card.prompt.trim().to_string();
-            // A follow-up keeps its session's CLI, folder and mode; only the message changes.
-            if let Some(target) = c.target.clone() {
-                let session = db.session(&target)?;
-                orchestrator::validate_target(c, &clis, session.as_ref());
-                return Ok(());
-            }
-            c.cli = card.cli;
-            c.title = card.title.trim().to_string();
-            c.folder = card.folder.trim().to_string();
-            c.mode = card.mode;
-            orchestrator::validate(c, &clis);
-            Ok(())
-        })
-    })
-    .await
-    .inspect(|m| chat_changed(&state, m))
+    blocking(move || actions::update_card(&db, &message_id, card))
+        .await
+        .inspect(|m| chat_changed(&state, m))
 }
 
 /// The phone shows the same chats, so it hears about every change made here.
@@ -547,7 +518,9 @@ fn chat_card_to_board(state: State<'_, AppState>, message_id: String, card_id: S
 
 #[tauri::command]
 fn chat_delete_thread(state: State<'_, AppState>, thread_id: String) -> Res<()> {
-    state.db.delete_thread(&thread_id)
+    actions::delete_thread(&state.db, &thread_id)?;
+    state.companion.broadcast(json!({ "type": "chat", "threadId": thread_id }));
+    Ok(())
 }
 
 // Board
@@ -674,6 +647,8 @@ async fn save_settings(app: AppHandle, state: State<'_, AppState>, settings: Set
     } else if !settings.companion_enabled && before.companion_enabled {
         companion.stop();
     }
+    // A phone chat shows the planner, its model and the auto-run folders from here.
+    companion.broadcast(json!({ "type": "settings" }));
     Ok(settings)
 }
 

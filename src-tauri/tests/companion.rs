@@ -457,3 +457,192 @@ fn a_removed_phone_loses_its_live_updates() {
     companion.stop();
     assert_eq!(close_code(&mut b), opencompanion_lib::companion::CLOSE_OFF);
 }
+
+/// Remembers what the phone's changes told the desktop, so a test can check the live updates.
+#[derive(Default)]
+struct Heard {
+    chats: std::sync::Mutex<Vec<String>>,
+    settings: std::sync::atomic::AtomicUsize,
+}
+impl Emit for Heard {
+    fn session(&self, _: &SessionInfo) {}
+    fn output(&self, _: &str, _: &str, _: u64) {}
+    fn event(&self, _: &EventRow) {}
+    fn tasks_changed(&self) {}
+    fn notify(&self, _: &str, _: &str, _: &str) {}
+    fn chat_changed(&self, thread_id: &str) {
+        self.chats.lock().unwrap().push(thread_id.to_string());
+    }
+    fn settings_changed(&self) {
+        self.settings.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// Chat from the phone as on the desktop (PRD FR-24a, FR-25, FR-28, FR-57): the chat list, the
+/// planner and its model, editing a card before Run, deleting a chat, folders for `@` and the
+/// live sessions' horizon marks.
+#[test]
+fn the_phone_chat_matches_the_desktop() {
+    let fake = env!("CARGO_BIN_EXE_fake-cli").to_string();
+    let db = Arc::new(Db::open_in_memory().unwrap());
+    let mut settings = Settings::default();
+    for kind in ["claude", "codex", "opencode"] {
+        settings.cli_paths.insert(kind.into(), fake.clone());
+    }
+    settings.chat_cli = Some(CliKind::Claude);
+    settings.planner_api.api_key = "sk-secret-key".into();
+    db.save_settings(&settings).unwrap();
+    let base = std::env::temp_dir().join(format!("air-companion-e-{}", std::process::id()));
+    let work = base.join("project");
+    std::fs::create_dir_all(&work).unwrap();
+    let folder = work.display().to_string();
+    let heard = Arc::new(Heard::default());
+    let manager = Manager::new(Arc::clone(&db), heard.clone(), base.join("data"));
+    let companion = Companion::new(Arc::clone(&db), Arc::clone(&manager), Arc::new(|_: &str| None));
+    let status = tauri::async_runtime::block_on(companion.start(0));
+    assert!(status.running);
+    let port = status.port;
+
+    let edit = r#"{"messageId":"a","card":{"id":"b","cli":"claude","folder":".","prompt":"x","mode":"headless","reason":"","problem":null,"state":"proposed","sessionId":null}}"#;
+    for (method, path, body) in [
+        ("GET", "/api/folders", None),
+        ("GET", "/api/chat/threads", None),
+        ("GET", "/api/chat/setup", None),
+        ("GET", "/api/chat/models/claude", None),
+        ("POST", "/api/chat/model", Some(r#"{"cli":"claude","model":"opus"}"#)),
+        ("POST", "/api/chat/cards/edit", Some(edit)),
+        ("DELETE", "/api/chat/x", None),
+    ] {
+        assert_eq!(http(port, method, path, None, body).0, 401, "{method} {path}");
+    }
+    let token = paired(port, &companion);
+    let t = Some(token.as_str());
+
+    // The planner as the composer needs it, without the custom provider's key.
+    let (code, body) = http(port, "GET", "/api/chat/setup", t, None);
+    assert_eq!(code, 200, "{body}");
+    let setup = json(&body);
+    assert_eq!(setup["chatCli"], "claude");
+    assert_eq!(setup["plannerSource"], "cli");
+    assert_eq!(setup["provider"], Value::Null);
+    assert!(setup["clis"].as_array().unwrap().iter().any(|c| c["kind"] == "claude" && c["path"].is_string()));
+    assert!(!body.contains("sk-secret-key"));
+
+    // The model picker: Claude Code's list, then a choice kept for Claude Code only.
+    let (code, body) = http(port, "GET", "/api/chat/models/claude", t, None);
+    assert_eq!(code, 200, "{body}");
+    assert!(!json(&body)["models"].as_array().unwrap().is_empty());
+    assert_eq!(http(port, "GET", "/api/chat/models/nope", t, None).0, 400);
+    let (code, body) = http(port, "POST", "/api/chat/model", t, Some(r#"{"cli":"claude","model":"opus","effort":"high"}"#));
+    assert_eq!(code, 200, "{body}");
+    assert_eq!(json(&body)["chatModels"]["claude"]["model"], "opus");
+    assert!(!body.contains("sk-secret-key"));
+    assert_eq!(db.settings().unwrap().chat_models["claude"].effort, "high");
+    assert_eq!(db.settings().unwrap().planner_api.api_key, "sk-secret-key", "only the model choice changes");
+    assert_eq!(heard.settings.load(std::sync::atomic::Ordering::SeqCst), 1, "the desktop hears about it");
+
+    // A custom provider names its model and whether it is ready, still without the key.
+    let mut api = db.settings().unwrap();
+    api.planner_source = opencompanion_lib::db::PlannerSource::Api;
+    api.planner_api.model = "qwen3".into();
+    db.save_settings(&api).unwrap();
+    let (_, body) = http(port, "GET", "/api/chat/setup", t, None);
+    assert_eq!(json(&body)["provider"], serde_json::json!({ "model": "qwen3", "ready": false }));
+    assert!(!body.contains("sk-secret-key"));
+
+    // Editing a card before Run: the same checks as the planner's own cards.
+    let thread = db.create_thread("Docs").unwrap();
+    let card = |id: &str, target: Option<String>| DispatchCard {
+        id: id.into(),
+        cli: CliKind::Claude,
+        title: "Write docs".into(),
+        folder: folder.clone(),
+        prompt: "write the docs".into(),
+        mode: Mode::Headless,
+        reason: String::new(),
+        problem: None,
+        state: "proposed".into(),
+        session_id: None,
+        task_id: None,
+        target,
+        auto: false,
+    };
+    db.add_chat(&ChatMessage {
+        id: "msg-e".into(),
+        thread_id: thread.id.clone(),
+        role: "planner".into(),
+        text: "Two cards.".into(),
+        cards: vec![card("card-e", None), card("card-g", Some("no-such-session".into()))],
+        created_at: 1,
+    })
+    .unwrap();
+    let mut edited = serde_json::to_value(card("card-e", None)).unwrap();
+    edited["cli"] = "opencode".into();
+    edited["title"] = "  API docs ".into();
+    edited["mode"] = "interactive".into();
+    edited["prompt"] = " document the API ".into();
+    let req = serde_json::json!({ "messageId": "msg-e", "card": edited }).to_string();
+    let (code, body) = http(port, "POST", "/api/chat/cards/edit", t, Some(&req));
+    assert_eq!(code, 200, "{body}");
+    let got = &json(&body)["message"]["cards"][0];
+    assert_eq!(
+        (got["cli"].as_str(), got["title"].as_str(), got["mode"].as_str()),
+        (Some("opencode"), Some("API docs"), Some("interactive"))
+    );
+    assert_eq!(got["prompt"], "document the API");
+    assert_eq!(got["problem"], Value::Null);
+    edited["folder"] = r"Z:\no\such\folder".into();
+    let req = serde_json::json!({ "messageId": "msg-e", "card": edited }).to_string();
+    let (_, body) = http(port, "POST", "/api/chat/cards/edit", t, Some(&req));
+    assert_eq!(json(&body)["message"]["cards"][0]["problem"], r"The folder Z:\no\such\folder does not exist.");
+
+    // A follow-up keeps its session's CLI and folder; only the message changes.
+    let mut follow = serde_json::to_value(card("card-g", None)).unwrap();
+    follow["cli"] = "codex".into();
+    follow["prompt"] = "and the changelog".into();
+    let req = serde_json::json!({ "messageId": "msg-e", "card": follow }).to_string();
+    let (code, body) = http(port, "POST", "/api/chat/cards/edit", t, Some(&req));
+    assert_eq!(code, 200, "{body}");
+    let got = &json(&body)["message"]["cards"][1];
+    assert_eq!((got["cli"].as_str(), got["prompt"].as_str()), (Some("claude"), Some("and the changelog")));
+    assert!(got["problem"].is_string(), "a follow-up for a session that is gone says why it cannot go");
+
+    // A card that ran or was discarded keeps what it had.
+    let mut discarded = card("card-e", None);
+    discarded.state = "discarded".into();
+    db.add_chat(&ChatMessage {
+        id: "msg-e".into(),
+        thread_id: thread.id.clone(),
+        role: "planner".into(),
+        text: "Two cards.".into(),
+        cards: vec![discarded],
+        created_at: 1,
+    })
+    .unwrap();
+    let req = serde_json::json!({ "messageId": "msg-e", "card": card("card-e", None) }).to_string();
+    let (code, body) = http(port, "POST", "/api/chat/cards/edit", t, Some(&req));
+    assert_eq!((code, json(&body)["error"].as_str()), (409, Some("This card already ran or was discarded.")));
+
+    // The chat list without asking the CLIs, then deleting a chat.
+    let (code, body) = http(port, "GET", "/api/chat/threads", t, None);
+    assert_eq!(code, 200, "{body}");
+    assert_eq!(json(&body)["threads"][0]["id"], thread.id.as_str());
+    assert_eq!(json(&body)["answering"], Value::Array(vec![]));
+    heard.chats.lock().unwrap().clear();
+    let (code, body) = http(port, "DELETE", &format!("/api/chat/{}", thread.id), t, None);
+    assert_eq!(code, 200, "{body}");
+    assert!(db.thread(&thread.id).unwrap().is_none());
+    assert!(db.chat_message("msg-e").unwrap().is_none());
+    assert_eq!(*heard.chats.lock().unwrap(), [thread.id.as_str()], "open chat screens hear about it");
+    assert_eq!(http(port, "DELETE", &format!("/api/chat/{}", thread.id), t, None).0, 404);
+
+    // Folders for `@`, and horizon marks for the live sessions only.
+    let (code, body) = http(port, "GET", "/api/folders", t, None);
+    assert_eq!(code, 200, "{body}");
+    assert!(json(&body)["folders"].is_array());
+    let (code, body) = http(port, "GET", "/api/sessions", t, None);
+    assert_eq!(code, 200, "{body}");
+    assert_eq!(json(&body)["marks"], serde_json::json!({}));
+
+    companion.stop();
+}

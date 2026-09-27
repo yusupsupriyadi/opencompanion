@@ -2,13 +2,13 @@
 //! and moving or running Board cards. Each caller tells its own listeners what changed.
 
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
 use crate::cli::{self, CliInstall, CliKind};
-use crate::db::{self, ChatMessage, ChatThread, Db, DispatchCard, Mode, PlannerSource, SessionInfo, Settings, Task};
+use crate::db::{self, ChatMessage, ChatModel, ChatThread, Db, DispatchCard, Mode, PlannerSource, SessionInfo, Settings, Task};
 use crate::headless::PermMode;
 use crate::monitor;
 use crate::models;
@@ -225,6 +225,63 @@ pub fn discard_card(db: &Db, message_id: &str, card_id: &str, undo: bool) -> Res
     })
 }
 
+/// The owner's edits to a card that has not run yet, checked again like the planner's own cards.
+pub fn update_card(db: &Db, message_id: &str, card: DispatchCard) -> Res<ChatMessage> {
+    let clis = detect_with_settings(db);
+    with_card(db, message_id, &card.id.clone(), |c| {
+        if c.state != "proposed" {
+            return Err("This card already ran or was discarded.".into());
+        }
+        c.prompt = card.prompt.trim().to_string();
+        // A follow-up keeps its session's CLI, folder and mode; only the message changes.
+        if let Some(target) = c.target.clone() {
+            let session = db.session(&target)?;
+            orchestrator::validate_target(c, &clis, session.as_ref());
+            return Ok(());
+        }
+        c.cli = card.cli;
+        c.title = card.title.trim().to_string();
+        c.folder = card.folder.trim().to_string();
+        c.mode = card.mode;
+        orchestrator::validate(c, &clis);
+        Ok(())
+    })
+}
+
+/// Deletes a chat with its messages, but not while the planner answers in it: the answer would
+/// land in a chat that is gone.
+pub fn delete_thread(db: &Db, id: &str) -> Res<()> {
+    if answering().iter().any(|t| t == id) {
+        return Err("The planner is still answering in this chat. Delete it when the answer is in.".into());
+    }
+    db.delete_thread(id)
+}
+
+/// Models and thinking levels the chat planner can use with `cli`. `work_dir` is where the CLI runs.
+pub fn planner_models(db: &Db, work_dir: &Path, cli: CliKind) -> Res<models::ModelList> {
+    let install = detect_with_settings(db)
+        .into_iter()
+        .find(|c| c.kind == cli)
+        .ok_or(format!("{} is not installed.", cli.label()))?;
+    models::list(&install, work_dir, &cli_args(&db.settings()?, cli))
+}
+
+/// Keeps the planner's model and thinking level for `cli`. Only this entry of Settings changes.
+pub fn set_chat_model(db: &Db, cli: CliKind, model: &str, effort: &str) -> Res<Settings> {
+    let mut settings = db.settings()?;
+    let choice = ChatModel {
+        model: model.trim().to_string(),
+        effort: effort.trim().to_string(),
+    };
+    if choice == ChatModel::default() {
+        settings.chat_models.remove(cli.bin());
+    } else {
+        settings.chat_models.insert(cli.bin().to_string(), choice);
+    }
+    db.save_settings(&settings)?;
+    Ok(settings)
+}
+
 /// Work in progress by id, so the same work cannot run twice when the phone and the desktop ask
 /// at the same moment.
 struct Claims(Mutex<Vec<String>>);
@@ -432,5 +489,20 @@ mod tests {
         assert_eq!(TEST_CLAIMS.ids(), ["t2"]);
         assert!(TEST_CLAIMS.claim("t1", "busy").is_ok());
         drop(other);
+    }
+
+    #[test]
+    fn a_chat_the_planner_answers_in_is_not_deleted() {
+        let db = Db::open_in_memory().unwrap();
+        let thread = db.create_thread("Busy").unwrap();
+        let answering = ANSWERING.claim(&thread.id, "busy").unwrap();
+        assert_eq!(
+            delete_thread(&db, &thread.id).err().as_deref(),
+            Some("The planner is still answering in this chat. Delete it when the answer is in.")
+        );
+        assert!(db.thread(&thread.id).unwrap().is_some());
+        drop(answering);
+        delete_thread(&db, &thread.id).unwrap();
+        assert!(db.thread(&thread.id).unwrap().is_none());
     }
 }

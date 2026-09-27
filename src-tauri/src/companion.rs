@@ -19,7 +19,7 @@ use tokio::sync::{broadcast, oneshot};
 
 use crate::actions::{self, RunTaskInput};
 use crate::cli::CliKind;
-use crate::db::{self, Db, Device, Mode};
+use crate::db::{self, Db, Device, DispatchCard, Mode, PlannerSource};
 use crate::session::{Manager, StartRequest};
 use crate::{monitor, orchestrator};
 
@@ -292,9 +292,15 @@ fn router(ctx: Ctx) -> Router {
         .route("/api/sessions/{id}/stop", post(stop))
         .route("/api/sessions/{id}/input", post(input))
         .route("/api/sessions/{id}/resume", post(resume))
+        .route("/api/folders", get(folders))
         .route("/api/chat", get(chat_list).post(chat_send))
-        .route("/api/chat/{id}", get(chat_thread))
+        .route("/api/chat/threads", get(chat_threads))
+        .route("/api/chat/setup", get(chat_setup))
+        .route("/api/chat/model", post(chat_set_model))
+        .route("/api/chat/models/{cli}", get(chat_models))
+        .route("/api/chat/{id}", get(chat_thread).delete(chat_delete))
         .route("/api/chat/cards/run", post(card_run))
+        .route("/api/chat/cards/edit", post(card_edit))
         .route("/api/chat/cards/discard", post(card_discard))
         .route("/api/chat/cards/board", post(card_board))
         .route("/api/tasks", get(list_tasks))
@@ -349,12 +355,21 @@ async fn pair(State(ctx): State<Ctx>, Json(body): Json<PairBody>) -> Response {
     }
 }
 
+/// The sessions, with the horizon marks of the live ones (`[at, kind]`, newest first) for Chat's
+/// live sessions list.
 async fn list_sessions(State(ctx): State<Ctx>, headers: HeaderMap) -> Response {
     if let Err(r) = authed(&ctx, &headers) {
         return r;
     }
     match ctx.db.sessions(60) {
-        Ok(s) => Json(json!({ "sessions": s })).into_response(),
+        Ok(s) => {
+            let marks: serde_json::Map<String, Value> = s
+                .iter()
+                .filter(|info| info.status.is_live())
+                .map(|info| (info.id.clone(), json!(ctx.db.event_marks(&info.id, 40).unwrap_or_default())))
+                .collect();
+            Json(json!({ "sessions": s, "marks": marks })).into_response()
+        }
         Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e),
     }
 }
@@ -625,6 +640,138 @@ async fn card_board(State(ctx): State<Ctx>, headers: HeaderMap, Json(body): Json
         }
         Err(e) => fail(StatusCode::CONFLICT, e),
     }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EditBody {
+    message_id: String,
+    card: DispatchCard,
+}
+
+/// The same card edit as the desktop's, checked the same way.
+async fn card_edit(State(ctx): State<Ctx>, headers: HeaderMap, Json(body): Json<EditBody>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    let db = Arc::clone(&ctx.db);
+    let manager = Arc::clone(&ctx.manager);
+    off_thread(move || {
+        let message = actions::update_card(&db, &body.message_id, body.card)?;
+        manager.chat_changed(&message.thread_id);
+        Ok(json!({ "message": message }))
+    })
+    .await
+}
+
+/// The saved chats and the ones the planner is answering, without asking the CLIs anything.
+async fn chat_threads(State(ctx): State<Ctx>, headers: HeaderMap) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    match ctx.db.threads() {
+        Ok(threads) => Json(json!({ "threads": threads, "answering": actions::answering() })).into_response(),
+        Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e),
+    }
+}
+
+/// What the phone's composer needs from Settings: who plans, the model picked for each CLI and
+/// the auto-run folders. The custom provider's address and key stay on the desktop.
+async fn chat_setup(State(ctx): State<Ctx>, headers: HeaderMap) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    let db = Arc::clone(&ctx.db);
+    off_thread(move || {
+        let clis = actions::detect_with_settings(&db);
+        let settings = db.settings()?;
+        let provider = (settings.planner_source == PlannerSource::Api).then(|| {
+            let ready = actions::planner_name(&db, &clis).ok().flatten().is_some();
+            json!({ "model": settings.planner_api.model.trim(), "ready": ready })
+        });
+        Ok(json!({
+            "clis": clis,
+            "chatCli": settings.chat_cli,
+            "plannerSource": settings.planner_source,
+            "provider": provider,
+            "chatModels": settings.chat_models,
+            "autoRun": settings.auto_run_folders,
+        }))
+    })
+    .await
+}
+
+/// A CLI named in the address, such as `claude`.
+#[allow(clippy::result_large_err)]
+fn cli_from(name: &str) -> Result<CliKind, Response> {
+    serde_json::from_value(json!(name)).map_err(|_| fail(StatusCode::BAD_REQUEST, "Unknown CLI."))
+}
+
+async fn chat_models(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(cli): UrlPath<String>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    let cli = match cli_from(&cli) {
+        Ok(c) => c,
+        Err(r) => return r,
+    };
+    let db = Arc::clone(&ctx.db);
+    let work_dir = ctx.manager.data_dir().join("planner");
+    off_thread(move || actions::planner_models(&db, &work_dir, cli)).await
+}
+
+#[derive(Deserialize)]
+struct ModelBody {
+    cli: CliKind,
+    #[serde(default)]
+    model: String,
+    #[serde(default)]
+    effort: String,
+}
+
+/// Keeps the planner's model and thinking level for one CLI. Only the model choices come back:
+/// the rest of Settings holds the custom provider's key.
+async fn chat_set_model(State(ctx): State<Ctx>, headers: HeaderMap, Json(body): Json<ModelBody>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    match actions::set_chat_model(&ctx.db, body.cli, &body.model, &body.effort) {
+        Ok(settings) => {
+            ctx.manager.settings_changed();
+            Json(json!({ "chatModels": settings.chat_models })).into_response()
+        }
+        Err(e) => fail(StatusCode::CONFLICT, e),
+    }
+}
+
+async fn chat_delete(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<String>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    if !matches!(ctx.db.thread(&id), Ok(Some(_))) {
+        return fail(StatusCode::NOT_FOUND, "This chat was deleted.");
+    }
+    match actions::delete_thread(&ctx.db, &id) {
+        Ok(()) => {
+            ctx.manager.chat_changed(&id);
+            Json(json!({ "ok": true })).into_response()
+        }
+        Err(e) => fail(StatusCode::CONFLICT, e),
+    }
+}
+
+/// Project folders for `@` in the chat composer, without the slower CLI check `/api/options` does.
+async fn folders(State(ctx): State<Ctx>, headers: HeaderMap) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    let db = Arc::clone(&ctx.db);
+    let own: HashSet<u32> = ctx.manager.own_pids().into_iter().collect();
+    off_thread(move || {
+        let outside = monitor::Monitor::new().scan(&own);
+        Ok(json!({ "folders": orchestrator::gather(&db, &outside)?.folders }))
+    })
+    .await
 }
 
 // Board (PRD FR-77)

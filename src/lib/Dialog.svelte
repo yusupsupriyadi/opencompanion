@@ -3,13 +3,14 @@
   import { refocus } from "./focus";
 
   // Native <dialog>: Esc closes it and focus is trapped by the browser. Focus returns to
-  // whatever opened it.
+  // whatever opened it. `sheet` rises from the bottom edge on the phone (phone.css).
   let {
     open = $bindable(false),
     labelledby,
     wide = false,
+    sheet = false,
     children,
-  }: { open?: boolean; labelledby: string; wide?: boolean; children: Snippet } = $props();
+  }: { open?: boolean; labelledby: string; wide?: boolean; sheet?: boolean; children: Snippet } = $props();
 
   let el: HTMLDialogElement | undefined = $state();
   let opener: Element | null = null;
@@ -32,7 +33,7 @@
   }
 </script>
 
-<dialog bind:this={el} aria-labelledby={labelledby} {onclose} class:wide>
+<dialog bind:this={el} aria-labelledby={labelledby} {onclose} class:wide class:sheet>
   {#if open}{@render children()}{/if}
 </dialog>
 

@@ -1,13 +1,41 @@
+<script module lang="ts">
+  import { api, type ChatModel, type CliInstall, type CliKind, type ModelList } from "./api";
+  import { app, forgetModelLists, plannerModels, showToast } from "./store.svelte";
+
+  /** Where the model lists come from and where a choice is kept: the desktop's own backend, or the
+   * companion server on the phone. */
+  export interface ModelSource {
+    /** The saved choice for a CLI. Read in a reactive scope, so a change made elsewhere shows up. */
+    saved(kind: CliKind): ChatModel;
+    list(cli: CliInstall): Promise<ModelList>;
+    /** Forgets the lists, so the next `list` asks the CLI again. */
+    forget(): void;
+    /** Stores a choice. Resolves with a function that shows it as saved; only the latest choice calls it. */
+    save(kind: CliKind, model: string, effort: string): Promise<() => void>;
+    failed(message: string): void;
+  }
+
+  const desktop: ModelSource = {
+    saved: (kind) => app.settings?.chatModels?.[kind] ?? { model: "", effort: "" },
+    list: plannerModels,
+    forget: forgetModelLists,
+    async save(kind, model, effort) {
+      const next = await api.chatSetModel(kind, model, effort);
+      return () => (app.settings = next);
+    },
+    failed: showToast,
+  };
+</script>
+
 <script lang="ts">
   import Brain from "phosphor-svelte/lib/Brain";
   import CaretDown from "phosphor-svelte/lib/CaretDown";
-  import { api, errorText, type ChatModel, type CliInstall, type ModelList, type ModelOption } from "./api";
+  import { errorText, type ModelOption } from "./api";
   import { effortLabel } from "./format";
   import { t } from "./i18n.svelte";
-  import { app, forgetModelLists, plannerModels, showToast } from "./store.svelte";
 
   /** Model and thinking level for the chat planner, kept per CLI in Settings. */
-  let { cli }: { cli: CliInstall } = $props();
+  let { cli, source = desktop }: { cli: CliInstall; source?: ModelSource } = $props();
 
   let list = $state<ModelList | null>(null);
   let listState = $state<"loading" | "ready" | "error">("loading");
@@ -16,7 +44,7 @@
   let effort = $state("");
   let saves = 0;
 
-  const saved = $derived<ChatModel>(app.settings?.chatModels?.[cli.kind] ?? { model: "", effort: "" });
+  const saved = $derived<ChatModel>(source.saved(cli.kind));
 
   $effect(() => {
     model = saved.model;
@@ -26,7 +54,7 @@
   async function load(c: CliInstall) {
     listState = "loading";
     try {
-      const got = await plannerModels(c);
+      const got = await source.list(c);
       if (c.kind !== cli.kind) return;
       list = got;
       listState = "ready";
@@ -43,7 +71,7 @@
   });
 
   function retry() {
-    forgetModelLists();
+    source.forget();
     load(cli);
   }
 
@@ -87,13 +115,13 @@
   async function save() {
     const turn = ++saves;
     try {
-      const next = await api.chatSetModel(cli.kind, model, effort);
-      if (turn === saves) app.settings = next;
+      const show = await source.save(cli.kind, model, effort);
+      if (turn === saves) show();
     } catch (e) {
       if (turn !== saves) return;
       model = saved.model;
       effort = saved.effort;
-      showToast(t("chat.model.saveFailed", { error: errorText(e) }));
+      source.failed(t("chat.model.saveFailed", { error: errorText(e) }));
     }
   }
 

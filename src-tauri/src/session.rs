@@ -32,6 +32,8 @@ pub trait Emit: Send + Sync {
     fn notify(&self, title: &str, body: &str, session_id: &str);
     /// A chat thread changed from the phone, so an open Chat screen reloads it.
     fn chat_changed(&self, _thread_id: &str) {}
+    /// Settings changed from the phone (the planner's model), so the desktop reloads them.
+    fn settings_changed(&self) {}
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -245,6 +247,10 @@ impl Manager {
 
     pub fn chat_changed(&self, thread_id: &str) {
         self.emit.chat_changed(thread_id);
+    }
+
+    pub fn settings_changed(&self) {
+        self.emit.settings_changed();
     }
 
     /// This app and the CLIs it runs now. A finished session's PID is left out: Windows hands
