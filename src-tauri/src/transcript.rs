@@ -73,7 +73,8 @@ pub fn read_in(home: &Path, kind: CliKind, cwd: Option<&Path>, started_at: u64) 
     };
     let since = (UNIX_EPOCH + Duration::from_secs(started_at)).checked_sub(SLACK).unwrap_or(UNIX_EPOCH);
     let found = match kind {
-        CliKind::Claude => claude(home, cwd, since),
+        CliKind::Claude => claude(&[home.join(".claude")], cwd, since),
+        CliKind::Ccs => claude(&crate::ccs::claude_dirs(home), cwd, since),
         CliKind::Codex => codex(home, cwd, since),
         CliKind::Opencode => opencode(home, cwd, since),
         CliKind::Gemini => return unavailable("Transcript not available for this CLI."),
@@ -229,22 +230,30 @@ fn claude_lines(v: &Value) -> Vec<Line> {
     }
 }
 
-fn claude(home: &Path, cwd: &Path, since: SystemTime) -> Result<Option<Transcript>, String> {
-    let projects = home.join(".claude").join("projects");
+/// The newest transcript for `cwd` in any of these Claude Code config folders: one for Claude
+/// Code, one per profile for CCS.
+fn claude(config_dirs: &[PathBuf], cwd: &Path, since: SystemTime) -> Result<Option<Transcript>, String> {
     let want = claude_encode(cwd.display().to_string().trim_end_matches(['\\', '/'])).to_lowercase();
-    let Ok(entries) = fs::read_dir(&projects) else { return Ok(None) };
-    let Some(dir) = entries
-        .filter_map(|e| e.ok())
-        .map(|e| e.path())
-        .find(|p| p.is_dir() && p.file_name().is_some_and(|n| n.to_string_lossy().to_lowercase() == want))
-    else {
-        return Ok(None);
-    };
-    let newest = fs::read_dir(&dir)
-        .map_err(|e| e.to_string())?
-        .filter_map(|e| e.ok())
-        .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|x| x == "jsonl"))
+    let mut files = Vec::new();
+    for projects in config_dirs.iter().map(|d| d.join("projects")) {
+        let Ok(entries) = fs::read_dir(&projects) else { continue };
+        let Some(dir) = entries
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .find(|p| p.is_dir() && p.file_name().is_some_and(|n| n.to_string_lossy().to_lowercase() == want))
+        else {
+            continue;
+        };
+        files.extend(
+            fs::read_dir(&dir)
+                .map_err(|e| e.to_string())?
+                .filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .filter(|p| p.extension().is_some_and(|x| x == "jsonl")),
+        );
+    }
+    let newest = files
+        .into_iter()
         .map(|p| (modified(&p), p))
         .filter(|(m, _)| *m >= since)
         .max_by_key(|(m, _)| *m);
@@ -450,6 +459,22 @@ mod tests {
         // A transcript last written before the process started belongs to an earlier session.
         let t = read_in(&home, CliKind::Claude, Some(cwd), now_secs() + 3600);
         assert!(t.lines.is_empty() && t.note.unwrap().contains("has not written a transcript"));
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn ccs_transcript_can_come_from_an_account_profile() {
+        let home = temp_home("ccs");
+        let cwd = Path::new(r"C:\w\app");
+        let dir = home.join(".ccs").join("instances").join("work").join("projects").join("C--w-app");
+        fs::create_dir_all(&dir).unwrap();
+        let line = r#"{"type":"user","message":{"role":"user","content":"Ship it"},"timestamp":"2026-09-28T10:00:00Z"}"#;
+        fs::write(dir.join("s.jsonl"), line).unwrap();
+
+        let t = read_in(&home, CliKind::Ccs, Some(cwd), now_secs());
+        assert_eq!(t.lines.iter().map(|l| l.text.as_str()).collect::<Vec<_>>(), ["Ship it"]);
+        // Claude Code itself reads only ~/.claude.
+        assert!(read_in(&home, CliKind::Claude, Some(cwd), now_secs()).lines.is_empty());
         let _ = fs::remove_dir_all(&home);
     }
 

@@ -6,6 +6,7 @@ export const CLI_LABEL: Record<CliKind, string> = {
   codex: "Codex CLI",
   opencode: "OpenCode",
   gemini: "Gemini CLI",
+  ccs: "CCS",
 };
 
 /**

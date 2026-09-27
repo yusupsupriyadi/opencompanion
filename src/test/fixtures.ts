@@ -7,6 +7,7 @@ export const CLIS: CliInstall[] = [
   { kind: "codex", label: "Codex CLI", path: "C:\\Codex\\codex.exe", version: "0.153.4", tested: true, error: null },
   { kind: "opencode", label: "OpenCode", path: null, version: null, tested: false, error: null },
   { kind: "gemini", label: "Gemini CLI", path: null, version: null, tested: false, error: null },
+  { kind: "ccs", label: "CCS", path: null, version: null, tested: false, error: null },
 ];
 
 export function session(over: Partial<SessionView> = {}): SessionView {

@@ -68,7 +68,7 @@ impl PermMode {
 pub fn mode_flags(kind: CliKind, mode: PermMode, interactive: bool, headless_resume: bool) -> (Vec<String>, Vec<(String, String)>) {
     let none = Vec::new();
     let args = match kind {
-        CliKind::Claude => match mode {
+        CliKind::Claude | CliKind::Ccs => match mode {
             PermMode::Ask => strings(&["--permission-mode", "manual"]),
             PermMode::Plan => strings(&["--permission-mode", "plan"]),
             PermMode::Auto => strings(&["--permission-mode", "auto"]),
@@ -220,9 +220,18 @@ pub fn opencode_invocation(cwd: &Path, prompt: &str, opts: &TurnOptions) -> Invo
     }
 }
 
+/// Splits the extra arguments from Settings into those that go right after the program and those
+/// that go before the prompt. CCS reads its profile from its first argument, so for CCS they lead.
+pub fn split_extra(kind: CliKind, extra: &[String]) -> (&[String], &[String]) {
+    match kind {
+        CliKind::Ccs => (extra, &[]),
+        _ => (&[], extra),
+    }
+}
+
 pub fn invocation(kind: CliKind, cwd: &Path, prompt: &str, opts: &TurnOptions) -> Option<Invocation> {
     match kind {
-        CliKind::Claude => Some(claude_invocation(prompt, opts)),
+        CliKind::Claude | CliKind::Ccs => Some(claude_invocation(prompt, opts)),
         CliKind::Codex => Some(codex_invocation(cwd, prompt, opts)),
         CliKind::Opencode => Some(opencode_invocation(cwd, prompt, opts)),
         CliKind::Gemini => None,
@@ -241,7 +250,7 @@ pub fn interactive_args(
     let (flags, env) = mode_flags(kind, mode, true, false);
     let mut args: Vec<String> = Vec::new();
     match kind {
-        CliKind::Claude => {
+        CliKind::Claude | CliKind::Ccs => {
             args.extend(flags);
             if let Some(id) = resume {
                 args.extend(strings(&["--resume", id]));
@@ -423,5 +432,18 @@ mod tests {
         assert_eq!(args, ["--permission-mode", "auto", "--resume", "s1"]);
         let (args, _) = interactive_args(CliKind::Codex, "", Some("t9"), PermMode::Plan, &[]);
         assert_eq!(args, ["resume", "-s", "read-only", "-a", "on-request", "t9"]);
+    }
+
+    #[test]
+    fn ccs_gets_its_profile_first_then_claude_code_arguments() {
+        let extra = strings(&["work", "--effort", "high"]);
+        let none: &[String] = &[];
+        assert_eq!(split_extra(CliKind::Ccs, &extra), (&extra[..], none));
+        assert_eq!(split_extra(CliKind::Claude, &extra), (none, &extra[..]));
+        let ccs = invocation(CliKind::Ccs, Path::new("C:/w"), "hi", &TurnOptions::default()).unwrap();
+        assert_eq!(ccs.args, claude_invocation("hi", &TurnOptions::default()).args);
+        assert!(ccs.keep_stdin);
+        let (args, _) = interactive_args(CliKind::Ccs, "hi", Some("s1"), PermMode::Ask, none);
+        assert_eq!(args, ["--permission-mode", "manual", "--resume", "s1", "hi"]);
     }
 }

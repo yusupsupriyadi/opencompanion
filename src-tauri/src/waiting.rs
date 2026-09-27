@@ -31,7 +31,7 @@ pub fn detect(kind: CliKind, screen: &str) -> Option<WaitingPrompt> {
         })
     };
     match kind {
-        CliKind::Claude => {
+        CliKind::Claude | CliKind::Ccs => {
             const TRUST: &str = "Is this a project you created or one you trust?";
             if lines.iter().any(|l| l.contains(TRUST)) {
                 return found(WaitReason::TrustFolder, TRUST);

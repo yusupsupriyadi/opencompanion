@@ -46,7 +46,7 @@ export const en = {
   "sessions.overview.detected": "{n} detected",
   "sessions.overview.scanning": "Scanning…",
   "sessions.overview.scanFailed": "The process list could not be read: {error}",
-  "sessions.overview.noneOutside": "No Claude Code, Codex CLI, OpenCode or Gemini CLI is running in another terminal.",
+  "sessions.overview.noneOutside": "No Claude Code, Codex CLI, OpenCode, Gemini CLI or CCS is running in another terminal.",
   "sessions.overview.outsideStarted": "Started {time} · {duration}",
   "sessions.overview.outsidePid": "PID {pid} · {memory}",
   "sessions.overview.outsideHint":
@@ -219,7 +219,7 @@ export const id: Record<keyof typeof en, string> = {
   "sessions.overview.detected": "{n} terdeteksi",
   "sessions.overview.scanning": "Memindai…",
   "sessions.overview.scanFailed": "Daftar proses tidak bisa dibaca: {error}",
-  "sessions.overview.noneOutside": "Tidak ada Claude Code, Codex CLI, OpenCode atau Gemini CLI yang berjalan di terminal lain.",
+  "sessions.overview.noneOutside": "Tidak ada Claude Code, Codex CLI, OpenCode, Gemini CLI, atau CCS yang berjalan di terminal lain.",
   "sessions.overview.outsideStarted": "Dimulai {time} · {duration}",
   "sessions.overview.outsidePid": "PID {pid} · {memory}",
   "sessions.overview.outsideHint":

@@ -38,16 +38,16 @@ The UI is available in English and Indonesian (Settings › Language). The curre
 
 OpenCompanion looks for these on your PATH and in common install folders, and never installs one for you. Settings › CLIs shows each install command for you to copy and run in your own terminal.
 
-| | Claude Code | Codex CLI | OpenCode | Gemini CLI |
-|---|---|---|---|---|
-| Detected, with version | Yes | Yes | Yes | Yes |
-| Version lines checked | 2.1 | 0.153 | 1.18 | None |
-| Interactive session | Yes | Yes | Yes | Starts, never tested |
-| Headless session | Yes | Yes (see note) | Yes (see note) | No |
-| Approve/Deny in OpenCompanion and on the phone | Yes | No, answer in its terminal | No, answer in its terminal | No |
-| Resume | Yes | Yes | Yes | No |
-| Chat planner | Yes | Yes | Yes | No |
-| Opened outside OpenCompanion | Listed, with transcript | Listed, with transcript | Listed, with transcript | Listed, no transcript |
+| | Claude Code | Codex CLI | OpenCode | Gemini CLI | CCS |
+|---|---|---|---|---|---|
+| Detected, with version | Yes | Yes | Yes | Yes | Yes |
+| Version lines checked | 2.1 | 0.153 | 1.18 | None | 8.10 |
+| Interactive session | Yes | Yes | Yes | Starts, never tested | Yes (see note) |
+| Headless session | Yes | Yes (see note) | Yes (see note) | No | Default and account profiles |
+| Approve/Deny in OpenCompanion and on the phone | Yes | No, answer in its terminal | No, answer in its terminal | No | Yes |
+| Resume | Yes | Yes | Yes | No | Default and account profiles |
+| Chat planner | Yes | Yes | Yes | No | Default and account profiles |
+| Opened outside OpenCompanion | Listed, with transcript | Listed, with transcript | Listed, with transcript | Listed, no transcript | Listed, with transcript |
 
 Notes:
 
@@ -55,6 +55,7 @@ Notes:
 - Codex CLI's headless success events are parsed from its documentation. On the development machine Codex could not authenticate, so only its failure path was observed.
 - OpenCode's headless `opencode run` rejects permission prompts by itself, so in Ask me mode a tool call that needs permission fails. Interactive OpenCode sessions ask in their terminal as usual.
 - Gemini CLI was not installed on the test machine. It is detected and listed, and an interactive start is wired up, but that path has never been run against the real CLI.
+- CCS starts Claude Code with a profile (`ccs [profile] [claude args]`), so OpenCompanion gives it Claude Code's flags and reads its output, hooks and transcripts the same way (transcripts from `~/.claude` and each account in `~/.ccs/instances`). Its extra arguments in Settings › CLIs go right after `ccs`, so the profile comes first, for example `work --effort high`. API and CLIProxy profiles pass their own `--settings`, and API profiles send `-p` through CCS's delegation, so OpenCompanion runs those profiles in a terminal only, without hooks (the screen-text check still works). The argument order is covered by unit tests; a full session through CCS has not been run from OpenCompanion yet.
 - On Windows, an interactive session starts PowerShell 7 (or Windows PowerShell when PowerShell 7 is missing), which loads your profile and then starts the CLI. The session ends when the CLI exits. Headless sessions start the CLI directly.
 
 ## Requirements
@@ -122,7 +123,7 @@ Each session starts in one of four modes. OpenCompanion turns the mode into each
 | Auto | The CLI approves routine actions itself | `--permission-mode auto` | `--approve-for-me` | `--auto` |
 | Bypass | No permission checks at all | `--dangerously-skip-permissions` | `--dangerously-bypass-approvals-and-sandbox` | `--auto` with `OPENCODE_PERMISSION={"*":"allow"}` |
 
-The flags were checked against each CLI's `--help` on 2026-09-25. A resumed headless Codex run keeps the sandbox it started with. Gemini CLI gets no mode flags. Board cards that start without Run never use Bypass.
+The flags were checked against each CLI's `--help` on 2026-09-25. A resumed headless Codex run keeps the sandbox it started with. Gemini CLI gets no mode flags. CCS gets Claude Code's flags. Board cards that start without Run never use Bypass.
 
 ## Development
 
@@ -149,6 +150,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, code style and pull requests.
 | `src-tauri/src/companion.rs` | Phone companion: HTTP + WebSocket on the LAN, pairing codes, hashed device tokens |
 | `src-tauri/src/actions.rs` | Chat, dispatch card and Board work shared by the desktop commands and the phone API |
 | `src-tauri/src/monitor.rs`, `cli.rs`, `db.rs`, `projects.rs` | Outside-session scan and CPU/memory per session, CLI detection, SQLite store, project folder discovery |
+| `src-tauri/src/ccs.rs` | CCS profiles: which profile the extra arguments name, and the Claude Code config folders CCS uses |
 | `src-tauri/src/transcript.rs` | Transcripts of sessions opened outside OpenCompanion, read from each CLI's own history (Claude Code and Codex JSONL, OpenCode's SQLite database opened read-only) |
 | `src-tauri/src/terminal.rs`, `paste.rs` | Terminal screen: shell detection and plain shells in tabs. Pasted images saved for the terminal to paste as a path |
 | `src-tauri/src/skills.rs` | Settings › Skills: reads the user skill folders of each CLI (`~/.claude/skills`, `~/.codex/skills`, `~/.agents/skills`, `~/.config/opencode/skills`, `~/.gemini/skills`) and compares them by content hash. Read-only |
@@ -206,4 +208,4 @@ Please do not report security problems in public issues. [SECURITY.md](SECURITY.
 
 [MIT](LICENSE) © 2026 Yusup Supriyadi.
 
-Claude Code, Codex CLI, OpenCode and Gemini CLI are products of their respective owners. OpenCompanion is an independent project and is not affiliated with or endorsed by them.
+Claude Code, Codex CLI, OpenCode, Gemini CLI and CCS are products of their respective owners. OpenCompanion is an independent project and is not affiliated with or endorsed by them.

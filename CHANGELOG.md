@@ -20,6 +20,7 @@ Planned as 0.1.0, the first public release. Windows 11 is the tested platform.
 - Tray icon that keeps sessions running after the window closes, and start in the tray at Windows sign-in.
 - Phone companion over HTTP and WebSocket on the local network, off by default: one-time pairing codes, SHA-256 hashed device tokens, a device list, and an offline screen. From the phone: sessions, Approve/Deny, new sessions, messages, Chat and the Board. The phone page can be added to the home screen.
 - English and Indonesian UI, including backend messages, OS notifications and the tray menu.
+- CCS (`@kaitranntt/ccs`) as a CLI. It runs Claude Code with Claude Code's flags, output, hooks and transcripts. Its extra arguments in Settings go right after `ccs`, so the profile comes first.
 - Text size and retention of finished sessions in Settings.
 - Scroll-driven landing page in `landing/`.
 - README, CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, the MIT LICENSE, and GitHub issue and pull request templates.
@@ -29,6 +30,7 @@ Planned as 0.1.0, the first public release. Windows 11 is the tested platform.
 - Approve/Deny covers Claude Code only. Codex CLI and OpenCode prompts are answered in their own terminal.
 - Codex CLI's successful headless run has not been observed yet; its events are parsed from its documentation.
 - Gemini CLI is detected but untested: no headless mode and no Chat planner.
+- CCS API and CLIProxy profiles run in a terminal only, without hooks, because they pass their own `--settings` and API profiles route `-p` through CCS's delegation. A full session through CCS has not been run from OpenCompanion yet.
 - No Web Push to the phone yet; the phone shows notifications while its page is open.
 - macOS and Linux build from the same code but are untested.
 

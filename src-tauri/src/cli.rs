@@ -13,14 +13,17 @@ pub enum CliKind {
     Codex,
     Opencode,
     Gemini,
+    /// CCS (`@kaitranntt/ccs`) starts Claude Code with a profile: `ccs [profile] [claude args]`.
+    Ccs,
 }
 
 impl CliKind {
-    pub const ALL: [CliKind; 4] = [
+    pub const ALL: [CliKind; 5] = [
         CliKind::Claude,
         CliKind::Codex,
         CliKind::Opencode,
         CliKind::Gemini,
+        CliKind::Ccs,
     ];
 
     pub fn bin(self) -> &'static str {
@@ -29,6 +32,7 @@ impl CliKind {
             CliKind::Codex => "codex",
             CliKind::Opencode => "opencode",
             CliKind::Gemini => "gemini",
+            CliKind::Ccs => "ccs",
         }
     }
 
@@ -38,6 +42,7 @@ impl CliKind {
             CliKind::Codex => "Codex CLI",
             CliKind::Opencode => "OpenCode",
             CliKind::Gemini => "Gemini CLI",
+            CliKind::Ccs => "CCS",
         }
     }
 
@@ -48,7 +53,14 @@ impl CliKind {
             CliKind::Codex => &["0.153"],
             CliKind::Opencode => &["1.18"],
             CliKind::Gemini => &[],
+            CliKind::Ccs => &["8.10"],
         }
+    }
+
+    /// True for Claude Code and for CCS, which runs Claude Code with the same flags, output and
+    /// history.
+    pub fn runs_claude_code(self) -> bool {
+        matches!(self, CliKind::Claude | CliKind::Ccs)
     }
 
     pub fn from_bin(name: &str) -> Option<CliKind> {
@@ -239,5 +251,7 @@ mod tests {
         assert!(!is_tested(CliKind::Claude, "2.10.0"));
         assert!(!is_tested(CliKind::Codex, "0.154.0"));
         assert!(!is_tested(CliKind::Gemini, "0.9.0"));
+        assert!(is_tested(CliKind::Ccs, "8.10.0"));
+        assert_eq!(parse_version("CCS (Claude Codex Switch) v8.10.0").as_deref(), Some("8.10.0"));
     }
 }

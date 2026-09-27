@@ -12,13 +12,15 @@
     .replace("<path ", '<path fill="currentColor" ');
 </script>
 
-<span class="climark" class:sm={small} class:bare class:has-logo={kind !== "opencode"} aria-hidden="true">
+<span class="climark" class:sm={small} class:bare class:has-logo={kind !== "opencode" && kind !== "ccs"} aria-hidden="true">
   {#if kind === "claude"}
     <img src={claudeUrl} alt="" />
   {:else if kind === "gemini"}
     <img src={geminiUrl} alt="" />
   {:else if kind === "codex"}
     {@html openai}
+  {:else if kind === "ccs"}
+    CCS
   {:else}
     OC
   {/if}

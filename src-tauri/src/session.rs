@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::ccs;
 use crate::cli::{self, CliKind};
 use crate::db::{self, Db, EventRow, Mode, Notice, SessionInfo, Status, Waiting};
 use crate::events::{self, SessionEvent};
@@ -312,6 +313,12 @@ impl Manager {
             .unwrap_or_default()
     }
 
+    /// Claude Code's hooks come in through a `--settings` file. CCS's API and CLIProxy profiles
+    /// pass their own, which a second one would replace, so those sessions go without.
+    fn claude_hooks(&self, kind: CliKind) -> bool {
+        kind == CliKind::Claude || (kind == CliKind::Ccs && ccs::plain(&self.extra_args(kind)))
+    }
+
     fn log_path(&self, id: &str) -> PathBuf {
         self.data_dir.join("sessions").join(format!("{id}.log"))
     }
@@ -337,6 +344,13 @@ impl Manager {
         }
         if req.mode == Mode::Headless && req.cli == CliKind::Gemini {
             return Err("Headless mode for Gemini CLI is not supported yet.".into());
+        }
+        if req.mode == Mode::Headless && req.cli == CliKind::Ccs {
+            let extra = self.extra_args(CliKind::Ccs);
+            if !ccs::plain(&extra) {
+                let profile = ccs::profile(&extra).unwrap_or_default();
+                return Err(format!("Headless mode through CCS needs its default profile or an account profile, not {profile}. Pick Interactive."));
+            }
         }
         let exe = self.resolve_exe(req.cli)?;
         let now = db::now_ms();
@@ -376,7 +390,7 @@ impl Manager {
         };
         self.db.upsert_session(&info)?;
         self.db.touch_project(&cwd)?;
-        let live = self.register(info.clone(), req.cli == CliKind::Claude && req.mode == Mode::Interactive);
+        let live = self.register(info.clone(), self.claude_hooks(req.cli) && req.mode == Mode::Interactive);
 
         let result = match req.mode {
             Mode::Interactive => self.spawn_pty(&live, &exe, &req.prompt, None, req.cols, req.rows),
@@ -541,7 +555,9 @@ impl Manager {
         rows: Option<u16>,
     ) -> Result<(), String> {
         let info = self.info(live);
-        let mut args = Vec::new();
+        let extra = self.extra_args(info.cli);
+        let (lead, extra) = headless::split_extra(info.cli, &extra);
+        let mut args = lead.to_vec();
         if let Some(hook_file) = &live.hook_file {
             let settings_path = self.hook_settings_path(&info.id);
             fs::write(&settings_path, claude_hook_settings(hook_file)).map_err(|e| e.to_string())?;
@@ -549,13 +565,13 @@ impl Manager {
             args.extend(["--settings".to_string(), settings_path.display().to_string()]);
         }
         let mode = PermMode::parse(info.permission_mode.as_deref().unwrap_or("ask"));
-        let (cli_args, env) = headless::interactive_args(info.cli, prompt, resume, mode, &self.extra_args(info.cli));
+        let (cli_args, env) = headless::interactive_args(info.cli, prompt, resume, mode, extra);
         args.extend(cli_args);
 
         let sink_live = Arc::clone(live);
         let sink_self = Arc::clone(self);
         let session_id = info.id.clone();
-        let names_task = info.cli == CliKind::Claude;
+        let names_task = info.cli.runs_claude_code();
         let session = PtySession::spawn(
             PtySpec {
                 program: exe.to_path_buf(),
@@ -658,7 +674,7 @@ impl Manager {
             let seen = waiting::detect(info.cli, &screen);
             match (&info.waiting, seen) {
                 (None, Some(p)) => {
-                    let can_answer = info.cli == CliKind::Claude && p.reason == waiting::WaitReason::Permission;
+                    let can_answer = info.cli.runs_claude_code() && p.reason == waiting::WaitReason::Permission;
                     let reason = serde_json::to_value(p.reason)
                         .ok()
                         .and_then(|v| v.as_str().map(str::to_owned))
@@ -824,13 +840,15 @@ impl Manager {
     fn spawn_turn(self: &Arc<Self>, live: &Arc<Live>, exe: &Path, prompt: &str, resume: Option<&str>) -> Result<(), String> {
         let info = self.info(live);
         let extra = self.extra_args(info.cli);
+        let (lead, extra) = headless::split_extra(info.cli, &extra);
         let opts = TurnOptions {
             mode: PermMode::parse(info.permission_mode.as_deref().unwrap_or("ask")),
             resume,
-            extra: &extra,
+            extra,
         };
-        let inv = headless::invocation(info.cli, Path::new(&info.cwd), prompt, &opts)
+        let mut inv = headless::invocation(info.cli, Path::new(&info.cwd), prompt, &opts)
             .ok_or("Headless mode is not supported for this CLI.")?;
+        inv.args.splice(0..0, lead.iter().cloned());
         live.turn_failed.store(false, Ordering::SeqCst);
 
         let sink_self = Arc::clone(self);
@@ -875,7 +893,7 @@ impl Manager {
                         self.update(live, |i| i.cli_session_id = Some(sid));
                     }
                 }
-                if kind == CliKind::Claude {
+                if kind.runs_claude_code() {
                     if let Ok(v) = serde_json::from_str::<Value>(line) {
                         if v["type"] == "control_request" && v["request"]["subtype"] == "can_use_tool" {
                             if let Ok(mut p) = live.pending_input.lock() {
@@ -1035,7 +1053,7 @@ impl Manager {
                     p.write(text.as_bytes())?;
                     return Ok(info);
                 }
-                Runner::Headless(h) if info.cli == CliKind::Claude => {
+                Runner::Headless(h) if info.cli.runs_claude_code() => {
                     h.send_line(&headless::claude_user_message(text))
                         .map_err(|_| "This turn is finishing. Send your message again in a moment.".to_string())?;
                     drop(runner);
@@ -1102,7 +1120,7 @@ impl Manager {
         match info.mode {
             Mode::Headless => Err("Send a message to continue a headless session.".into()),
             Mode::Interactive => {
-                let live = self.register(info.clone(), info.cli == CliKind::Claude);
+                let live = self.register(info.clone(), self.claude_hooks(info.cli));
                 live.stop_requested.store(false, Ordering::SeqCst);
                 live.done_requested.store(false, Ordering::SeqCst);
                 let resume = info.cli_session_id.clone();

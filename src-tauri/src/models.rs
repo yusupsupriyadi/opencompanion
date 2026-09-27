@@ -118,19 +118,21 @@ fn claude_config_dir() -> Option<PathBuf> {
     })
 }
 
-/// The newest `*-cc.json` in Claude Code's model catalog cache (one file per signed-in account).
-fn claude_catalog() -> Option<String> {
-    let dir = claude_config_dir()?.join("cache").join("model-catalog");
-    let newest = fs::read_dir(dir)
-        .ok()?
+/// The newest `*-cc.json` in the model catalog caches of these Claude Code config folders (one
+/// file per signed-in account).
+fn claude_catalog(config_dirs: &[PathBuf]) -> Option<String> {
+    let newest = config_dirs
+        .iter()
+        .filter_map(|d| fs::read_dir(d.join("cache").join("model-catalog")).ok())
+        .flatten()
         .filter_map(Result::ok)
         .filter(|e| e.file_name().to_string_lossy().ends_with("-cc.json"))
         .max_by_key(|e| e.metadata().and_then(|m| m.modified()).ok())?;
     fs::read_to_string(newest.path()).ok()
 }
 
-fn claude(version: Option<&str>) -> ModelList {
-    claude_catalog()
+fn claude(config_dirs: &[PathBuf], version: Option<&str>) -> ModelList {
+    claude_catalog(config_dirs)
         .and_then(|text| parse_claude_catalog(&text, version))
         .unwrap_or_else(claude_aliases)
 }
@@ -251,7 +253,9 @@ pub fn list(cli: &CliInstall, work_dir: &Path, extra: &[String]) -> Result<Model
     let kind = cli.kind;
     let exe = cli.path.as_deref().ok_or(format!("{} is not installed.", kind.label()))?;
     match kind {
-        CliKind::Claude => Ok(claude(cli.version.as_deref())),
+        CliKind::Claude => Ok(claude(&Vec::from_iter(claude_config_dir()), cli.version.as_deref())),
+        // CCS reports its own version, not Claude Code's, so no model is left out as too new.
+        CliKind::Ccs => Ok(claude(&crate::projects::home().map(|h| crate::ccs::claude_dirs(&h)).unwrap_or_default(), None)),
         CliKind::Codex => parse_codex(&output(kind, exe, work_dir, &["debug", "models"])?),
         CliKind::Opencode => {
             let pure = ["models", "--verbose", "--pure"];
@@ -278,7 +282,7 @@ pub fn args(kind: CliKind, model: &str, effort: &str) -> Vec<String> {
     let model = Some(model.trim()).filter(|m| plain_model(m));
     let effort = Some(effort.trim()).filter(|e| !e.is_empty() && e.chars().all(|c| c.is_ascii_lowercase()));
     let (model_flag, effort_flag) = match kind {
-        CliKind::Claude => ("--model", "--effort"),
+        CliKind::Claude | CliKind::Ccs => ("--model", "--effort"),
         CliKind::Codex => ("-m", "-c"),
         CliKind::Opencode => ("-m", "--variant"),
         CliKind::Gemini => return vec![],

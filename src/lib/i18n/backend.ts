@@ -11,6 +11,10 @@ const RULES: Rule[] = [
   [/^The folder (.+) does not exist\.$/, "Folder $1 tidak ada."],
   [/^Headless sessions need a prompt\.$/, "Sesi headless butuh prompt."],
   [/^Headless mode for Gemini CLI is not supported yet\.$/, "Mode headless untuk Gemini CLI belum didukung."],
+  [
+    /^Headless mode through CCS needs its default profile or an account profile, not (.+)\. Pick Interactive\.$/,
+    "Mode headless lewat CCS butuh profil default atau profil akun, bukan $1. Pilih Interaktif.",
+  ],
   [/^Headless mode is not supported for this CLI\.$/, "Mode headless belum didukung untuk CLI ini."],
   [/^Session not found\.$/, "Sesi tidak ditemukan."],
   [/^This session is not running in OpenCompanion\.$/, "Sesi ini tidak berjalan di OpenCompanion."],
@@ -81,6 +85,7 @@ const RULES: Rule[] = [
   [/^No CLI is installed that can plan tasks\. Install Claude Code, Codex CLI or OpenCode, then rescan on the CLIs screen\.$/, "Belum ada CLI terpasang yang bisa merencanakan tugas. Pasang Claude Code, Codex CLI atau OpenCode, lalu pindai ulang di layar CLI."],
   [/^The chat CLI is not installed\.$/, "CLI untuk chat tidak terpasang."],
   [/^Gemini CLI cannot be the chat planner yet\.$/, "Gemini CLI belum bisa menjadi planner chat."],
+  [/^CCS can plan in Chat only with its default profile or an account profile, not (.+)\.$/, "CCS hanya bisa merencanakan di Chat dengan profil default atau profil akun, bukan $1."],
   [/^(.+) could not answer: (.+)$/s, "$1 tidak bisa menjawab: $2"],
   [/^The provider did not answer within (\d+) s\.$/, "Provider tidak menjawab dalam $1 detik."],
   [/^(.+) did not answer within (\d+) s\.$/, "$1 tidak menjawab dalam $2 detik."],

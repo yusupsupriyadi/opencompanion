@@ -19,6 +19,7 @@
     codex: "codex exec --json -C <folder>",
     opencode: "opencode run --format json --dir <folder>",
     gemini: null,
+    ccs: "ccs [profile] -p --output-format stream-json",
   };
   // Official npm packages. OpenCompanion never runs these itself (PRD FR-03).
   const INSTALL: Record<CliKind, string> = {
@@ -26,6 +27,7 @@
     codex: "npm install -g @openai/codex",
     opencode: "npm install -g opencode-ai",
     gemini: "npm install -g @google/gemini-cli",
+    ccs: "npm install -g @kaitranntt/ccs",
   };
 
   let configOpen = $state(false);
@@ -223,8 +225,8 @@
       </div>
       <div class="field">
         <label class="label" for="cfg-args">{t("work.clis.argsLabel")}</label>
-        <input class="input mono" id="cfg-args" bind:value={argsValue} placeholder={t("work.clis.argsPlaceholder")} spellcheck="false" aria-describedby="cfg-args-help" />
-        <p class="help" id="cfg-args-help">{t("work.clis.argsHelp")}</p>
+        <input class="input mono" id="cfg-args" bind:value={argsValue} placeholder={t(configCli.kind === "ccs" ? "work.clis.argsPlaceholderCcs" : "work.clis.argsPlaceholder")} spellcheck="false" aria-describedby="cfg-args-help" />
+        <p class="help" id="cfg-args-help">{t(configCli.kind === "ccs" ? "work.clis.argsHelpCcs" : "work.clis.argsHelp")}</p>
       </div>
       {#if configError}<p class="err-text" role="alert" style="margin:0">{tb(configError)}</p>{/if}
       <div class="d-foot">

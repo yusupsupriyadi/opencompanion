@@ -47,6 +47,9 @@ pub fn classify(name: &str, args: &[String]) -> Option<CliKind> {
         if joined.contains("@google/gemini-cli") {
             return Some(CliKind::Gemini);
         }
+        if joined.contains("@kaitranntt/ccs") {
+            return Some(CliKind::Ccs);
+        }
     }
     None
 }
@@ -61,7 +64,7 @@ pub fn run_mode(kind: CliKind, args: &[String]) -> RunMode {
         .find(|a| !a.starts_with('-'))
         .map(String::as_str);
     match kind {
-        CliKind::Claude | CliKind::Gemini if has("-p") || has("--print") => RunMode::Headless,
+        CliKind::Claude | CliKind::Ccs | CliKind::Gemini if has("-p") || has("--print") => RunMode::Headless,
         CliKind::Codex if matches!(first, Some("exec") | Some("e")) => RunMode::Headless,
         CliKind::Codex if matches!(first, Some("app-server") | Some("mcp-server")) => {
             RunMode::Server
@@ -121,7 +124,8 @@ impl Monitor {
             let Some(kind) = kind_of(p) else { continue };
 
             // Walk up once: skip children of the same CLI (OpenCode's wrapper exe starts the
-            // platform exe) and anything OpenCompanion spawned.
+            // platform exe), Claude Code started by CCS (through cmd.exe for a `.cmd` install; the
+            // CCS row stands for it) and anything OpenCompanion spawned.
             let mut same_cli_parent = false;
             let mut ours = own_pids.contains(&pid.as_u32());
             let mut cursor = p.parent();
@@ -133,6 +137,9 @@ impl Monitor {
                 }
                 let Some(parent) = procs.get(&ppid) else { break };
                 if depth == 0 && kind_of(parent) == Some(kind) {
+                    same_cli_parent = true;
+                }
+                if depth <= 1 && kind == CliKind::Claude && kind_of(parent) == Some(CliKind::Ccs) {
                     same_cli_parent = true;
                 }
                 cursor = parent.parent();
@@ -285,6 +292,9 @@ mod tests {
     fn classifies_npm_installs_running_under_node() {
         let a = args(&["node", r"C:\npm\node_modules\@openai\codex\bin\codex.js", "exec"]);
         assert_eq!(classify("node.exe", &a), Some(CliKind::Codex));
+        let ccs = args(&["node", r"C:\nvm4w\nodejs\node_modules\@kaitranntt\ccs\dist\ccs.js", "work", "-p"]);
+        assert_eq!(classify("node.exe", &ccs), Some(CliKind::Ccs));
+        assert_eq!(run_mode(CliKind::Ccs, &ccs), RunMode::Headless);
     }
 
     /// Regression: the app's own `opencode --version` probe was listed as an outside session.

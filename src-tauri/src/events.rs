@@ -34,7 +34,7 @@ pub fn parse_line(kind: CliKind, line: &str) -> Vec<SessionEvent> {
         return vec![SessionEvent::Raw { line: line.to_string() }];
     };
     let events = match kind {
-        CliKind::Claude => claude(&v),
+        CliKind::Claude | CliKind::Ccs => claude(&v),
         CliKind::Codex => codex(&v),
         CliKind::Opencode => opencode(&v),
         CliKind::Gemini => None,
@@ -46,7 +46,7 @@ pub fn parse_line(kind: CliKind, line: &str) -> Vec<SessionEvent> {
 pub fn cli_session_id(kind: CliKind, line: &str) -> Option<String> {
     let v: Value = serde_json::from_str(line.trim()).ok()?;
     let id = match kind {
-        CliKind::Claude => v["session_id"].as_str(),
+        CliKind::Claude | CliKind::Ccs => v["session_id"].as_str(),
         CliKind::Codex if v["type"] == "thread.started" => v["thread_id"].as_str(),
         CliKind::Opencode => v["sessionID"].as_str(),
         _ => None,

@@ -11,8 +11,10 @@ use std::time::Duration;
 
 use serde_json::Value;
 
+use crate::ccs;
 use crate::cli::{CliInstall, CliKind};
 use crate::db::{self, ChatMessage, Db, DispatchCard, Mode, PlannerApi, SessionInfo};
+use crate::headless;
 use crate::monitor::ExternalSession;
 use crate::proc;
 use crate::projects::{self, ProjectFolder};
@@ -246,7 +248,7 @@ pub fn session_problem(s: &SessionInfo) -> Option<String> {
         }
         (Mode::Interactive, true) => None,
         (Mode::Interactive, false) => Some("This terminal has closed. Resume the session, then send this card.".into()),
-        (Mode::Headless, true) if s.cli == CliKind::Claude => None,
+        (Mode::Headless, true) if s.cli.runs_claude_code() => None,
         (Mode::Headless, true) => Some(format!("{who} is still on this session's turn. Send this card when it is done.")),
         (Mode::Headless, false) if s.cli_session_id.is_some() => None,
         (Mode::Headless, false) => Some(format!("{who} did not report a session id, so this conversation cannot continue.")),
@@ -402,6 +404,10 @@ fn read_dirs_for(roots: &[String], folders: &[ProjectFolder]) -> Vec<PathBuf> {
 
 /// Runs the planner CLI once.
 pub fn run(kind: CliKind, exe: &Path, work_dir: &Path, extra: &[String], input: &PlanInput) -> Result<Plan, String> {
+    if kind == CliKind::Ccs && !ccs::plain(extra) {
+        let profile = ccs::profile(extra).unwrap_or_default();
+        return Err(format!("CCS can plan in Chat only with its default profile or an account profile, not {profile}."));
+    }
     fs::create_dir_all(work_dir).map_err(|e| e.to_string())?;
     let can_read = !input.read_dirs.is_empty();
     let prompt = prompt_text(input);
@@ -412,8 +418,10 @@ pub fn run(kind: CliKind, exe: &Path, work_dir: &Path, extra: &[String], input: 
     // folder where there is nothing of the user's to find.
     let cwd = if can_read { input.read_dirs[0].clone() } else { work_dir.to_path_buf() };
     cmd.current_dir(&cwd);
+    let (lead, extra) = headless::split_extra(kind, extra);
+    cmd.args(lead);
     let stdin: String = match kind {
-        CliKind::Claude => {
+        CliKind::Claude | CliKind::Ccs => {
             let tools = if can_read { "Read,Glob,Grep" } else { "" };
             cmd.args([
                 "-p",
@@ -466,7 +474,7 @@ pub fn run(kind: CliKind, exe: &Path, work_dir: &Path, extra: &[String], input: 
     }
 
     match kind {
-        CliKind::Claude => {
+        CliKind::Claude | CliKind::Ccs => {
             let v: Value = serde_json::from_str(out.stdout.trim()).map_err(|_| {
                 first_line_or(&out.stderr, &out.stdout, "Claude Code returned no result.")
             })?;

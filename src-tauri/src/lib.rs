@@ -1,5 +1,6 @@
 pub mod actions;
 pub mod autostart;
+pub mod ccs;
 pub mod cli;
 pub mod companion;
 pub mod db;
