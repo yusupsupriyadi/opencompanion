@@ -62,7 +62,8 @@ impl PermMode {
 /// Flags and environment per CLI for a permission mode, checked against each CLI's `--help`
 /// on 2026-09-25 (Claude Code 2.1.282, Codex CLI 0.153.4, OpenCode 1.18.32). Gemini CLI is not
 /// installed on the test machine, so it gets none. Pi (0.87.1) never asks: only Plan changes
-/// anything, by giving it read-only tools.
+/// anything, by giving it read-only tools. omp (18.3.5) sets `--approval-mode` for each mode.
+/// Headless, it has no one to ask, so a tool that needs approval fails in the output.
 ///
 /// `headless_resume` covers `codex exec resume`, which accepts only the bypass flag: the
 /// resumed thread keeps the sandbox it started with.
@@ -94,8 +95,14 @@ pub fn mode_flags(kind: CliKind, mode: PermMode, interactive: bool, headless_res
         },
         CliKind::Gemini => vec![],
         CliKind::Pi => match mode {
-            PermMode::Plan => strings(&["--tools", crate::pi::READ_ONLY_TOOLS]),
+            PermMode::Plan => strings(&["--tools", crate::pi::read_only_tools(kind)]),
             _ => vec![],
+        },
+        CliKind::Omp => match mode {
+            PermMode::Ask => strings(&["--approval-mode", "always-ask"]),
+            PermMode::Plan => strings(&["--tools", crate::pi::read_only_tools(kind), "--approval-mode", "always-ask"]),
+            PermMode::Auto => strings(&["--approval-mode", "write"]),
+            PermMode::Bypass => strings(&["--approval-mode", "yolo"]),
         },
     };
     let env = if kind == CliKind::Opencode && mode == PermMode::Bypass {
@@ -225,14 +232,14 @@ pub fn opencode_invocation(cwd: &Path, prompt: &str, opts: &TurnOptions) -> Invo
     }
 }
 
-/// `pi --mode json` reads the prompt from stdin when no message argument is given, so a prompt
-/// that starts with `@` is not taken for a file to attach.
-pub fn pi_invocation(prompt: &str, opts: &TurnOptions) -> Invocation {
+/// `pi --mode json` (and `omp --mode json`) reads the prompt from stdin when no message argument
+/// is given, so a prompt that starts with `@` is not taken for a file to attach.
+pub fn pi_invocation(kind: CliKind, prompt: &str, opts: &TurnOptions) -> Invocation {
     let mut args = strings(&["--mode", "json"]);
     if let Some(id) = opts.resume {
         args.extend(strings(&["--session", id]));
     }
-    let (flags, env) = mode_flags(CliKind::Pi, opts.mode, false, false);
+    let (flags, env) = mode_flags(kind, opts.mode, false, false);
     args.extend(flags);
     args.extend(opts.extra.iter().cloned());
     Invocation {
@@ -258,7 +265,7 @@ pub fn invocation(kind: CliKind, cwd: &Path, prompt: &str, opts: &TurnOptions) -
         CliKind::Codex => Some(codex_invocation(cwd, prompt, opts)),
         CliKind::Opencode => Some(opencode_invocation(cwd, prompt, opts)),
         CliKind::Gemini => None,
-        CliKind::Pi => Some(pi_invocation(prompt, opts)),
+        CliKind::Pi | CliKind::Omp => Some(pi_invocation(kind, prompt, opts)),
     }
 }
 
@@ -296,7 +303,7 @@ pub fn interactive_args(
             args.extend(flags);
         }
         CliKind::Gemini => args.extend(flags),
-        CliKind::Pi => {
+        CliKind::Pi | CliKind::Omp => {
             if let Some(id) = resume {
                 args.extend(strings(&["--session", id]));
             }
@@ -312,7 +319,8 @@ pub fn interactive_args(
             CliKind::Gemini => args.extend(["-i".to_string(), prompt.to_string()]),
             // Pi reads an argument that starts with `@` as a file to attach, even after `--`.
             CliKind::Pi if prompt.starts_with('@') => args.extend(["--".to_string(), format!(" {prompt}")]),
-            CliKind::Pi => args.extend(["--".to_string(), prompt.to_string()]),
+            // omp reads everything after `--` as text, `@` included.
+            CliKind::Pi | CliKind::Omp => args.extend(["--".to_string(), prompt.to_string()]),
             _ => args.push(prompt.to_string()),
         }
     }
@@ -495,5 +503,21 @@ mod tests {
         assert_eq!(args, ["--session", "s1", "--", "-v means verbose?"]);
         let (args, _) = interactive_args(CliKind::Pi, "@src/app.ts fix it", None, PermMode::Ask, &[]);
         assert_eq!(args, ["--", " @src/app.ts fix it"]);
+    }
+
+    #[test]
+    fn omp_maps_each_mode_to_an_approval_mode() {
+        let flags = |m| mode_flags(CliKind::Omp, m, false, false).0.join(" ");
+        assert_eq!(flags(PermMode::Ask), "--approval-mode always-ask");
+        assert_eq!(flags(PermMode::Plan), "--tools read,grep,glob --approval-mode always-ask");
+        assert_eq!(flags(PermMode::Auto), "--approval-mode write");
+        assert_eq!(flags(PermMode::Bypass), "--approval-mode yolo");
+        let opts = TurnOptions { resume: Some("01a0e435"), mode: PermMode::Auto, ..Default::default() };
+        let inv = invocation(CliKind::Omp, Path::new("C:/w"), "@README.md tidy it", &opts).unwrap();
+        assert_eq!(inv.args, ["--mode", "json", "--session", "01a0e435", "--approval-mode", "write"]);
+        assert_eq!(inv.stdin_first.as_deref(), Some("@README.md tidy it"));
+        assert!(!inv.keep_stdin);
+        let (args, _) = interactive_args(CliKind::Omp, "@src/app.ts fix it", Some("s1"), PermMode::Bypass, &[]);
+        assert_eq!(args, ["--session", "s1", "--approval-mode", "yolo", "--", "@src/app.ts fix it"]);
     }
 }

@@ -1,6 +1,6 @@
 //! Models and thinking levels for the chat planner. Each CLI names them its own way: Claude
 //! Code takes an alias plus `--effort`, Codex a catalog slug plus `model_reasoning_effort`,
-//! OpenCode `provider/model` plus a per-model `--variant`, and Pi `provider/model` plus
+//! OpenCode `provider/model` plus a per-model `--variant`, and Pi and omp `provider/model` plus
 //! `--thinking`.
 
 use std::fs;
@@ -230,6 +230,11 @@ fn strip_ansi(s: &str) -> String {
 }
 
 fn output(kind: CliKind, exe: &Path, work_dir: &Path, args: &[&str]) -> Result<String, String> {
+    output_when(kind, exe, work_dir, args, |_| false)
+}
+
+/// `output`, but a failed exit still counts when `complete` accepts what the CLI printed.
+fn output_when(kind: CliKind, exe: &Path, work_dir: &Path, args: &[&str], complete: fn(&str) -> bool) -> Result<String, String> {
     std::fs::create_dir_all(work_dir).map_err(|e| e.to_string())?;
     let mut cmd = proc::command(exe);
     cmd.current_dir(work_dir).args(args);
@@ -237,11 +242,12 @@ fn output(kind: CliKind, exe: &Path, work_dir: &Path, args: &[&str]) -> Result<S
     if out.timed_out {
         return Err(format!("{} did not list its models within {} s.", kind.label(), LIST_TIMEOUT.as_secs()));
     }
-    if out.status != Some(0) {
-        let why = strip_ansi(&out.stderr)
-            .lines()
-            .map(str::trim)
-            .find(|l| !l.is_empty())
+    if out.status != Some(0) && !complete(&out.stdout) {
+        let stderr = strip_ansi(&out.stderr);
+        // omp's first stderr line can be its startup watchdog, which is not the reason.
+        let reason = kind.runs_pi().then(|| crate::pi::stderr_reason(&stderr)).flatten();
+        let why = reason
+            .or_else(|| stderr.lines().map(str::trim).find(|l| !l.is_empty()).map(str::to_owned))
             .map(|l| l.chars().take(300).collect::<String>())
             .unwrap_or_else(|| format!("exit code {:?}", out.status));
         return Err(format!("{} could not list its models: {why}", kind.label()));
@@ -270,6 +276,10 @@ pub fn list(cli: &CliInstall, work_dir: &Path, extra: &[String]) -> Result<Model
         }
         CliKind::Gemini => Err("Gemini CLI cannot be the chat planner yet.".into()),
         CliKind::Pi => Ok(crate::pi::parse_models(&output(kind, exe, work_dir, &["--list-models"])?)),
+        CliKind::Omp => {
+            let text = output_when(kind, exe, work_dir, &["models", "--json"], crate::pi::omp_models_complete)?;
+            Ok(crate::pi::parse_omp_models(&text))
+        }
     }
 }
 
@@ -288,7 +298,7 @@ pub fn args(kind: CliKind, model: &str, effort: &str) -> Vec<String> {
         CliKind::Codex => ("-m", "-c"),
         CliKind::Opencode => ("-m", "--variant"),
         CliKind::Gemini => return vec![],
-        CliKind::Pi => ("--model", "--thinking"),
+        CliKind::Pi | CliKind::Omp => ("--model", "--thinking"),
     };
     let mut out = Vec::new();
     if let Some(m) = model {
@@ -386,6 +396,7 @@ mod tests {
         assert_eq!(args(CliKind::Codex, "", ""), Vec::<String>::new());
         assert_eq!(args(CliKind::Gemini, "gemini-pro", "high"), Vec::<String>::new());
         assert_eq!(args(CliKind::Pi, "anthropic/claude-sonnet-4-5", "high"), ["--model", "anthropic/claude-sonnet-4-5", "--thinking", "high"]);
+        assert_eq!(args(CliKind::Omp, "amazon-bedrock/anthropic.claude-opus-4-6-v1", "max"), ["--model", "amazon-bedrock/anthropic.claude-opus-4-6-v1", "--thinking", "max"]);
     }
 
     #[test]

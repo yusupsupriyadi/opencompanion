@@ -22,6 +22,7 @@ Planned as 0.1.0, the first public release. Windows 11 is the tested platform.
 - English and Indonesian UI, including backend messages, OS notifications and the tray menu.
 - CCS (`@kaitranntt/ccs`) as a CLI. It runs Claude Code with Claude Code's flags, output, hooks and transcripts. Its extra arguments in Settings go right after `ccs`, so the profile comes first.
 - Pi (`@earendil-works/pi-coding-agent`) as a CLI: interactive and headless sessions (`pi --mode json`), follow-ups and Resume, the Chat planner with its models and thinking levels, outside sessions with transcripts, and its skill folder. Plan mode limits Pi to read-only tools.
+- omp (`@oh-my-pi/pi-coding-agent`), a Pi fork that runs on Bun, as a CLI through the Pi adapter: interactive and headless sessions (`omp --mode json`), follow-ups and Resume, the Chat planner with `omp models --json`, outside sessions with transcripts from `~/.omp/agent/sessions`, and its skill folder. Each permission mode sets omp's `--approval-mode`; Plan also limits it to `read`, `grep` and `glob`.
 - Text size and retention of finished sessions in Settings.
 - Scroll-driven landing page in `landing/`.
 - README, CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, the MIT LICENSE, and GitHub issue and pull request templates.
@@ -33,6 +34,7 @@ Planned as 0.1.0, the first public release. Windows 11 is the tested platform.
 - Gemini CLI is detected but untested: no headless mode and no Chat planner.
 - CCS API and CLIProxy profiles run in a terminal only, without hooks, because they pass their own `--settings` and API profiles route `-p` through CCS's delegation. A full session through CCS has not been run from OpenCompanion yet.
 - Pi never asks for permission, so Ask me, Auto and Bypass all let it run every tool; only Plan limits it. Its headless runs and the Chat planner were checked against a local stub, not a real provider, and interactive sessions only by unit tests.
+- omp's approval prompts in a terminal are not detected as Waiting for you yet, and a headless omp run refuses any tool that needs approval. omp 18.3.5 was checked only with runs that sent no prompt.
 - No Web Push to the phone yet; the phone shows notifications while its page is open.
 - macOS and Linux build from the same code but are untested.
 

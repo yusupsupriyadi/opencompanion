@@ -17,16 +17,19 @@ pub enum CliKind {
     Ccs,
     /// Pi (`@earendil-works/pi-coding-agent`). It has no permission prompts.
     Pi,
+    /// omp (`@oh-my-pi/pi-coding-agent`), a Pi fork with approval modes. Runs on Bun.
+    Omp,
 }
 
 impl CliKind {
-    pub const ALL: [CliKind; 6] = [
+    pub const ALL: [CliKind; 7] = [
         CliKind::Claude,
         CliKind::Codex,
         CliKind::Opencode,
         CliKind::Gemini,
         CliKind::Ccs,
         CliKind::Pi,
+        CliKind::Omp,
     ];
 
     pub fn bin(self) -> &'static str {
@@ -37,6 +40,7 @@ impl CliKind {
             CliKind::Gemini => "gemini",
             CliKind::Ccs => "ccs",
             CliKind::Pi => "pi",
+            CliKind::Omp => "omp",
         }
     }
 
@@ -48,6 +52,7 @@ impl CliKind {
             CliKind::Gemini => "Gemini CLI",
             CliKind::Ccs => "CCS",
             CliKind::Pi => "Pi",
+            CliKind::Omp => "omp",
         }
     }
 
@@ -60,6 +65,7 @@ impl CliKind {
             CliKind::Gemini => &[],
             CliKind::Ccs => &["8.10"],
             CliKind::Pi => &["0.87"],
+            CliKind::Omp => &["18.3"],
         }
     }
 
@@ -69,9 +75,9 @@ impl CliKind {
         matches!(self, CliKind::Claude | CliKind::Ccs)
     }
 
-    /// True for Pi, whose print mode, JSON events and session files the Pi adapter reads.
+    /// True for Pi and omp, whose print mode, JSON events and session files the Pi adapter reads.
     pub fn runs_pi(self) -> bool {
-        self == CliKind::Pi
+        matches!(self, CliKind::Pi | CliKind::Omp)
     }
 
     pub fn from_bin(name: &str) -> Option<CliKind> {
@@ -149,9 +155,10 @@ fn shim_target(text: &str) -> Option<PathBuf> {
         .then(|| PathBuf::from(rel.replace('\\', std::path::MAIN_SEPARATOR_STR)))
 }
 
-/// First `N.N` or `N.N.N` token, so "codex-cli 0.153.4" and "2.1.282 (Claude Code)" both work.
+/// First `N.N` or `N.N.N` token, so "codex-cli 0.153.4", "2.1.282 (Claude Code)" and
+/// "omp/18.3.5" all work.
 pub fn parse_version(raw: &str) -> Option<String> {
-    raw.split(|c: char| c.is_whitespace() || c == '(' || c == ')' || c == ',')
+    raw.split(|c: char| c.is_whitespace() || c == '(' || c == ')' || c == ',' || c == '/')
         .map(|t| t.trim_start_matches('v'))
         .find(|t| {
             let parts: Vec<&str> = t.split('.').collect();
@@ -267,6 +274,8 @@ mod tests {
         assert!(is_tested(CliKind::Ccs, "8.10.0"));
         assert_eq!(parse_version("CCS (Claude Codex Switch) v8.10.0").as_deref(), Some("8.10.0"));
         assert!(is_tested(CliKind::Pi, "0.87.1"));
+        assert!(is_tested(CliKind::Omp, "18.3.5"));
+        assert_eq!(parse_version("omp/18.3.5\n").as_deref(), Some("18.3.5"));
         assert_eq!(parse_version("0.87.1
 ").as_deref(), Some("0.87.1"));
     }

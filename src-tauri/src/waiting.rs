@@ -50,7 +50,7 @@ pub fn detect(kind: CliKind, screen: &str) -> Option<WaitingPrompt> {
             }
             None
         }
-        CliKind::Opencode | CliKind::Gemini | CliKind::Pi => None,
+        CliKind::Opencode | CliKind::Gemini | CliKind::Pi | CliKind::Omp => None,
     }
 }
 

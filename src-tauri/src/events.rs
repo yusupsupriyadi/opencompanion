@@ -38,7 +38,7 @@ pub fn parse_line(kind: CliKind, line: &str) -> Vec<SessionEvent> {
         CliKind::Codex => codex(&v),
         CliKind::Opencode => opencode(&v),
         CliKind::Gemini => None,
-        CliKind::Pi => crate::pi::events(&v),
+        CliKind::Pi | CliKind::Omp => crate::pi::events(&v),
     };
     events.unwrap_or_else(|| vec![SessionEvent::Raw { line: line.to_string() }])
 }
@@ -50,7 +50,7 @@ pub fn cli_session_id(kind: CliKind, line: &str) -> Option<String> {
         CliKind::Claude | CliKind::Ccs => v["session_id"].as_str(),
         CliKind::Codex if v["type"] == "thread.started" => v["thread_id"].as_str(),
         CliKind::Opencode => v["sessionID"].as_str(),
-        CliKind::Pi => crate::pi::cli_session_id(&v),
+        CliKind::Pi | CliKind::Omp => crate::pi::cli_session_id(&v),
         _ => None,
     }?;
     (!id.is_empty()).then(|| id.to_string())

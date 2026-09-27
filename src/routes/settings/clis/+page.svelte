@@ -21,6 +21,7 @@
     gemini: null,
     ccs: "ccs [profile] -p --output-format stream-json",
     pi: "pi --mode json",
+    omp: "omp --mode json",
   };
   // Official npm packages. OpenCompanion never runs these itself (PRD FR-03).
   const INSTALL: Record<CliKind, string> = {
@@ -30,6 +31,8 @@
     gemini: "npm install -g @google/gemini-cli",
     ccs: "npm install -g @kaitranntt/ccs",
     pi: "npm install -g --ignore-scripts @earendil-works/pi-coding-agent",
+    // omp runs on Bun, not Node.
+    omp: "bun install -g @oh-my-pi/pi-coding-agent",
   };
 
   let configOpen = $state(false);

@@ -33,7 +33,7 @@ pub fn schema() -> Value {
                     "type": "object",
                     "additionalProperties": false,
                     "properties": {
-                        "cli": { "type": "string", "enum": ["claude", "codex", "opencode", "gemini", "pi"] },
+                        "cli": { "type": "string", "enum": ["claude", "codex", "opencode", "gemini", "pi", "omp"] },
                         "title": { "type": "string" },
                         "folder": { "type": "string" },
                         "prompt": { "type": "string" },
@@ -62,7 +62,7 @@ pub fn schema() -> Value {
 }
 
 const SYSTEM: &str = "You are the planner inside OpenCompanion, a desktop app that starts AI coding CLIs \
-(Claude Code, Codex CLI, OpenCode, Gemini CLI, Pi) on the user's own computer. You never run commands or \
+(Claude Code, Codex CLI, OpenCode, Gemini CLI, Pi, omp) on the user's own computer. You never run commands or \
 change files. Your whole answer is one JSON object: `reply` is a short message to the user in the \
 language they wrote in, and `dispatches` lists the CLI sessions you propose. The user presses Run on \
 each card before anything starts, so proposing a card is always safe.\n\
@@ -465,9 +465,13 @@ pub fn run(kind: CliKind, exe: &Path, work_dir: &Path, extra: &[String], input: 
             String::new()
         }
         CliKind::Gemini => return Err("Gemini CLI cannot be the chat planner yet.".into()),
-        CliKind::Pi => {
-            let tools: &[&str] = if can_read { &["--tools", crate::pi::READ_ONLY_TOOLS] } else { &["--no-tools"] };
+        CliKind::Pi | CliKind::Omp => {
+            let tools: &[&str] = if can_read { &["--tools", crate::pi::read_only_tools(kind)] } else { &["--no-tools"] };
             cmd.args(["--mode", "json", "--no-session"]).args(tools);
+            if kind == CliKind::Omp {
+                // Overrides a `yolo` omp config: headless, omp then refuses every tool above read.
+                cmd.args(["--approval-mode", "always-ask"]);
+            }
             cmd.arg("--append-system-prompt").arg(json_only(&system, &schema));
             cmd.args(extra);
             prompt
@@ -513,10 +517,10 @@ pub fn run(kind: CliKind, exe: &Path, work_dir: &Path, extra: &[String], input: 
             }
             Ok(plan_from_text(&last, input))
         }
-        CliKind::Pi => match crate::pi::final_answer(&out.stdout)? {
+        CliKind::Pi | CliKind::Omp => match crate::pi::final_answer(&out.stdout)? {
             Some(text) => Ok(plan_from_text(&text, input)),
             // Stdout starts with the session header, which says nothing to the user.
-            None => Err(first_line_or(&out.stderr, "", "Pi returned no answer.")),
+            None => Err(crate::pi::stderr_reason(&out.stderr).unwrap_or_else(|| format!("{} returned no answer.", kind.label()))),
         },
         _ => {
             let text: String = out

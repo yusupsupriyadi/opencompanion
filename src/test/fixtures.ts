@@ -9,6 +9,7 @@ export const CLIS: CliInstall[] = [
   { kind: "gemini", label: "Gemini CLI", path: null, version: null, tested: false, error: null },
   { kind: "ccs", label: "CCS", path: null, version: null, tested: false, error: null },
   { kind: "pi", label: "Pi", path: null, version: null, tested: false, error: null },
+  { kind: "omp", label: "omp", path: null, version: null, tested: false, error: null },
 ];
 
 export function session(over: Partial<SessionView> = {}): SessionView {

@@ -44,3 +44,18 @@ test("Pi shows its install command, and once found, its JSON mode and the planne
   expect(row).toHaveTextContent("0.87.1");
   expect(within(row).getByRole("button", { name: "Use as planner" })).toBeInTheDocument();
 });
+
+test("omp installs with Bun, and once found, shows its JSON mode and the planner button", () => {
+  setUrl("/settings/clis");
+  app.clis = CLIS;
+  app.clisState = "ready";
+  const { unmount } = render(ClisPage);
+  expect(screen.getByText("bun install -g @oh-my-pi/pi-coding-agent")).toBeInTheDocument();
+  unmount();
+  app.clis = CLIS.map((c) => (c.kind === "omp" ? { ...c, path: String.raw`C:\Users\me\.bun\bin\omp.exe`, version: "18.3.5", tested: true } : c));
+  render(ClisPage);
+  const row = screen.getByText("omp", { selector: "b" }).closest("tr")!;
+  expect(row).toHaveTextContent("omp --mode json");
+  expect(row).toHaveTextContent("18.3.5");
+  expect(within(row).getByRole("button", { name: "Use as planner" })).toBeInTheDocument();
+});

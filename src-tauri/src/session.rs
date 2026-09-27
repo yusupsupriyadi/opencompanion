@@ -114,15 +114,15 @@ impl Drop for Spawning<'_> {
     }
 }
 
-/// The Pi session an interactive session wrote, found by folder and start time: Pi does not
-/// report its session id in a terminal.
+/// The Pi or omp session an interactive session wrote, found by folder and start time: neither
+/// reports its session id in a terminal.
 fn pi_session(info: &SessionInfo) -> Option<String> {
     if !info.cli.runs_pi() {
         return None;
     }
     let since = std::time::UNIX_EPOCH + Duration::from_millis(u64::try_from(info.started_at).ok()?);
-    let agent_dir = crate::pi::agent_dir(&crate::projects::home()?);
-    crate::pi::session_id(&crate::pi::newest_session(&agent_dir, Path::new(&info.cwd), since)?)
+    let home = crate::projects::home()?;
+    crate::pi::session_id(&crate::pi::newest_session(info.cli, &home, Path::new(&info.cwd), since)?)
 }
 
 fn title_for(kind: CliKind, cwd: &str, prompt: &str) -> String {

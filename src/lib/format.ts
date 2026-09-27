@@ -8,6 +8,7 @@ export const CLI_LABEL: Record<CliKind, string> = {
   gemini: "Gemini CLI",
   ccs: "CCS",
   pi: "Pi",
+  omp: "omp",
 };
 
 /**
@@ -124,35 +125,35 @@ export const MODES: {
   label: string;
   short: string;
   detail: string;
-  flags: Record<"claude" | "codex" | "opencode" | "pi", string>;
+  flags: Record<"claude" | "codex" | "opencode" | "pi" | "omp", string>;
 }[] = [
   {
     id: "ask",
     get label() { return t("shell.mode.ask.label"); },
     get short() { return t("shell.mode.ask.short"); },
     get detail() { return t("shell.mode.ask.detail"); },
-    flags: { claude: "--permission-mode manual", codex: "sandbox workspace-write, asks on request", opencode: "its own rules; asks in the terminal", pi: "never asks; every tool runs" },
+    flags: { claude: "--permission-mode manual", codex: "sandbox workspace-write, asks on request", opencode: "its own rules; asks in the terminal", pi: "never asks; every tool runs", omp: "--approval-mode always-ask" },
   },
   {
     id: "plan",
     get label() { return t("shell.mode.plan.label"); },
     get short() { return t("shell.mode.plan.short"); },
     get detail() { return t("shell.mode.plan.detail"); },
-    flags: { claude: "--permission-mode plan", codex: "sandbox read-only", opencode: "--agent plan", pi: "--tools read,grep,find,ls" },
+    flags: { claude: "--permission-mode plan", codex: "sandbox read-only", opencode: "--agent plan", pi: "--tools read,grep,find,ls", omp: "--tools read,grep,glob --approval-mode always-ask" },
   },
   {
     id: "auto",
     get label() { return t("shell.mode.auto.label"); },
     get short() { return t("shell.mode.auto.short"); },
     get detail() { return t("shell.mode.auto.detail"); },
-    flags: { claude: "--permission-mode auto", codex: "--approve-for-me", opencode: "--auto", pi: "never asks; every tool runs" },
+    flags: { claude: "--permission-mode auto", codex: "--approve-for-me", opencode: "--auto", pi: "never asks; every tool runs", omp: "--approval-mode write" },
   },
   {
     id: "bypass",
     get label() { return t("shell.mode.bypass.label"); },
     get short() { return t("shell.mode.bypass.short"); },
     get detail() { return t("shell.mode.bypass.detail"); },
-    flags: { claude: "--dangerously-skip-permissions", codex: "--dangerously-bypass-approvals-and-sandbox", opencode: "--auto, every permission allowed", pi: "never asks; every tool runs" },
+    flags: { claude: "--dangerously-skip-permissions", codex: "--dangerously-bypass-approvals-and-sandbox", opencode: "--auto, every permission allowed", pi: "never asks; every tool runs", omp: "--approval-mode yolo" },
   },
 ];
 

@@ -50,6 +50,11 @@ pub fn classify(name: &str, args: &[String]) -> Option<CliKind> {
         if joined.contains("@kaitranntt/ccs") {
             return Some(CliKind::Ccs);
         }
+        // omp's Bun shim starts `bun .../@oh-my-pi/pi-coding-agent/dist/cli.js`. It is a Pi fork
+        // with the same package name, so it is checked before Pi.
+        if joined.contains("/@oh-my-pi/") {
+            return Some(CliKind::Omp);
+        }
         // Pi's own installer starts `node ~/.pi/agent/bin/pi-launcher.js`, which runs the package.
         if joined.contains("/pi-coding-agent/") || joined.contains("/.pi/agent/bin/pi-launcher.js") {
             return Some(CliKind::Pi);
@@ -77,7 +82,8 @@ pub fn run_mode(kind: CliKind, args: &[String]) -> RunMode {
         CliKind::Opencode if first == Some("run") => RunMode::Headless,
         CliKind::Opencode if matches!(first, Some("serve") | Some("web")) => RunMode::Server,
         CliKind::Pi if has_mode("rpc") => RunMode::Server,
-        CliKind::Pi if has("-p") || has("--print") || has_mode("json") => RunMode::Headless,
+        CliKind::Omp if has_mode("rpc") || has_mode("rpc-ui") || has_mode("acp") || first == Some("acp") => RunMode::Server,
+        CliKind::Pi | CliKind::Omp if has("-p") || has("--print") || has_mode("json") => RunMode::Headless,
         _ => RunMode::Interactive,
     }
 }
@@ -310,6 +316,13 @@ mod tests {
         assert_eq!(run_mode(CliKind::Pi, &pi), RunMode::Interactive);
         assert_eq!(run_mode(CliKind::Pi, &args(&["pi", "--mode", "rpc"])), RunMode::Server);
         assert_eq!(classify("pi.exe", &[]), Some(CliKind::Pi));
+        let omp = args(&["bun", r"C:\Users\me\.bun\install\global\node_modules\@oh-my-pi\pi-coding-agent\dist\cli.js", "--mode", "json"]);
+        assert_eq!(classify("bun.exe", &omp), Some(CliKind::Omp));
+        assert_eq!(run_mode(CliKind::Omp, &omp), RunMode::Headless);
+        assert_eq!(classify("omp.exe", &[]), Some(CliKind::Omp));
+        assert_eq!(run_mode(CliKind::Omp, &args(&["omp", "acp"])), RunMode::Server);
+        assert_eq!(run_mode(CliKind::Omp, &args(&["omp", "--mode", "rpc-ui"])), RunMode::Server);
+        assert_eq!(run_mode(CliKind::Omp, &args(&["omp", "--approval-mode", "write"])), RunMode::Interactive);
     }
 
     /// Regression: the app's own `opencode --version` probe was listed as an outside session.

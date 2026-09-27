@@ -78,7 +78,7 @@ pub fn read_in(home: &Path, kind: CliKind, cwd: Option<&Path>, started_at: u64) 
         CliKind::Codex => codex(home, cwd, since),
         CliKind::Opencode => opencode(home, cwd, since),
         CliKind::Gemini => return unavailable("Transcript not available for this CLI."),
-        CliKind::Pi => pi(&crate::pi::agent_dir(home), cwd, since),
+        CliKind::Pi | CliKind::Omp => pi(kind, home, cwd, since),
     };
     match found {
         Ok(Some(mut t)) => {
@@ -408,7 +408,7 @@ fn opencode_db(db: &Path, cwd: &Path, since_ms: i64) -> rusqlite::Result<Option<
     }))
 }
 
-// Pi: <agent dir>/sessions/--<folder>--/<time>_<session>.jsonl, one entry per line.
+// Pi and omp: <agent dir>/sessions/<folder>/<time>_<session>.jsonl, one entry per line.
 
 fn pi_lines(v: &Value) -> Vec<Line> {
     if v["type"] != "message" {
@@ -438,8 +438,8 @@ fn pi_lines(v: &Value) -> Vec<Line> {
     }
 }
 
-fn pi(agent_dir: &Path, cwd: &Path, since: SystemTime) -> Result<Option<Transcript>, String> {
-    let Some(file) = crate::pi::newest_session(agent_dir, cwd, since) else { return Ok(None) };
+fn pi(kind: CliKind, home: &Path, cwd: &Path, since: SystemTime) -> Result<Option<Transcript>, String> {
+    let Some(file) = crate::pi::newest_session(kind, home, cwd, since) else { return Ok(None) };
     let lines = tail_lines(&file).map_err(|e| e.to_string())?;
     Ok(Some(Transcript {
         source: Some(file.display().to_string()),
@@ -616,6 +616,29 @@ mod tests {
         );
         assert_eq!(t.lines[0].at, parse_time("2026-09-27T18:57:32.190Z"));
         assert!(read_in(&home, CliKind::Pi, Some(Path::new(r"C:\elsewhere")), now_secs()).note.unwrap().starts_with("Pi has not written"));
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    // Trimmed from an omp 18.3.5 session file in a folder under the home folder.
+    #[test]
+    fn omp_transcript_is_read_from_the_home_relative_folder() {
+        let home = temp_home("omp");
+        let dir = home.join(".omp").join("agent").join("sessions").join("-project-app");
+        fs::create_dir_all(&dir).unwrap();
+        let lines = [
+            r#"{"type":"title","v":1,"title":"","updatedAt":"2026-09-27T18:51:57.379Z","pad":"    "}"#,
+            r#"{"type":"session","version":3,"id":"01a0e435","timestamp":"2026-09-27T18:51:57.379Z","cwd":"C:\\Users\\me\\project\\app"}"#,
+            r#"{"type":"model_change","id":"3402269f","parentId":null,"timestamp":"2026-09-27T18:51:57.673Z","model":"amazon-bedrock/us.anthropic.claude-opus-5-5"}"#,
+            r#"{"type":"message","id":"b7b2e910","parentId":"6010ae09","timestamp":"2026-09-27T18:52:59.645Z","message":{"role":"user","content":[{"type":"text","text":"hi"}],"attribution":"user"}}"#,
+            r#"{"type":"message","id":"7c3405e8","parentId":"b7b2e910","timestamp":"2026-09-27T18:53:02.586Z","message":{"role":"assistant","content":[{"type":"text","text":"Hai! Mau dikerjakan apa?"}],"stopReason":"stop"}}"#,
+            r#"{"type":"custom","customType":"session_exit","data":{"reason":"dispose","kind":"normal"},"id":"0c641df5","timestamp":"2026-09-27T18:53:09.647Z"}"#,
+        ];
+        fs::write(dir.join("2026-09-27T18-51-57-379Z_01a0e435.jsonl"), lines.join("\n")).unwrap();
+
+        let t = read_in(&home, CliKind::Omp, Some(&home.join("project").join("app")), now_secs());
+        let got: Vec<(Speaker, &str)> = t.lines.iter().map(|l| (l.speaker, l.text.as_str())).collect();
+        assert_eq!(got, [(Speaker::You, "hi"), (Speaker::Cli, "Hai! Mau dikerjakan apa?")]);
+        assert!(read_in(&home, CliKind::Omp, Some(Path::new(r"C:\elsewhere")), now_secs()).note.unwrap().starts_with("omp has not written"));
         let _ = fs::remove_dir_all(&home);
     }
 }

@@ -155,6 +155,7 @@
     if (s.mode === "interactive" && s.cli === "claude") return SIGNAL_TEXT.hook;
     if (s.mode === "headless" && s.cli === "opencode") return t("sessions.detail.signalOpenCode");
     if (s.cli === "pi") return t("sessions.detail.signalPi");
+    if (s.cli === "omp") return t("sessions.detail.signalOmp");
     return SIGNAL_TEXT.screen;
   });
 

@@ -1,6 +1,11 @@
 //! Pi (`@earendil-works/pi-coding-agent`, checked against 0.87.1). The event, session file and
 //! `--list-models` shapes below were captured on 2026-09-28 from Pi runs against a local
 //! OpenAI-compatible stub, since the test machine has no provider account.
+//!
+//! omp (`@oh-my-pi/pi-coding-agent`, checked against 18.3.5) is a Pi fork with the same print
+//! mode, events and session files. Where it differs (its agent dir, session folder names, tool
+//! names, `omp models --json` and a few extra events) the omp shapes come from its bundled
+//! source and from runs that sent no prompt.
 
 use std::fs::{self, File};
 use std::io::Read;
@@ -9,18 +14,26 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
+use crate::cli::CliKind;
 use crate::events::{input_summary, one_line, SessionEvent};
 use crate::models::{ModelList, ModelOption};
 
-/// Pi has no permission prompts. Plan mode and the read-only planner get only these tools.
-pub const READ_ONLY_TOOLS: &str = "read,grep,find,ls";
+/// Tools for Plan mode and the read-only planner. omp has no `ls`, and its `find` is a semantic
+/// search that is off unless a judge model is set up, so it gets `glob` instead.
+pub fn read_only_tools(kind: CliKind) -> &'static str {
+    match kind {
+        CliKind::Omp => "read,grep,glob",
+        _ => "read,grep,find,ls",
+    }
+}
 
-/// `--thinking` levels. Pi clamps each one to what the chosen model supports.
+/// `--thinking` levels. Pi and omp clamp each one to what the chosen model supports.
 pub const THINKING: [&str; 6] = ["minimal", "low", "medium", "high", "xhigh", "max"];
 
-/// `~/.pi/agent`: sessions, user skills and settings.
-pub fn agent_dir(home: &Path) -> PathBuf {
-    home.join(".pi").join("agent")
+/// `~/.pi/agent` or `~/.omp/agent`: sessions, user skills and settings.
+pub fn agent_dir(kind: CliKind, home: &Path) -> PathBuf {
+    let dot = if kind == CliKind::Omp { ".omp" } else { ".pi" };
+    home.join(dot).join("agent")
 }
 
 /// The folder under `sessions` that Pi files a working folder's sessions in: `C:\w\app` becomes
@@ -31,14 +44,50 @@ pub fn session_folder(cwd: &str) -> String {
     format!("--{}--", path.replace(['\\', '/', ':'], "-"))
 }
 
+/// `path` relative to `base`, with `/` separators, or `None` when it is not inside `base`.
+/// Letter case is ignored, as Windows does.
+fn relative_to(path: &str, base: &str) -> Option<String> {
+    let norm = |s: &str| s.replace('\\', "/").trim_end_matches('/').to_string();
+    let (path, base) = (norm(path), norm(base));
+    if base.is_empty() || !path.get(..base.len())?.eq_ignore_ascii_case(&base) {
+        return None;
+    }
+    match &path[base.len()..] {
+        "" => Some(String::new()),
+        rest => rest.strip_prefix('/').map(str::to_owned),
+    }
+}
+
+/// The folder omp files a working folder's sessions in. Under the home folder the name comes
+/// from the relative path (`~\project\app` becomes `-project-app`, home itself `-`), under the
+/// temp folder the same after `-tmp`, and anywhere else it is Pi's name.
+pub fn omp_session_folder(cwd: &str, home: &Path, tmp: &Path) -> String {
+    for (prefix, base) in [("-", home), ("-tmp", tmp)] {
+        if let Some(rel) = relative_to(cwd, &base.display().to_string()) {
+            let rel = rel.replace(['/', ':'], "-");
+            return match (rel.is_empty(), prefix.ends_with('-')) {
+                (true, _) => prefix.to_string(),
+                (false, true) => format!("{prefix}{rel}"),
+                (false, false) => format!("{prefix}-{rel}"),
+            };
+        }
+    }
+    session_folder(cwd)
+}
+
 fn modified(path: &Path) -> SystemTime {
     fs::metadata(path).and_then(|m| m.modified()).unwrap_or(UNIX_EPOCH)
 }
 
-/// The newest session file Pi wrote for `cwd` since `since`.
-pub fn newest_session(agent_dir: &Path, cwd: &Path, since: SystemTime) -> Option<PathBuf> {
-    let want = session_folder(&cwd.display().to_string()).to_lowercase();
-    let dir = fs::read_dir(agent_dir.join("sessions"))
+/// The newest session file `kind` wrote for `cwd` since `since`.
+pub fn newest_session(kind: CliKind, home: &Path, cwd: &Path, since: SystemTime) -> Option<PathBuf> {
+    let cwd_text = cwd.display().to_string();
+    let want = match kind {
+        CliKind::Omp => omp_session_folder(&cwd_text, home, &std::env::temp_dir()),
+        _ => session_folder(&cwd_text),
+    }
+    .to_lowercase();
+    let dir = fs::read_dir(agent_dir(kind, home).join("sessions"))
         .ok()?
         .filter_map(|e| e.ok())
         .map(|e| e.path())
@@ -54,13 +103,17 @@ pub fn newest_session(agent_dir: &Path, cwd: &Path, since: SystemTime) -> Option
         .map(|(_, p)| p)
 }
 
-/// The session id in a session file's header line.
+/// The session id in a session file's header line. omp writes a `title` line above it.
 pub fn session_id(file: &Path) -> Option<String> {
     let mut buf = vec![0u8; 64 * 1024];
     let n = File::open(file).ok()?.read(&mut buf).ok()?;
     let text = String::from_utf8_lossy(&buf[..n]);
-    let header: Value = serde_json::from_str(text.lines().next()?).ok()?;
-    let id = header["id"].as_str().filter(|_| header["type"] == "session")?;
+    let header = text
+        .lines()
+        .take(3)
+        .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+        .find(|v| v["type"] == "session")?;
+    let id = header["id"].as_str()?;
     (!id.is_empty()).then(|| id.to_string())
 }
 
@@ -114,8 +167,9 @@ pub fn events(v: &Value) -> Option<Vec<SessionEvent>> {
         "auto_retry_start" => vec![SessionEvent::Retrying {
             message: one_line(&s(&v["errorMessage"]), 200),
         }],
-        // `willRetry` means Pi starts the run again by itself.
-        "agent_end" if v["willRetry"] != true => {
+        // Pi's `willRetry` and omp's `yielded: false` mean the run goes on by itself (a retry,
+        // compaction, a reminder).
+        "agent_end" if v["willRetry"] != true && v["yielded"] != false => {
             let last = v["messages"].as_array().into_iter().flatten().rev().find(|m| m["role"] == "assistant");
             let ok = !last.is_some_and(failed);
             vec![SessionEvent::Done {
@@ -123,8 +177,16 @@ pub fn events(v: &Value) -> Option<Vec<SessionEvent>> {
                 summary: last.filter(|_| !ok).map(failure_text).unwrap_or_default(),
             }]
         }
+        // omp: info and warning notices are about its setup, such as MCP tools it mounted.
+        "notice" if v["level"] == "error" => vec![SessionEvent::Error {
+            message: one_line(&s(&v["message"]), 200),
+        }],
         "agent_start" | "agent_end" | "agent_settled" | "turn_start" | "turn_end" | "message_start" | "message_end"
         | "message_update" | "tool_execution_update" | "tool_execution_end" | "auto_retry_end" | "queue_update" => vec![],
+        "notice" | "tool_stream_update" | "auto_compaction_start" | "auto_compaction_end" | "retry_fallback_applied"
+        | "retry_fallback_succeeded" | "model_changed" | "config_warnings_changed" | "advisor_cost_changed"
+        | "advisor_yielded" | "ttsr_triggered" | "todo_reminder" | "todo_auto_clear" | "irc_message"
+        | "thinking_level_changed" | "goal_updated" => vec![],
         _ => return None,
     };
     Some(ev)
@@ -135,15 +197,35 @@ pub fn cli_session_id(v: &Value) -> Option<&str> {
     v["id"].as_str().filter(|_| v["type"] == "session")
 }
 
-/// Pi prints why it could not run (no API key, an unknown flag) on stderr and exits with 1.
-/// Warnings and the indented hints under an error are left out.
+/// Pi and omp print why they could not run (no API key, an unknown flag) on stderr and exit
+/// with 1. Warnings, notes and the indented hints under an error are left out. So are two omp
+/// lines that are not the reason: the source excerpt Bun prints above an uncaught error
+/// (`233 | ...`), and the line omp 18.3's startup watchdog prints even when a run succeeds.
 pub fn stderr_event(line: &str) -> Option<SessionEvent> {
     let text = line.trim_end();
-    if text.trim().is_empty() || text.starts_with(char::is_whitespace) || text.starts_with("Warning:") {
+    let excerpt = text
+        .split_once(" |")
+        .is_some_and(|(n, rest)| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) && (rest.is_empty() || rest.starts_with(' ')));
+    let watchdog = text.starts_with("omp: `") && text.contains("ended before completing");
+    if text.trim().is_empty()
+        || text.starts_with(char::is_whitespace)
+        || text.starts_with("Warning:")
+        || text.starts_with("Note:")
+        || excerpt
+        || watchdog
+    {
         return None;
     }
     Some(SessionEvent::Error {
         message: one_line(text.strip_prefix("Error: ").unwrap_or(text), 200),
+    })
+}
+
+/// The first line of `stderr` that says why the run failed.
+pub fn stderr_reason(stderr: &str) -> Option<String> {
+    stderr.lines().find_map(stderr_event).and_then(|e| match e {
+        SessionEvent::Error { message } => Some(message),
+        _ => None,
     })
 }
 
@@ -182,6 +264,43 @@ pub fn parse_models(text: &str) -> ModelList {
         })
         .collect();
     // Pi clamps a level the default model lacks, so every level is safe with it.
+    ModelList {
+        models,
+        default_efforts: THINKING.map(String::from).to_vec(),
+    }
+}
+
+/// True when `omp models --json` wrote the whole list. omp 18.3 exits with 1 after printing it.
+pub fn omp_models_complete(stdout: &str) -> bool {
+    serde_json::from_str::<Value>(stdout.trim()).is_ok_and(|v| v["models"].is_array())
+}
+
+/// Reads `omp models --json`: chat models with a `provider/id` selector, a display name and
+/// the thinking levels each one takes (`null` for none).
+pub fn parse_omp_models(text: &str) -> ModelList {
+    let v: Value = serde_json::from_str(text.trim()).unwrap_or_default();
+    let models = v["models"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|m| m["kind"].as_str().is_none_or(|k| k == "chat"))
+        .filter_map(|m| {
+            let id = m["selector"].as_str().filter(|s| !s.is_empty())?;
+            Some(ModelOption {
+                id: id.to_string(),
+                label: m["name"].as_str().or(m["id"].as_str()).unwrap_or(id).to_string(),
+                group: m["provider"].as_str().map(str::to_owned),
+                efforts: m["thinking"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                    .filter(|e| THINKING.contains(e))
+                    .map(str::to_owned)
+                    .collect(),
+            })
+        })
+        .collect();
     ModelList {
         models,
         default_efforts: THINKING.map(String::from).to_vec(),
@@ -278,17 +397,107 @@ mod tests {
 
     #[test]
     fn the_newest_session_for_a_folder_gives_its_id() {
-        let agent = std::env::temp_dir().join(format!("oc-pi-sessions-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&agent);
-        let dir = agent.join("sessions").join("--C--w-app--");
+        let home = std::env::temp_dir().join(format!("oc-pi-sessions-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&home);
+        let sessions = agent_dir(CliKind::Pi, &home).join("sessions");
+        let dir = sessions.join("--C--w-app--");
         fs::create_dir_all(&dir).unwrap();
-        fs::create_dir_all(agent.join("sessions").join("--C--w-other--")).unwrap();
+        fs::create_dir_all(sessions.join("--C--w-other--")).unwrap();
         let file = dir.join("2026-09-27T18-57-31-919Z_abc.jsonl");
         fs::write(&file, "{\"type\":\"session\",\"version\":3,\"id\":\"abc\",\"cwd\":\"C:\\\\w\\\\app\"}\n").unwrap();
-        let found = newest_session(&agent, Path::new(r"c:\W\app"), UNIX_EPOCH).unwrap();
+        let found = newest_session(CliKind::Pi, &home, Path::new(r"c:\W\app"), UNIX_EPOCH).unwrap();
         assert_eq!(found, file);
         assert_eq!(session_id(&found).as_deref(), Some("abc"));
-        assert!(newest_session(&agent, Path::new(r"C:\w\other"), UNIX_EPOCH).is_none());
-        let _ = fs::remove_dir_all(&agent);
+        assert!(newest_session(CliKind::Pi, &home, Path::new(r"C:\w\other"), UNIX_EPOCH).is_none());
+        assert!(newest_session(CliKind::Omp, &home, Path::new(r"c:\W\app"), UNIX_EPOCH).is_none());
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn omp_names_session_folders_from_the_home_relative_path() {
+        let home = Path::new(r"C:\Users\yusup");
+        let tmp = Path::new("/tmp");
+        assert_eq!(omp_session_folder(r"C:\Users\yusup\project\opencompanion", home, tmp), "-project-opencompanion");
+        assert_eq!(omp_session_folder(r"c:\users\YUSUP\Project\app\", home, tmp), "-Project-app");
+        assert_eq!(omp_session_folder(r"C:\Users\yusup", home, tmp), "-");
+        assert_eq!(omp_session_folder(r"C:\Users\yusupx\app", home, tmp), "--C--Users-yusupx-app--");
+        assert_eq!(omp_session_folder(r"D:\work\app", home, tmp), "--D--work-app--");
+        assert_eq!(omp_session_folder("/tmp/scratch/a", Path::new("/home/me"), tmp), "-tmp-scratch-a");
+        assert_eq!(omp_session_folder("/tmp", Path::new("/home/me"), tmp), "-tmp");
+        assert_eq!(read_only_tools(CliKind::Omp), "read,grep,glob");
+        assert_eq!(read_only_tools(CliKind::Pi), "read,grep,find,ls");
+    }
+
+    // Trimmed from an omp 18.3.5 session file: a padded title line comes before the header.
+    #[test]
+    fn omp_session_files_start_with_a_title_line() {
+        let home = std::env::temp_dir().join(format!("oc-omp-sessions-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&home);
+        let dir = agent_dir(CliKind::Omp, &home).join("sessions").join("-project-app");
+        fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("2026-09-27T18-51-57-379Z_01a0e435.jsonl");
+        let lines = [
+            r#"{"type":"title","v":1,"title":"","updatedAt":"2026-09-27T18:51:57.379Z","pad":"          "}"#,
+            r#"{"type":"session","version":3,"id":"01a0e435-aa43-7314-b8f4-36a8762d4b76","timestamp":"2026-09-27T18:51:57.379Z","cwd":"C:\\Users\\me\\project\\app"}"#,
+        ];
+        fs::write(&file, lines.join("\n")).unwrap();
+        let found = newest_session(CliKind::Omp, &home, &home.join("project").join("app"), UNIX_EPOCH).unwrap();
+        assert_eq!(found, file);
+        assert_eq!(session_id(&found).as_deref(), Some("01a0e435-aa43-7314-b8f4-36a8762d4b76"));
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    // omp's `agent_end` carries `yielded` instead of `willRetry`, and it adds notices.
+    #[test]
+    fn omp_events_end_only_when_the_agent_yields() {
+        let resumes = r#"{"type":"agent_end","messages":[{"role":"assistant","content":[],"stopReason":"error"}],"isTerminal":false,"yielded":false}"#;
+        assert!(parse(resumes).is_empty());
+        let done = r#"{"type":"agent_end","messages":[{"role":"assistant","content":[{"type":"text","text":"Done."}],"stopReason":"stop"}],"isTerminal":true,"yielded":true}"#;
+        assert_eq!(parse(done), vec![Done { ok: true, summary: String::new() }]);
+        let mounted = r#"{"type":"notice","level":"info","message":"xd://: mounted mcp__context7_query_docs","source":"xdev"}"#;
+        assert!(parse(mounted).is_empty());
+        let failed = r#"{"type":"notice","level":"error","message":"Signed out of anthropic"}"#;
+        assert_eq!(parse(failed), vec![Error { message: "Signed out of anthropic".into() }]);
+        assert!(parse(r#"{"type":"tool_stream_update","toolCallId":"c1","toolName":"bash"}"#).is_empty());
+        assert!(parse(r#"{"type":"thinking_level_changed","thinkingLevel":"high"}"#).is_empty());
+    }
+
+    // Captured from `omp --mode json --tools read,ls` with nothing on stdin.
+    #[test]
+    fn omp_stderr_keeps_the_error_and_drops_bun_s_excerpt_and_the_watchdog() {
+        let stderr = "omp: `omp launch` ended before completing: the event loop drained while it was still pending (rerun with PI_DEBUG_STARTUP=1 to see the last phase reached)\n\
+                      233 | \n\
+                      234 | ${G.bold(\"Plugin Options:\")}\n\
+                      \n\
+                      CliUsageError: Unknown tool in --tools: ls. Valid tools: read, write.\n      \
+                      at OYe (C:\\omp\\dist\\cli.js:238:3880)\n\
+                      Warning: MCP server \"vercel\" failed to connect: HTTP 401; its tools are unavailable for this run.\n";
+        let kept: Vec<SessionEvent> = stderr.lines().filter_map(stderr_event).collect();
+        assert_eq!(kept, vec![Error { message: "CliUsageError: Unknown tool in --tools: ls. Valid tools: read, write.".into() }]);
+        assert_eq!(stderr_reason(stderr).as_deref(), Some("CliUsageError: Unknown tool in --tools: ls. Valid tools: read, write."));
+        assert_eq!(stderr_event("Note: plan.defaultOnStartup is ignored in print mode"), None);
+        assert_eq!(stderr_event("2 | 3 errors"), None);
+        assert_eq!(stderr_event("404 |not a table"), Some(Error { message: "404 |not a table".into() }));
+    }
+
+    // Trimmed from `omp models --json` (18.3.5).
+    #[test]
+    fn omp_models_come_from_its_json_list() {
+        let text = r#"{"models":[
+            {"provider":"amazon-bedrock","kind":"chat","id":"anthropic.claude-opus-4-6-v1","selector":"amazon-bedrock/anthropic.claude-opus-4-6-v1","name":"Claude Opus 4.6","reasoning":true,"thinking":["low","medium","high","max"]},
+            {"provider":"amazon-bedrock","kind":"chat","id":"anthropic.claude-3-haiku-20240307-v1:0","selector":"amazon-bedrock/anthropic.claude-3-haiku-20240307-v1:0","name":"Claude Haiku 3","reasoning":false,"thinking":null},
+            {"provider":"openai","kind":"embedding","id":"text-embedding-3-small","selector":"openai/text-embedding-3-small","name":"Embedding"}
+        ]}"#;
+        assert!(omp_models_complete(text));
+        assert!(!omp_models_complete("omp: `omp models` ended before completing"));
+        let list = parse_omp_models(text);
+        let ids: Vec<&str> = list.models.iter().map(|m| m.id.as_str()).collect();
+        assert_eq!(ids, ["amazon-bedrock/anthropic.claude-opus-4-6-v1", "amazon-bedrock/anthropic.claude-3-haiku-20240307-v1:0"]);
+        assert_eq!(list.models[0].label, "Claude Opus 4.6");
+        assert_eq!(list.models[0].group.as_deref(), Some("amazon-bedrock"));
+        assert_eq!(list.models[0].efforts, ["low", "medium", "high", "max"]);
+        assert!(list.models[1].efforts.is_empty());
+        assert_eq!(list.default_efforts.len(), THINKING.len());
+        assert!(parse_omp_models("").models.is_empty());
     }
 }
