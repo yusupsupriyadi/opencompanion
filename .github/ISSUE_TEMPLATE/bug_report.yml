@@ -1,0 +1,115 @@
+name: Bug report
+description: Something in OpenCompanion does not work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. For a security problem, do not use this form: follow SECURITY.md and report it privately.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you see? Include the exact error text if there was one.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start Codex CLI, interactive, in a project folder
+        2. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where in the app
+      options:
+        - Sessions (Overview, Session, All sessions)
+        - Sessions opened outside OpenCompanion
+        - Chat planner
+        - Board
+        - Phone companion
+        - CLIs screen or Onboarding
+        - Skills screen
+        - Notifications or tray
+        - Settings
+        - Landing page
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: cli
+    attributes:
+      label: CLI involved
+      multiple: true
+      options:
+        - Claude Code
+        - Codex CLI
+        - OpenCode
+        - Gemini CLI
+        - Not specific to a CLI
+    validations:
+      required: true
+  - type: dropdown
+    id: session-mode
+    attributes:
+      label: Session mode
+      options:
+        - Interactive
+        - Headless
+        - Not about a session
+  - type: input
+    id: cli-version
+    attributes:
+      label: CLI version
+      description: The output of the CLI's --version, or the version shown on the CLIs screen.
+      placeholder: "codex-cli 0.153.4"
+  - type: input
+    id: version
+    attributes:
+      label: OpenCompanion version or commit
+      placeholder: "0.1.0, or a commit hash"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: phone
+    attributes:
+      label: Phone and browser
+      description: Only if the phone companion is involved.
+      placeholder: "Android 15, Chrome"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or terminal output
+      description: Remove paths, prompts, tokens, pairing codes and anything else private before you paste.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true
+        - label: I removed private information from everything above.
+          required: true

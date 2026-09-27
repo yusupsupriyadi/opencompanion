@@ -1,0 +1,67 @@
+name: Feature request
+description: Suggest a change or a new feature.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the Status and Roadmap sections of the README first; your idea may already be listed there.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to do
+      description: Describe the situation and what gets in the way today.
+      placeholder: "I run three Codex CLI sessions and ..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like OpenCompanion to do
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do now instead
+      description: Workarounds or other tools you have tried.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where in the app
+      options:
+        - Sessions
+        - Chat planner
+        - Board
+        - Phone companion
+        - CLIs and CLI support
+        - Skills screen
+        - Notifications or tray
+        - Settings
+        - Something new
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: cli
+    attributes:
+      label: CLI involved
+      multiple: true
+      options:
+        - Claude Code
+        - Codex CLI
+        - OpenCode
+        - Gemini CLI
+        - Another CLI (name it below)
+        - Not specific to a CLI
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: Screenshots, sketches, links to the CLI's documentation.
+  - type: checkboxes
+    id: pr
+    attributes:
+      label: Contributing
+      options:
+        - label: I would like to open a pull request for this myself.

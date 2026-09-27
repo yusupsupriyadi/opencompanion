@@ -1,0 +1,95 @@
+# Contributing to OpenCompanion
+
+Bug reports, fixes, translations and ideas are all welcome. This page covers how to set up the project, which checks to run, and what a pull request needs.
+
+By taking part you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md). Security problems go through [SECURITY.md](SECURITY.md), never through a public issue.
+
+## Before you write code
+
+- For a bug, open an issue with the bug report form, including your OS, the CLI and its version, and what you saw.
+- For a new feature or a larger change, open a feature request first, so the shape is agreed before you spend time on it.
+- Small fixes (typos, a clear bug with an obvious fix) can go straight to a pull request.
+
+## Set up
+
+You need Rust (stable, with the MSVC toolchain on Windows), the [Tauri 2 prerequisites](https://tauri.app/start/prerequisites/) for your platform, and [Bun](https://bun.sh).
+
+```sh
+git clone https://github.com/yusupsupriyadi/opencompanion.git
+cd opencompanion
+bun install
+bun run tauri dev
+```
+
+`bun run tauri dev` starts Vite on port 1420 and opens the desktop window with hot reload. `bun run tauri build` writes an installer to `src-tauri/target/release/bundle`.
+
+You can work on most screens and run every test without any AI CLI installed. To try real sessions, install at least one of Claude Code, Codex CLI or OpenCode and sign in to it. Real sessions use your own account and quota.
+
+Windows 11 is the only tested platform. If you build on macOS or Linux, say so in your issue or pull request; reports from those platforms are especially useful.
+
+## Checks
+
+Run all four before you open a pull request:
+
+```sh
+bun run check                 # svelte-check: types in .svelte and .ts files
+bun run test                  # Vitest + Testing Library in jsdom, backend calls mocked
+cd src-tauri
+cargo test                    # Rust unit tests and the integration tests in src-tauri/tests
+cargo clippy --all-targets    # keep it at zero warnings
+```
+
+`bun run test` needs no Tauri runtime: the component tests mock the backend. `cargo test` runs the unit tests in each module plus `src-tauri/tests/manager.rs` (the session manager) and `src-tauri/tests/companion.rs` (the phone API and WebSocket).
+
+### Tests that need no real CLI
+
+The integration tests start `fake-cli` (`src-tauri/src/bin/fake-cli.rs`) in place of a real CLI. It prints the event formats captured from Claude Code, Codex CLI and OpenCode during the M0 spike:
+
+| Invocation | Behaves like |
+|---|---|
+| `fake-cli run --format json --dir D PROMPT` | an OpenCode headless turn |
+| `fake-cli -p ...` | a Claude Code stream-json turn with one permission request |
+| `fake-cli [PROMPT]` | an interactive CLI: prints a prompt, echoes one line (also as the terminal title), exits |
+
+So `cargo test` needs no CLI, no login and no quota, and it gives the same result on every machine. If you change how a CLI's output is parsed in `events.rs`, update `fake-cli` so the tests cover the new format.
+
+### Checking against the real CLIs
+
+`src-tauri/src/bin/air-spike.rs` exercises the Rust core from a terminal, without the webview. It uses real CLIs, so it uses your quota:
+
+```sh
+cd src-tauri
+cargo run --bin air-spike -- detect
+cargo run --bin air-spike -- headless claude --cwd <scratch folder> --prompt "Create hello.txt" --out run.jsonl --answer deny
+cargo run --bin air-spike -- replay claude run.jsonl
+```
+
+The comment at the top of `air-spike.rs` lists every subcommand (`detect`, `scan`, `pty`, `headless`, `replay`, `waiting`, `plan`). Use an empty scratch folder outside the repository, and do not commit captured output that contains your paths, prompts or account details.
+
+## Code style
+
+- Match the code around you. The Rust code is not run through rustfmt yet, and the frontend has no formatter set up, so do not reformat files you are not otherwise changing.
+- Svelte 5 with runes and TypeScript on the frontend; Rust 2021 edition in `src-tauri`.
+- Comments explain why something is done, not what the next line does.
+- Every string a person reads lives in `src/lib/i18n/*.ts`, in both English and Indonesian. Backend messages are written in English in Rust and translated by pattern in `src/lib/i18n/backend.ts`; add a pattern there when you add a new message.
+- Copy follows the voice in `DESIGN.md` section 13: name the CLI and the folder ("Codex CLI is waiting for you in ai-remote"), let buttons say their action ("Run in uninote"), and use no em dashes, buzzwords or decorative emoji.
+- UI follows `DESIGN.md`: its colour tokens in both the Day and Dusk themes, Phosphor icons, a visible focus ring, controls reachable by keyboard, and status that is never shown by colour alone.
+
+A few product rules hold everywhere, and changes that break them will not be merged:
+
+- OpenCompanion never installs a CLI. It shows the command for the user to run.
+- It never writes to a CLI's own folders (settings, history, skills). Claude Code hooks are passed per session with `--settings` from the app data folder.
+- It never answers a CLI's opening dialogs, such as a folder trust question or an update offer, by itself.
+- Board cards that start without Run never use Bypass mode.
+- The phone companion stays off until the user turns it on.
+
+## Commits and pull requests
+
+- Write commit messages in English, as [Conventional Commits](https://www.conventionalcommits.org/): `feat(phone): ...`, `fix(session): ...`, `docs(readme): ...`, `test(...)`, `refactor(...)`, `chore(...)`.
+- Keep one logical change per pull request, and leave unrelated refactors for a separate one.
+- Add or update tests when behavior changes.
+- In the pull request, say which checks you ran and on which OS.
+- For UI changes, add screenshots in the Day and Dusk themes. If the phone page changes, add one at phone width (390 px). Check both languages.
+- Update `README.md` when a feature, limit or requirement changes, and add a line under Unreleased in `CHANGELOG.md`.
+
+By contributing, you agree that your contribution is licensed under the [MIT License](LICENSE).

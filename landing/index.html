@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OpenCompanion</title>
-<meta name="description" content="OpenCompanion is a desktop app that starts and watches Claude Code, Codex CLI and OpenCode on your computer, and tells you when a session needs you.">
+<meta name="description" content="OpenCompanion is a desktop app that starts and watches Claude Code, Codex CLI and OpenCode on your computer, tells you when a session needs you, and lets you answer from your phone. Open source, MIT licensed.">
 <meta name="theme-color" content="#2F5A36">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Crect width='256' height='256' rx='56' fill='%23FBF3CF'/%3E%3Cpath fill='%232F5A36' d='M0 196C64 136 148 118 256 146V200A56 56 0 0 1 200 256H56A56 56 0 0 1 0 200Z'/%3E%3Cpath fill='%2333361F' d='M160 96h16v16h-16z'/%3E%3Cpath fill='%232C5A8C' d='M144 112h48v32h-48z'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -336,7 +336,10 @@ html:not(.motion) .m-only { display: none !important; }
 #hud .horizon .now { right: auto; left: 0; background: var(--p-btn); }
 
 /* ---------- After dark: what it runs, how to build it ---------- */
-.facts { position: relative; z-index: 4; padding: 120px 16px; }
+.facts { position: relative; z-index: 4; padding: 72px 16px; }
+/* The first and last facts keep the long pause; the ones between sit closer, as one evening's reading. */
+#clis { padding-top: 120px; }
+#get { padding-bottom: 120px; }
 .motion .facts, .motion .foot { --p-bg: rgba(36, 42, 34, .74); --p-ink: #F3EBC8; --rim1: .18; --rim2: .08; --p-btn: #9CC45A; --p-btn-ink: #1B1F1A; }
 .facts-in { max-width: 1120px; margin: 0 auto; display: grid; gap: 20px; }
 @media (min-width: 900px) {
@@ -344,11 +347,12 @@ html:not(.motion) .m-only { display: none !important; }
   .facts-in .notes { grid-column: 1 / -1; }
 }
 .f-head { padding: 22px 26px 24px; }
-.f-head h2, .get-card h2 { font-size: clamp(30px, 3.2vw, 46px); font-weight: 800; line-height: 1.1; }
+.facts h2 { font-size: clamp(30px, 3.2vw, 46px); font-weight: 800; line-height: 1.1; }
+.facts h3 { margin: 0; font-size: 19px; font-weight: 800; line-height: 1.25; }
 .f-head p { margin-top: 12px; font-size: 17px; line-height: 1.45; }
 .glass-panel { margin: 0; padding: 6px; list-style: none; border-radius: 14px; background: var(--glass); color: var(--ink); box-shadow: var(--glass-rim); border: 1px solid var(--line); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
-.cli-list li { display: flex; gap: 14px; align-items: flex-start; padding: 16px; border-radius: 10px; }
-.cli-list li + li { border-top: 1px solid var(--line); border-radius: 0; }
+.cli-list > li { display: flex; gap: 14px; align-items: flex-start; padding: 16px; border-radius: 10px; }
+.cli-list > li + li { border-top: 1px solid var(--line); border-radius: 0; }
 .cli-list .climark { width: 40px; height: 40px; border-radius: 8px; font-size: 13px; }
 .cli-list b { font-size: 17px; font-weight: 800; }
 .cli-list p { margin-top: 2px; font-size: 15px; color: var(--ink-2); line-height: 1.45; }
@@ -368,14 +372,71 @@ html:not(.motion) .m-only { display: none !important; }
 .foot-in { max-width: 1120px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 12px 18px; font-size: 14px; }
 .foot-in .brand-sm { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; margin-right: auto; }
 .foot-in a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; text-underline-offset: 3px; }
-#clis, #get { scroll-margin-top: 72px; }
+#clis, #features, #pair, #privacy, #limits, #get { scroll-margin-top: 72px; }
+
+/* What each CLI can do, as the app's own read-only chips. Only true abilities are listed, so no state rides on colour. */
+.cli-list .ver { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--ink-2); }
+.caps { margin: 10px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.caps li { padding: 2px 7px; border: 1px solid var(--line-strong); border-radius: 6px; font: 400 12px/1.25 var(--font-pixel); color: var(--ink-2); }
+
+/* The rest of the app: the list leads and the heading follows, a break from the heading-first section above. */
+@media (min-width: 900px) {
+  .facts-in.flip { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+  .facts-in.flip .f-head { order: 2; }
+  .facts-in.flip .modes-panel { order: 3; }
+}
+.feat { padding: 18px 22px; display: grid; gap: 16px 32px; }
+@media (min-width: 700px) { .feat { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.feat dt { font-size: 17px; font-weight: 800; }
+.feat dd { margin: 2px 0 0; font-size: 15px; line-height: 1.45; color: var(--ink-2); }
+.modes-panel { grid-column: 1 / -1; padding: 20px 22px 18px; }
+/* Four equal columns: in the app the modes are four choices in one picker. */
+.modes { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 12px 24px; }
+@media (min-width: 700px) { .modes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1000px) { .modes { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.modes li { padding-top: 10px; border-top: 1px solid var(--line); }
+.modes b { display: block; font-size: 16px; font-weight: 800; }
+.modes span { display: block; margin-top: 2px; font-size: 15px; line-height: 1.45; color: var(--ink-2); }
+.modes-panel .small { margin-top: 14px; font-size: 14px; color: var(--ink-2); }
+.facts a:not(.btn) { text-underline-offset: 3px; }
+
+/* Pairing reads top to bottom: the heading spans, the real steps lead, the caveats sit beside them. */
+@media (min-width: 900px) {
+  .facts-in.pair-in { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+  .pair-in .f-head { grid-column: 1 / -1; max-width: 760px; }
+  .facts-in .pair-notes { grid-column: auto; grid-template-columns: 1fr; }
+}
+.steps { counter-reset: step; padding: 8px 22px; }
+.steps > li { counter-increment: step; display: grid; grid-template-columns: 30px minmax(0, 1fr); column-gap: 10px; padding: 14px 0; }
+.steps > li + li { border-top: 1px solid var(--line); }
+/* The step number is the page's one small pixel label, as DESIGN.md keeps Pixelify for. */
+.steps > li::before { content: counter(step); grid-row: span 2; font: 500 18px/1.3 var(--font-pixel); color: var(--forest); }
+.steps b { display: block; font-size: 17px; font-weight: 800; }
+.steps span { display: block; margin-top: 2px; font-size: 15px; line-height: 1.45; color: var(--ink-2); }
+
+/* Privacy in one panel, two columns: what stays and what leaves are read side by side. */
+.privacy { max-width: 1120px; margin: 0 auto; padding: 28px 30px 30px; }
+.privacy .lead { margin-top: 10px; font-size: 17px; line-height: 1.45; }
+.split { display: grid; gap: 24px; margin-top: 22px; }
+@media (min-width: 800px) { .split { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; } }
+.split ul { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 8px; font-size: 15px; line-height: 1.5; }
+.split .mono { font-size: 13px; overflow-wrap: anywhere; }
+
+@media (min-width: 900px) { .facts-in .limits { grid-column: auto; grid-template-columns: 1fr; } }
+
+.reqs { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 16px; line-height: 1.5; }
+.foot-in .tm { flex-basis: 100%; font-size: 13px; line-height: 1.45; }
 
 @media (max-width: 599px) {
   .links .opt { display: none; }
   .brand { font-size: 16px; padding: 8px 12px; }
   .get-card { padding: 22px 18px; }
   .get-acts .btn { width: 100%; }
-  .facts { padding: 88px 16px; }
+  .facts { padding: 56px 16px; }
+  #clis { padding-top: 88px; }
+  #get { padding-bottom: 88px; }
+  .privacy { padding: 22px 18px; }
+  .feat, .steps { padding-inline: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
@@ -449,6 +510,7 @@ html:not(.motion) .m-only { display: none !important; }
   <nav class="plate links" aria-label="Page">
     <a class="opt" href="#how">How it works</a>
     <a class="opt" href="#clis">CLIs</a>
+    <a class="opt" href="#privacy">Privacy</a>
     <a class="btn primary" href="#get">Build it</a>
   </nav>
 </header>
@@ -621,19 +683,110 @@ html:not(.motion) .m-only { display: none !important; }
     <div class="facts-in">
       <div class="plate f-head">
         <h2 id="clis-title">What it runs today</h2>
-        <p>OpenCompanion finds these on your PATH. How much it can do depends on the CLI.</p>
+        <p>OpenCompanion finds these on your PATH and in common install folders. How much it can do depends on the CLI.</p>
       </div>
       <ul class="glass-panel cli-list">
-        <li><span class="climark"><svg><use href="#logo-claude"/></svg></span><div><b>Claude Code</b><p>Starts sessions, watches them, and answers their approval prompts from the desktop or your phone.</p></div></li>
-        <li><span class="climark"><svg style="color:var(--ink)"><use href="#logo-openai"/></svg></span><div><b>Codex CLI</b><p>Starts and watches sessions. Its approval prompts are answered in its own terminal.</p></div></li>
-        <li><span class="climark">OC</span><div><b>OpenCode</b><p>Starts and watches sessions. Its prompts are answered in its own terminal.</p></div></li>
-        <li><span class="climark"><svg><use href="#logo-gemini"/></svg></span><div><b>Gemini CLI</b><p>Found on your PATH and listed with its version. OpenCompanion cannot start it yet.</p></div></li>
+        <li><span class="climark"><svg><use href="#logo-claude"/></svg></span><div><b>Claude Code</b><span class="ver mono">checked with 2.1</span><p>Starts sessions, watches them, and answers their permission prompts from the desktop or your phone.</p><ul class="caps" aria-label="What works with Claude Code"><li>Interactive</li><li>Headless</li><li>Approve/Deny</li><li>Resume</li><li>Chat planner</li></ul></div></li>
+        <li><span class="climark"><svg style="color:var(--ink)"><use href="#logo-openai"/></svg></span><div><b>Codex CLI</b><span class="ver mono">checked with 0.153</span><p>Starts and watches sessions. Its permission prompts are answered in its own terminal.</p><ul class="caps" aria-label="What works with Codex CLI"><li>Interactive</li><li>Headless</li><li>Resume</li><li>Chat planner</li></ul></div></li>
+        <li><span class="climark">OC</span><div><b>OpenCode</b><span class="ver mono">checked with 1.18</span><p>Starts and watches sessions. Its prompts are answered in its own terminal, and a headless run turns them down by itself.</p><ul class="caps" aria-label="What works with OpenCode"><li>Interactive</li><li>Headless</li><li>Resume</li><li>Chat planner</li></ul></div></li>
+        <li><span class="climark"><svg><use href="#logo-gemini"/></svg></span><div><b>Gemini CLI</b><span class="ver mono">not tested</span><p>Found and listed with its version. A terminal start is wired up but has never been run against the real CLI.</p><ul class="caps" aria-label="What works with Gemini CLI"><li>Detected</li></ul></div></li>
       </ul>
       <ul class="plate notes">
-        <li>Sessions you started in your own terminal show up too, read-only, with their transcript.</li>
-        <li>Tested on Windows 11. macOS and Linux build from the same code but are untested.</li>
-        <li>Your phone reaches the computer over your own network. Away from home, use a VPN such as Tailscale.</li>
-        <li>Web Push is not built yet, so the phone shows notifications while its page is open.</li>
+        <li>Sessions you started in your own terminal show up too, read-only. For Claude Code, Codex CLI and OpenCode you also see their transcript.</li>
+        <li>OpenCompanion never installs a CLI. The CLIs screen shows the install command, and you run it yourself.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="features" class="facts" aria-labelledby="features-title">
+    <div class="facts-in flip">
+      <div class="plate f-head">
+        <h2 id="features-title">The rest of the app</h2>
+        <p>The day above showed Chat, the Overview, the phone and the Board. Here is what else is in there.</p>
+      </div>
+      <dl class="glass-panel feat">
+        <div><dt>Waiting for you</dt><dd>Claude Code permission prompts get Approve and Deny. A CLI's opening dialogs, like a folder trust question, are flagged and never answered for you.</dd></div>
+        <div><dt>Session control</dt><dd>Stop, resume or send a follow-up message. All sessions has search and filters, and every session shows its CPU and memory.</dd></div>
+        <div><dt>Chat planner</dt><dd>A CLI running headless with read-only access to your project folders, or any OpenAI-compatible endpoint such as Ollama. Pick its model and thinking level, and type @ to name a folder.</dd></div>
+        <div><dt>Notifications</dt><dd>Choose them per CLI and per project folder. On Windows, clicking one opens its session.</dd></div>
+        <div><dt>Skills</dt><dd>Compares the skill folders of each CLI and shows which skill is missing or different, with a command you copy and run.</dd></div>
+        <div><dt>Tray</dt><dd>Sessions keep running after you close the window, and OpenCompanion can start in the tray when you sign in to Windows.</dd></div>
+        <div><dt>English or Indonesian</dt><dd>Every screen, the phone page, the notifications and the tray menu.</dd></div>
+        <div><dt>Settings</dt><dd>Text size, how long finished sessions are kept, and a custom path for each CLI.</dd></div>
+      </dl>
+      <div class="glass-panel modes-panel">
+        <h3>Four permission modes</h3>
+        <ul class="modes">
+          <li><b>Ask me</b><span>Every permission prompt comes to you as Waiting for you.</span></li>
+          <li><b>Plan</b><span>The CLI reads and plans, and changes nothing.</span></li>
+          <li><b>Auto</b><span>The CLI approves routine actions itself.</span></li>
+          <li><b>Bypass</b><span>No permission checks. Board cards that start on their own never use it.</span></li>
+        </ul>
+        <p class="small">You pick a mode for each session. OpenCompanion turns it into each CLI's own flags, <a href="https://github.com/yusupsupriyadi/opencompanion#permission-modes">listed in the README</a>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="pair" class="facts" aria-labelledby="pair-title">
+    <div class="facts-in pair-in">
+      <div class="plate f-head">
+        <h2 id="pair-title">Pair your phone</h2>
+        <p>Phone access is off until you turn it on. Then the phone talks to your computer over your own Wi-Fi, with no account and no server in between.</p>
+      </div>
+      <ol class="glass-panel steps">
+        <li><b>Turn on phone access</b><span>In Settings, under Phone access. It listens on port 8765 unless you pick another one.</span></li>
+        <li><b>Scan the code</b><span>Join the same Wi-Fi, then scan the QR code with the phone's camera, or open the address shown and type the 6-digit code. A code works once and expires after 2 minutes.</span></li>
+        <li><b>Name the phone</b><span>It shows your sessions right away. Settings lists it under Paired devices, where you can remove it.</span></li>
+        <li><b>Add it to the home screen</b><span>Optional. It then opens like an app whenever your computer is reachable.</span></li>
+      </ol>
+      <ul class="plate notes pair-notes">
+        <li>The connection is plain HTTP. On a network you do not trust, or away from home, use a VPN with HTTPS, such as Tailscale.</li>
+        <li>A paired phone can do what you can do at the desktop, including starting a CLI in Bypass mode. Remove a phone you no longer use.</li>
+        <li>On iPhone, the Home Screen app keeps its own storage, so pair it once more by typing the code.</li>
+        <li>The phone shows notifications while its page is open. Web Push is not built yet.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="privacy" class="facts" aria-labelledby="privacy-title">
+    <div class="glass-panel privacy">
+      <h2 id="privacy-title">Where your data goes</h2>
+      <p class="lead">No account, no cloud server, no telemetry.</p>
+      <div class="split">
+        <div>
+          <h3>Stays on this computer</h3>
+          <ul>
+            <li>Sessions, events, Chat, the Board and your settings, in one SQLite file in the app data folder: <span class="mono">%APPDATA%\dev.opencompanion.app</span> on Windows.</li>
+            <li>Terminal logs, and the hook files for Claude Code sessions, in the same folder.</li>
+            <li>Paired phones, stored only as SHA-256 hashes of their tokens.</li>
+            <li>The CLIs' own files. OpenCompanion reads their history and skill folders, and never writes to them.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Leaves it, and where to</h3>
+          <ul>
+            <li>Each CLI talks to its own provider with your login and your quota, the same as in your terminal.</li>
+            <li>The Chat planner sends your message, recent turns, the installed CLIs, folder paths and current sessions to the CLI it runs, or to the endpoint you set.</li>
+            <li>The phone page and its updates go to your paired phones, over your own network, only while phone access is on.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="limits" class="facts" aria-labelledby="limits-title">
+    <div class="facts-in">
+      <div class="plate f-head">
+        <h2 id="limits-title">Known limits</h2>
+        <p>Read these before you build, so none of them surprises you later.</p>
+      </div>
+      <ul class="plate notes limits">
+        <li>Approve/Deny works for Claude Code only. Codex CLI and OpenCode prompts are answered in their own terminal.</li>
+        <li>A successful headless Codex CLI run has not been observed yet. On the development machine Codex could not sign in, so its events are parsed from its documentation.</li>
+        <li>Gemini CLI is detected, but no Gemini session has been run yet. It has no headless mode and cannot plan in Chat.</li>
+        <li>Windows 11 is the only tested platform. macOS and Linux build from the same code.</li>
+        <li>On macOS and Linux, clicking a notification does not open its session.</li>
+        <li>There are no prebuilt installers yet, so you build OpenCompanion from source.</li>
       </ul>
     </div>
   </section>
@@ -641,12 +794,18 @@ html:not(.motion) .m-only { display: none !important; }
   <section id="get" class="facts" aria-labelledby="get-title">
     <div class="get-card">
       <h2 id="get-title">Build it on your computer</h2>
-      <p>OpenCompanion is a Tauri 2 app. You need Rust (with the MSVC toolchain on Windows), Bun, and at least one supported CLI on your PATH.</p>
+      <p>OpenCompanion is a Tauri 2 app. You need:</p>
+      <ul class="reqs">
+        <li>Windows 11. macOS and Linux build from the same code but are untested.</li>
+        <li>Rust (stable), with the MSVC toolchain on Windows, and the <a href="https://tauri.app/start/prerequisites/">Tauri 2 prerequisites</a> for your system.</li>
+        <li>Bun.</li>
+        <li>At least one of Claude Code, Codex CLI or OpenCode, installed and signed in.</li>
+      </ul>
       <pre class="term" id="build-cmds">git clone https://github.com/yusupsupriyadi/opencompanion.git
 cd opencompanion
 bun install
 bun run tauri build</pre>
-      <p class="small">The installer lands in <span class="mono">src-tauri/target/release/bundle</span>. For a window with hot reload, run <span class="mono">bun run tauri dev</span> instead.</p>
+      <p class="small">The installer lands in <span class="mono">src-tauri/target/release/bundle</span>. For a window with hot reload, run <span class="mono">bun run tauri dev</span> instead. To run the checks or send a change, read <a href="https://github.com/yusupsupriyadi/opencompanion/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>.</p>
       <div class="get-acts">
         <a class="btn primary lg" href="https://github.com/yusupsupriyadi/opencompanion"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>Open the repository on GitHub</a>
         <button class="btn secondary lg" type="button" id="btn-copy"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg>Copy the commands</button>
@@ -660,7 +819,12 @@ bun run tauri build</pre>
   <div class="plate foot-in">
     <span class="brand-sm"><svg class="ic" aria-hidden="true"><use href="#i-logo"/></svg>OpenCompanion 0.1.0</span>
     <a href="https://github.com/yusupsupriyadi/opencompanion">Source on GitHub</a>
+    <a href="https://github.com/yusupsupriyadi/opencompanion/blob/main/LICENSE">MIT License</a>
+    <a href="https://github.com/yusupsupriyadi/opencompanion/blob/main/CONTRIBUTING.md">Contributing</a>
+    <a href="https://github.com/yusupsupriyadi/opencompanion/blob/main/SECURITY.md">Security</a>
+    <a href="https://github.com/yusupsupriyadi/opencompanion/blob/main/CHANGELOG.md">Changelog</a>
     <a href="#top">Back to the morning</a>
+    <p class="tm">Claude Code, Codex CLI, OpenCode and Gemini CLI belong to their owners. OpenCompanion is an independent project, not affiliated with them.</p>
   </div>
 </footer>
 
