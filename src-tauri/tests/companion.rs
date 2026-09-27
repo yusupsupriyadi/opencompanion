@@ -369,6 +369,13 @@ fn the_phone_starts_sessions_sends_messages_and_works_the_board() {
     assert_eq!(task.session_id.as_deref(), Some(run.as_str()));
     assert!(task.column == "progress" || task.column == "done", "{}", task.column);
     wait_for(&db, &run, "board session", |s| !s.status.is_live());
+    // The phone's Session screen gets what the desktop shows beside the output.
+    let (code, body) = http(port, "GET", &format!("/api/sessions/{run}"), t, None);
+    assert_eq!(code, 200, "{body}");
+    let detail = json(&body);
+    assert_eq!(detail["task"]["id"], task_id.as_str());
+    assert!(detail["files"].is_array(), "{body}");
+    assert!(detail["usage"].is_null(), "a finished session has no CPU or memory: {body}");
 
     manager.kill_all();
     companion.stop();

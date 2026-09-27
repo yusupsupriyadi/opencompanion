@@ -20,6 +20,7 @@ use tokio::sync::{broadcast, oneshot};
 use crate::actions::{self, RunTaskInput};
 use crate::cli::CliKind;
 use crate::db::{self, Db, Device, DispatchCard, Mode, PlannerSource};
+use crate::events::SessionEvent;
 use crate::session::{Manager, StartRequest};
 use crate::{monitor, orchestrator};
 
@@ -65,6 +66,9 @@ pub struct Companion {
     /// Ends open live connections: `Some(device id)` for one phone, `None` for every phone. A
     /// socket outlives the server's graceful shutdown, so stopping the server alone would not.
     revoke: broadcast::Sender<Option<String>>,
+    /// CPU and memory for the phone's Session screen. Kept between requests: CPU needs two
+    /// measurements, and the phone asks every few seconds while a session runs.
+    monitor: Mutex<monitor::Monitor>,
 }
 
 pub fn hash_token(token: &str) -> String {
@@ -130,6 +134,7 @@ impl Companion {
             }),
             pairing: Mutex::new(None),
             revoke,
+            monitor: Mutex::new(monitor::Monitor::new()),
         })
     }
 
@@ -374,6 +379,11 @@ async fn list_sessions(State(ctx): State<Ctx>, headers: HeaderMap) -> Response {
     }
 }
 
+/// Events the phone's Session screen shows, the newest ones.
+const PHONE_EVENTS: usize = 150;
+
+/// One session for the phone: its newest events, the terminal's screen, and what the desktop
+/// Session screen shows beside them (files changed, the Board card, CPU and memory while it runs).
 async fn one_session(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<String>) -> Response {
     if let Err(r) = authed(&ctx, &headers) {
         return r;
@@ -381,13 +391,41 @@ async fn one_session(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): Ur
     let Ok(Some(session)) = ctx.db.session(&id) else {
         return fail(StatusCode::NOT_FOUND, "Session not found.");
     };
-    let events = ctx.db.events(&id, 60).unwrap_or_default();
+    // The same 400 events the desktop reads, so Files changed agrees with it; only the newest go over the network.
+    let mut events = ctx.db.events(&id, 400).unwrap_or_default();
+    let files = changed_files(&events);
+    events.drain(..events.len().saturating_sub(PHONE_EVENTS));
     let tail = if session.mode == Mode::Interactive {
         render_screen(&ctx.manager.output(&id))
     } else {
         String::new()
     };
-    Json(json!({ "session": session, "events": events, "tail": tail })).into_response()
+    let task = ctx.db.task_for_session(&id).ok().flatten();
+    let usage = match session.pid.filter(|_| session.status.is_live()) {
+        Some(pid) => {
+            let companion = Arc::clone(&ctx);
+            tokio::task::spawn_blocking(move || companion.monitor.lock().ok()?.usage(pid))
+                .await
+                .ok()
+                .flatten()
+        }
+        None => None,
+    };
+    Json(json!({ "session": session, "events": events, "tail": tail, "files": files, "task": task, "usage": usage })).into_response()
+}
+
+/// Each file the session changed, once, with its number of edits, in the order first changed.
+fn changed_files(events: &[db::EventRow]) -> Vec<(String, u32)> {
+    let mut files: Vec<(String, u32)> = Vec::new();
+    for row in events {
+        if let SessionEvent::FileChanged { path } = &row.event {
+            match files.iter_mut().find(|(p, _)| p == path) {
+                Some((_, n)) => *n += 1,
+                None => files.push((path.clone(), 1)),
+            }
+        }
+    }
+    files
 }
 
 #[derive(Deserialize)]
@@ -933,6 +971,14 @@ mod tests {
         assert_eq!(content_type("_app/immutable/entry/start.mjs", "text/html".into()), "text/javascript");
         assert_eq!(content_type("m/icons/icon-192.png", "image/png".into()), "image/png");
         assert_eq!(content_type("index.html", "text/html".into()), "text/html");
+    }
+
+    #[test]
+    fn changed_files_are_listed_once_with_their_edit_count() {
+        let row = |event: SessionEvent| db::EventRow { id: 0, session_id: "s".into(), at: 0, event };
+        let edit = |path: &str| row(SessionEvent::FileChanged { path: path.into() });
+        let events = [edit("src/b.rs"), row(SessionEvent::Message { text: "hi".into() }), edit("src/a.rs"), edit("src/b.rs")];
+        assert_eq!(changed_files(&events), vec![("src/b.rs".to_string(), 2), ("src/a.rs".to_string(), 1)]);
     }
 
     #[test]
