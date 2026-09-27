@@ -1,6 +1,10 @@
-# OpenCompanion
+<p align="center">
+  <img src="design/logo.svg" width="112" height="112" alt="OpenCompanion logo: a pixel hiker on a green meadow hill">
+</p>
 
-A desktop app that starts, watches and answers AI coding CLIs on your computer, with a phone companion on your own network.
+<h1 align="center">OpenCompanion</h1>
+
+<p align="center">A desktop app that starts, watches and answers AI coding CLIs on your computer, with a phone companion on your own network.</p>
 
 <!-- Replace the line below with a screenshot or a short GIF, for example docs/media/overview.png. -->
 > Screenshot placeholder: the Overview with one session waiting for you.
@@ -11,26 +15,28 @@ When you run Claude Code, Codex CLI or OpenCode in several folders at once, each
 
 It is a Tauri 2 + Svelte 5 app that runs on your computer. There is no account, no cloud server and no telemetry. Each CLI keeps talking to its own provider with your own login, as it does in your terminal.
 
-The UI is available in English and Indonesian (Settings › Language). The current version is 0.1.0, and Windows 11 is the tested platform. There are no prebuilt releases yet, so you [build it from source](#build-from-source).
+The UI is available in English and Indonesian (Settings › Language). The current version is 0.1.1, and Windows 11 is the tested platform. There are no prebuilt releases yet, so you [build it from source](#build-from-source).
 
 ## Features
 
-- Start Claude Code, Codex CLI or OpenCode in a project folder, in a real terminal (ConPTY on Windows) or headless, where the CLI's JSON output becomes a list of events. Stop a session, resume it, or send it a follow-up message.
-- See every session on one line in the Overview: status, latest event and an activity track. All sessions adds search and filters, and each session shows its CPU and memory use.
+- Start Claude Code, Codex CLI or OpenCode in a project folder, in a real terminal (ConPTY on Windows) or headless, where the CLI's JSON output becomes a list of events. Stop a session, resume it, or send it a follow-up message. When a terminal session is idle, Mark done closes the CLI and counts the session as Done.
+- Type into a session's terminal as you would in your own. Shift+Enter adds a line, and Ctrl+V pastes text or an image; an image is saved and pasted as its file path, which Claude Code and Codex CLI attach as the image.
+- See every session on one line in the Overview: status, latest event and an activity track. The sidebar lists every session under its project folder, with pinned folders and sessions first. All sessions adds search and filters, and each session shows its CPU and memory use.
 - Sessions you opened in your own terminal show up too, read-only, with a transcript read from the CLI's own history.
 - Know when a session is waiting for you. Claude Code permission prompts get Approve and Deny buttons. A CLI's opening dialogs, such as a folder trust question or an update offer, show as Waiting for you and are never answered for you.
 - Get OS notifications, with choices per CLI and per project folder. On Windows, clicking one opens its session.
 - Describe work in Chat, in plain words. A planner turns it into one card per session; you read each prompt, then press Run. The planner is a CLI running headless with read-only access to your project folders, or any OpenAI-compatible endpoint such as Ollama, LM Studio or OpenRouter. Type `@` to name a folder, and pick the planner's model and thinking level.
 - Line up work on the Board: Pending, Todo, In progress and Done. A card starts its CLI when you press Run and follows the session to Done. In folders you choose, cards may start without Run, but never in Bypass mode.
-- Compare the skill folders of each CLI on the Skills screen: which skill is missing from a CLI's folder or has different content there, with a command to copy and run yourself.
+- Run the project itself on the Terminal screen: plain shells in a project folder, one tab each, for a dev server, tests or git. They are separate from sessions, keep no history, and are reachable from the desktop only, never from the phone.
+- Compare the skill folders of each CLI in Settings › Skills: which skill is missing from a CLI's folder or has different content there, with a command to copy and run yourself.
 - Keep sessions running from the tray after the window closes, and start in the tray when you sign in to Windows.
-- Answer from your phone on the same network: watch sessions, Approve or Deny, start new sessions, send messages, plan in Chat and work the Board. The phone page can go on the home screen.
+- Answer from your phone on the same network: watch sessions, Approve or Deny, start new sessions, mark them done, send messages, plan in Chat and work the Board. The phone page can go on the home screen.
 - Pick a [permission mode](#permission-modes) per session: Ask me, Plan, Auto or Bypass.
-- Settings also covers text size, retention of finished sessions, custom CLI paths and the UI language.
+- Settings also covers the Day or Dusk theme, text size, retention of finished sessions, custom CLI paths and the UI language.
 
 ## Supported CLIs
 
-OpenCompanion looks for these on your PATH and in common install folders, and never installs one for you. The CLIs screen shows each install command for you to copy and run in your own terminal.
+OpenCompanion looks for these on your PATH and in common install folders, and never installs one for you. Settings › CLIs shows each install command for you to copy and run in your own terminal.
 
 | | Claude Code | Codex CLI | OpenCode | Gemini CLI |
 |---|---|---|---|---|
@@ -49,6 +55,7 @@ Notes:
 - Codex CLI's headless success events are parsed from its documentation. On the development machine Codex could not authenticate, so only its failure path was observed.
 - OpenCode's headless `opencode run` rejects permission prompts by itself, so in Ask me mode a tool call that needs permission fails. Interactive OpenCode sessions ask in their terminal as usual.
 - Gemini CLI was not installed on the test machine. It is detected and listed, and an interactive start is wired up, but that path has never been run against the real CLI.
+- On Windows, an interactive session starts PowerShell 7 (or Windows PowerShell when PowerShell 7 is missing), which loads your profile and then starts the CLI. The session ends when the CLI exits. Headless sessions start the CLI directly.
 
 ## Requirements
 
@@ -97,10 +104,12 @@ Good to know:
   - macOS (untested): `~/Library/Application Support/dev.opencompanion.app`
   - Linux (untested): `~/.local/share/dev.opencompanion.app`
 - That folder holds `opencompanion.db` (SQLite: sessions, events, Chat, Board, settings and paired devices), terminal logs under `sessions/`, the hook files for Claude Code sessions under `hooks/`, and the planner's working folder `planner/`.
+- Images you paste into a terminal are saved in the system temp folder, under `opencompanion-paste` (`%TEMP%\opencompanion-paste` on Windows). OpenCompanion does not delete them; they stay until you or the system clear the temp folder.
+- Shells on the Terminal screen are not saved: their output lives in memory while the tab is open and is gone when you close it or quit.
 - Paired phones are stored as SHA-256 hashes of their device tokens, not the tokens themselves.
 - The API key of a custom Chat planner endpoint is saved with the settings in `opencompanion.db`, unencrypted.
 - OpenCompanion reads the CLIs' own files and never writes to them: session history for transcripts (OpenCode's database is opened read-only) and skill folders. Claude Code hooks are passed per session with `--settings`, so your own Claude Code settings stay as they are.
-- Finished sessions and their logs can be deleted after a number of days you choose in Settings. 0 keeps them.
+- Settings › History keeps finished sessions Forever by default, or for 90, 30, 7 or 1 day, after which they are deleted with their events, logs and hook files. Delete finished sessions clears them at once.
 
 ## Permission modes
 
@@ -141,19 +150,21 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, code style and pull requests.
 | `src-tauri/src/actions.rs` | Chat, dispatch card and Board work shared by the desktop commands and the phone API |
 | `src-tauri/src/monitor.rs`, `cli.rs`, `db.rs`, `projects.rs` | Outside-session scan and CPU/memory per session, CLI detection, SQLite store, project folder discovery |
 | `src-tauri/src/transcript.rs` | Transcripts of sessions opened outside OpenCompanion, read from each CLI's own history (Claude Code and Codex JSONL, OpenCode's SQLite database opened read-only) |
-| `src-tauri/src/skills.rs` | Skills screen: reads the user skill folders of each CLI (`~/.claude/skills`, `~/.codex/skills`, `~/.agents/skills`, `~/.config/opencode/skills`, `~/.gemini/skills`) and compares them by content hash. Read-only |
+| `src-tauri/src/terminal.rs`, `paste.rs` | Terminal screen: shell detection and plain shells in tabs. Pasted images saved for the terminal to paste as a path |
+| `src-tauri/src/skills.rs` | Settings › Skills: reads the user skill folders of each CLI (`~/.claude/skills`, `~/.codex/skills`, `~/.agents/skills`, `~/.config/opencode/skills`, `~/.gemini/skills`) and compares them by content hash. Read-only |
 | `src-tauri/src/autostart.rs`, `proc.rs` | Start at Windows sign-in, and process launch and tree kill |
 | `src-tauri/src/bin/` | `fake-cli` for the integration tests, `air-spike` for spikes against the real CLIs |
 | `src-tauri/tests/` | Integration tests for the session manager and the phone companion |
-| `src/routes` | Desktop screens (Overview, Session, Chat, Board, CLIs, Skills, Settings, Onboarding) and the phone app under `/m` |
+| `src/routes` | Desktop screens (Overview, Session, All sessions, Chat, Board, Terminal, Settings with its General, CLIs and Skills tabs, Onboarding) and the phone app under `/m` |
 | `src/lib` | Shared components, the store, and the English and Indonesian strings in `src/lib/i18n` |
 | `src/service-worker.ts`, `static/m/` | The phone page's service worker, web app manifest and icons |
 | `landing/` | The scroll-driven landing page: one `index.html` that opens by double-click, plus the meadow painting split into sky, clouds and ground |
+| `design/` | The logo sources (`logo.svg`, `logo-full.svg`), the meadow painting and the Pencil design file (`ai-remote.pen`) |
 | `docs/` | Product requirements, the M0 spike results and feature specs |
 
 ## Status
 
-Built: the P0 requirements of PRD sections A to G, most P1 ones (install commands, custom CLI paths, resume, waiting detection, Approve/Deny, planner context, activity track, device list, offline screen, permission modes Ask me / Plan / Auto / Bypass, text size, planner model and thinking level, `@` folder mentions in Chat, CPU and memory per session, transcripts of sessions opened outside OpenCompanion, retention of finished sessions, notification choices per CLI and per project folder, Chat follow-ups sent to a running session, the tray icon that keeps sessions running after the window closes, starting in the tray at Windows sign-in, All sessions with search and filters, cards that start without Run in folders the owner picks, never with Bypass, an English or Indonesian UI), and the Board (section H, including Add to board from Chat). Outside the PRD: the Skills screen, which shows which skill is missing from a CLI's folder or has different content there, with a copy command to run yourself, and the installable phone page.
+Built: the P0 requirements of PRD sections A to G, most P1 ones (install commands, custom CLI paths, resume, waiting detection, Approve/Deny, planner context, activity track, device list, offline screen, permission modes Ask me / Plan / Auto / Bypass, text size, planner model and thinking level, `@` folder mentions in Chat, CPU and memory per session, transcripts of sessions opened outside OpenCompanion, retention of finished sessions, notification choices per CLI and per project folder, Chat follow-ups sent to a running session, the tray icon that keeps sessions running after the window closes, starting in the tray at Windows sign-in, All sessions with search and filters, cards that start without Run in folders the owner picks, never with Bypass, an English or Indonesian UI), and the Board (section H, including Add to board from Chat). Outside the PRD: Settings › Skills, which shows which skill is missing from a CLI's folder or has different content there, with a copy command to run yourself; the installable phone page; the Terminal screen for plain shells; Mark done for an idle terminal session; and image paste and Shift+Enter in terminals.
 
 ### Known limits
 
@@ -162,6 +173,8 @@ Built: the P0 requirements of PRD sections A to G, most P1 ones (install command
 - On Windows, clicking a notification while it is on screen opens its session (FR-40); one clicked later from the notification center only brings OpenCompanion forward. On macOS and Linux a click does not open the session yet: the Tauri notification plugin has no click action there.
 - Not built yet: Web Push to the phone (FR-42). It needs HTTPS and a push service; on the plain-HTTP LAN the phone shows notifications while its page is open.
 - The phone page can be added to the home screen (web app manifest, Apple tags). On the plain-HTTP LAN, Chrome shows no install prompt and no service worker runs, so the installed app opens only while the desktop answers; over HTTPS or on localhost the service worker keeps the app shell and the offline screen. On iPhone the Home Screen app keeps its own storage, apart from Safari, so it is paired once more by typing the code.
+- The desktop sidebar lists every session, but the phone lists the 60 newest.
+- OpenCompanion does not delete pasted images from the temp folder. A paste that cannot be saved pastes nothing, without a message.
 - Windows 11 is the tested platform. macOS and Linux build from the same code but are untested.
 
 ### Roadmap
