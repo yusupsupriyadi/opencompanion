@@ -10,7 +10,7 @@ Arah desain ini ditranskripsi dari gambar referensi yang diberikan pemilik produ
 - **Dial**: ENERGY 2 / RHYTHM 2 / MOTION 1.
   - ENERGY 2: ilustrasi dan warna hangat memberi karakter, layar kerja harian tetap tenang.
   - RHYTHM 2: struktur aplikasi konsisten (sidebar + area kerja), dipecah oleh momen berilustrasi (onboarding, empty state, offline mobile).
-  - MOTION 1: hanya hover, focus, dan transisi saat status berubah. Tidak ada animasi berulang. Pengecualian atas permintaan owner (2026-09-25): judul sesi Running di sidebar bergradasi pelangi `--rainbow` yang bergeser pelan (4 detik per putaran), berhenti di `prefers-reduced-motion`.
+  - MOTION 1: hanya hover, focus, dan transisi saat status berubah. Tidak ada animasi berulang. Pengecualian atas permintaan owner (2026-09-25): judul sesi Running di sidebar bergradasi pelangi `--rainbow` yang bergeser pelan (4 detik per putaran), berhenti di `prefers-reduced-motion`. Pengecualian kedua atas permintaan owner (2026-09-27), hanya di HP: titik di chip status bernapas selama CLI bekerja dan bercincin selama menunggu Anda, tombol "ke output terbaru" dan panel yang baru muncul bergeser masuk, tombol mengecil sedikit saat ditekan, sheet naik dari bawah; semuanya mati di `prefers-reduced-motion` (bagian 11).
 - **Satu fokus per layar**: setiap layar punya satu elemen utama (lihat bagian 9 dan 10). Di Overview itu panel "Needs you".
 
 ## 2. Palet
@@ -314,7 +314,9 @@ Satu frame berisi tiga contoh berdampingan:
 
 ## 10. Layar mobile (web companion)
 
-Bottom tab bar di tiga layar utama (Sessions, Chat, Board): tinggi 56 + safe area, isi `bg`, border atas `line`; tiap tab ikon 22 (`house`, `chats-circle`, `kanban`; terisi dan `forest` saat aktif) + label 12/700, `aria-current="page"`. Tab Sessions membawa jumlah sesi Waiting for you (isi `accent`, teks `on-accent` 11, tinggi 18). Layar detail dan form (M1, M3, M5, percakapan Chat) tidak menampilkan tab bar karena punya bar aksi bawah sendiri. Semua target sentuh minimal 44, tombol aksi utama 48, jarak antar tombol minimal 8; field teks 16 agar browser HP tidak memperbesar halaman.
+Layar HP ringkas dan ikon dulu (permintaan owner 2026-09-27): tombol yang ikonnya sudah jelas (kembali, tambah, buka, tutup, hentikan, kirim, panah) hanya ikon, dengan `aria-label` dan `title` yang diterjemahkan; aksi yang ikonnya ambigu atau berisiko (Approve, Deny, Run in {folder}, Resume terminal, Move to) tetap bertulisan. Kelas bersama di `phone.css`: `m-icon-btn` (40 × 40, `lg` 44), `m-key`, `m-status` + `m-dot`, `m-conn`, `m-views`, `m-pane`/`m-scroll`/`m-screen`, `m-press`, `m-appear`.
+
+Bottom tab bar di tiga layar utama (Sessions, Chat, Board): tinggi 52 + safe area, isi `bg`, border atas `line`; tiap tab ikon 22 (`house`, `chats-circle`, `kanban`; terisi dan `forest` saat aktif) + label 12/700, `aria-current="page"`, plus garis `forest` 28 × 3 di tepi atas tab yang aktif. Tab Sessions membawa jumlah sesi Waiting for you (isi `accent`, teks `on-accent` 11, tinggi 18). Layar detail dan form (M1, M3, M5, percakapan Chat) tidak menampilkan tab bar karena punya bar aksi bawah sendiri. Semua target sentuh minimal 44, tombol aksi utama 48, jarak antar tombol minimal 8; field teks 16 agar browser HP tidak memperbesar halaman.
 
 ### M1 Pair device ✗
 - Atas: `meadow-portrait.png` setinggi 280 (radius bawah 14). Di bawahnya di atas `bg`: H1 22/800 "Pair this phone", teks "On your computer, open OpenCompanion, go to Settings, turn on Phone access and scan the code shown there."
@@ -323,23 +325,23 @@ Bottom tab bar di tiga layar utama (Sessions, Chat, Board): tinggi 56 + safe are
 - Catatan bawah 12: "This phone talks only to your computer, over your own network."
 
 ### M2 Sessions ✗
-- Bar atas 56: wordmark 18/800 + chip "Connected" (`st-run`); baris kecil "To your desktop · 192.168.1.24".
-- Header: H1 "Sessions" + tombol secondary "New session" (ikon `plus`) menuju M5.
-- Fokus: kartu Needs you (versi mobile: judul 16/800, meta, blok perintah mono 13 yang boleh membungkus baris, Approve dan Deny berdampingan lebar sama, tinggi 48).
-- Section "Running" dan "Done today": kartu sesi (padding 14, CliMark 28, judul tugas 15/700 maksimal 2 baris, "CLI · folder", chip, Horizon lebar penuh). Seluruh kartu bisa diketuk menuju M3.
-- Empty: "Nothing is running on your computer right now."
+- Bar atas 48: wordmark 18/800 + di kanan titik 6 × 6 (`forest` saat terhubung, `ink-2` bernapas saat menghubungkan) dan "Connected" 12/700.
+- Header: H1 "Sessions" + tombol ikon `plus` "New session" (secondary, 40) menuju M5.
+- Fokus: kartu Needs you (padding 12: CliMark 24, judul 15/800, meta 12, tombol ikon `arrow-square-out` "Open session" di kanan; blok perintah mono yang boleh membungkus baris; Approve dan Deny berdampingan lebar sama, tinggi 44).
+- Section "Running · {n}" dan "Finished today · {n}" (judul 13/800 `ink-2`): kartu sesi padat (padding 10/12, CliMark 24, judul tugas 14/700 maksimal 2 baris, chip status bertitik, "CLI · folder · event terakhir" 12 satu baris). Seluruh kartu bisa diketuk menuju M3.
+- Empty: "Nothing has run in OpenCompanion yet…" + tombol primary "New session" lebar penuh.
 
 ### M3 Session detail ✗
-- Bar atas: tombol kembali "Sessions" (ikon `caret-left`, target 44), chip status di kanan.
-- Judul 20/800, meta "Claude Code · ~/Project/uninote · 14 min".
-- Activity: Horizon lebar penuh.
-- "Latest output": blok terminal, 12 baris terakhir, mono 12, membungkus baris (tidak ada scroll horizontal).
-- Bar aksi bawah tetap (dengan safe area; tingginya diukur dan konten diberi padding bawah setinggi bar): saat Waiting for you yang bisa dijawab = Approve (accent) + Deny; terminal berjalan = baris tombol Enter, Esc, ↑, ↓, Ctrl+C (mono 12, tinggi 44) + field teks dan Send (teks diketik, lalu Enter dikirim terpisah); terminal tertutup = "Resume terminal"; headless = textarea follow-up + Send dengan aturan yang sama seperti desktop, dan alasannya bila belum bisa.
-- Stop (danger) di kanan bar atas selama sesi berjalan, membuka sheet konfirmasi "Stop Claude Code in uninote? It gets an interrupt first, then a forced stop if it does not exit." dengan "Stop session" dan "Keep running".
+- Layar setinggi satu layar HP: header dan bar aksi tetap, output di antaranya yang menggulir.
+- Header satu baris: ikon `caret-left` "Back to sessions" (40), CliMark 24, judul 15/800 maksimal 2 baris, chip status bertitik (label pendek "Waiting" untuk Waiting for you), dan selama sesi berjalan ikon `stop` terisi "Stop" (danger, 40). Di bawahnya meta 12 satu baris "Claude Code · headless · 14 min · uninote", lalu Horizon lebar penuh sebagai tepi bawah header.
+- Panel Needs you ringkas di bawah header bila sesi menunggu; blok perintahnya tinggi maksimal 7.5em dan menggulir sendiri.
+- Segmented "Terminal | Activity | Details" (ikon + kata, tinggi 40; headless tanpa Terminal dan terbuka di Activity). Terminal: layar yang dikirim desktop (vt100 sudah memproses kode ANSI), mono 12.5/1.45 di `term-bg`, membungkus baris; kotak TUI (╭─╮ │ ╰─╯) digambar ulang sebagai bingkai dengan judulnya dan garis penuh sebagai garis tipis, baris kosong berturut dilipat jadi satu. Activity: timeline desktop (warna `t-*` yang sama). Keduanya mengikuti output terbaru kecuali pembaca menggulir ke atas; lalu muncul tombol ikon `arrow-down` "Jump to the latest output" di pojok kanan bawah, bertitik `accent` bila ada output baru. Details: isi panel samping desktop (folder, CLI dan mode, mulai, durasi, status, PID, CPU, memori, proses anak, kode keluar, sesi CLI, file yang diubah, sinyal Needs you, kartu Board).
+- Bar aksi bawah: saat Waiting for you yang bisa dijawab = Approve (accent) + Deny (44); terminal berjalan = satu baris key cap 40 (Esc, Tab, ikon ↑, ↓, return, Ctrl+C) + field teks dan ikon `paper-plane-tilt` "Send" (primary, 44; spinner saat mengirim); terminal tertutup = "Resume terminal"; headless = textarea follow-up + ikon Send, dan alasannya bila belum bisa.
+- Stop membuka sheet konfirmasi dari bawah dengan "Stop session" dan "Keep running".
 
 ### M5 New session ✗
-- Bar atas: kembali "Sessions" (atau "Board" saat menjalankan kartu, `?task=`). H1 "New session" atau judul kartu.
-- Form satu kolom: CLI (option card; yang belum terpasang nonaktif), Project folder (select dari folder yang ditemukan desktop, terbaru dulu, plus "Another folder…" yang membuka field path mono), Mode (Headless terpilih karena langkahnya terbaca di HP dan menerima follow-up; Interactive), Prompt, Permission mode (default dari Settings, peringatan Bypass sama dengan desktop). Tombol primary lebar penuh "Start {CLI} in {folder}" atau "Run in {folder}".
+- Bar atas 48: ikon `caret-left` "Back to sessions" (atau "Back to Board" saat menjalankan kartu, `?task=`) + H1 17/800 satu baris "New session" atau judul kartu.
+- Form satu kolom, jarak 14: CLI (option card dua kolom, CliMark 24; yang belum terpasang nonaktif), Project folder (select dari folder yang ditemukan desktop, terbaru dulu, plus "Another folder…" yang membuka field path mono), Mode (dua radio sebagai segmented `list-bullets` Headless | `terminal-window` Interactive, bantuan di bawahnya mengikuti pilihan; Headless terpilih karena langkahnya terbaca di HP dan menerima follow-up), Prompt, Permission mode (default dari Settings, peringatan Bypass sama dengan desktop). Tombol primary lebar penuh "Start {CLI} in {folder}" atau "Run in {folder}".
 - State: "Checking the CLIs and project folders on your computer…", error + "Try again", folder yang tidak ada ditandai di field folder.
 
 ### M6 Chats dan percakapan ✗
@@ -347,8 +349,8 @@ Bottom tab bar di tiga layar utama (Sessions, Chat, Board): tinggi 56 + safe are
 - Percakapan: kembali "Chats", lalu di kanan bar atas dua tombol ikon 44 × 44: `chats-circle` "Chat history" dan `sidebar-simple` (dicerminkan) "Live sessions" dengan jumlah sesi berjalan (isi `surface-2`, bukan `accent`). Keduanya membuka sheet dari bawah: daftar chat (chat yang dibuka diberi isi `surface-2`, "Planner is answering…" per chat, "New chat") yang membuka chat lain di layar yang sama, dan kartu sesi berjalan seperti Live rail desktop (CliMark 24, judul, chip, Horizon lebar penuh, "{CLI} in {folder} · event terakhir", menuju M3). Judul 20/800 dengan tombol ghost "Delete chat" (ikon `trash`, tekanan kedua "Press again to delete", nonaktif selama planner membaca atau menjawab chat ini). Pesan Anda (isi `surface-2`, radius 14/14/4/14, rata kanan), jawaban dengan label pixel "Planner" dan kartu dispatch versi HP: "Run in {folder}" lebar penuh, lalu "Edit" dan "Add to board", "Discard" di baris sendiri; follow-up: "Send to session", "Edit" berisi pesan saja, tanpa Add to board. Edit membuka field satu kolom (Title, CLI, Mode, Folder, Prompt; teks 16) dengan "Save card" dan "Cancel"; kartu yang sudah jalan menulis "Started 3 min ago", "Sent to this session." atau "Started by itself…". Composer di bar bawah yang naik di atas keyboard layar: textarea (placeholder desktop, `@` membuka daftar folder tanpa "Browse", karena dialog folder akan terbuka di komputer), baris pemilih Model dan Thinking (hanya untuk planner CLI) + Send (primary, ikon + teks, 48). Enter menambah baris di keyboard layar dan hanya mengirim dari keyboard fisik. Catatan di bawahnya seperti desktop: "The planner is still answering in another chat…", sebab planner belum bisa dipakai (Send nonaktif), lalu catatan auto-run atau "Nothing starts until you press Run on a card." Selama planner menjawab: spinner + "{CLI} is reading your message. This usually takes 10 to 30 seconds."
 
 ### M7 Board ✗
-- H1 "Board", segmented empat kolom (Pending, Todo, In progress, Done + jumlah; tinggi 48), satu kolom tampil sekaligus dan pilihannya disimpan di alamat (`?col=`). Kartu: CliMark, judul 15/700, chip sesi, "folder · CLI"; kartu yang sesinya Waiting for you diberi border `accent`.
-- Ketuk kartu membuka sheet: judul, kolom, path, catatan, Approve/Deny bila sesinya menunggu (FR-77), "Run in {folder}" (Pending atau Todo tanpa sesi berjalan, menuju M5), "Open session", "Move to" tiga kolom lain, "Close". Kartu baru dan edit tetap di desktop.
+- Bar atas sama dengan M2. H1 "Board", segmented empat kolom (Pending, Todo, In progress, Done + jumlah; tinggi 44), satu kolom tampil sekaligus dan pilihannya disimpan di alamat (`?col=`). Kartu padat seperti M2: CliMark 24, judul 14/700, chip sesi bertitik, "folder · CLI" + ikon `note` bila kartu punya catatan; kartu yang sesinya Waiting for you diberi border `accent`.
+- Ketuk kartu membuka sheet dari bawah: judul 18/800 dengan ikon `x` "Close" di kanan, kolom, path, catatan, Approve/Deny bila sesinya menunggu (FR-77), "Run in {folder}" (Pending atau Todo tanpa sesi berjalan, menuju M5), "Open session", "Move to" tiga kolom lain. Kartu baru dan edit tetap di desktop.
 
 ### M4 Can't reach your desktop ✗
 - Gema langsung dari gambar referensi "No Internet / Try:".
@@ -361,8 +363,9 @@ Bottom tab bar di tiga layar utama (Sessions, Chat, Board): tinggi 56 + safe are
 - Hover dan focus: transisi warna 120 ms ease-out.
 - Perubahan status chip: crossfade 200 ms. Baris yang pindah ke panel Needs you: geser 200 ms, tanpa bounce.
 - Modal: fade scrim 150 ms + modal naik 8px dalam 180 ms.
-- Tidak ada animasi berulang. Spinner hanya di teks loading yang menjelaskan apa yang dimuat.
-- `prefers-reduced-motion`: semua transisi menjadi instan.
+- Tidak ada animasi berulang, kecuali pengecualian owner di bagian 1. Spinner hanya di teks loading yang menjelaskan apa yang dimuat, dan di tombol yang sedang mengirim.
+- HP (pengecualian owner 2026-09-27): titik chip bernapas (opasitas 1 ke 0.3, 1.6 detik) selama Starting atau Running dan bercincin 4px (1.4 detik) selama Waiting for you, diam di status lain; tombol dan key cap mengecil ke 92% saat ditekan (100 ms), kartu ke 98.5%; panel yang baru muncul naik 4px sambil memudar (180 ms); sheet naik 24px (220 ms); garis tab aktif melebar 200 ms; lompat ke output terbaru menggulir halus.
+- `prefers-reduced-motion`: semua transisi menjadi instan, tidak ada yang bernapas atau bercincin, dan lompatan menggulir langsung.
 
 ## 12. Aksesibilitas
 

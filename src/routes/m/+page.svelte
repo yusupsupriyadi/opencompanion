@@ -1,10 +1,12 @@
 <script lang="ts">
+  import ArrowSquareOut from "phosphor-svelte/lib/ArrowSquareOut";
   import Check from "phosphor-svelte/lib/Check";
-  import Cloud from "phosphor-svelte/lib/Cloud";
   import Plus from "phosphor-svelte/lib/Plus";
+  import SpinnerGap from "phosphor-svelte/lib/SpinnerGap";
   import X from "phosphor-svelte/lib/X";
   import CliMark from "$lib/CliMark.svelte";
-  import StatusChip from "$lib/StatusChip.svelte";
+  import PhoneStatus from "$lib/PhoneStatus.svelte";
+  import PhoneTopBar from "$lib/PhoneTopBar.svelte";
   import { CLI_LABEL, ago, folderName, isLive, isToday, trackLine, waitingTitle } from "$lib/format";
   import { t, tb } from "$lib/i18n.svelte";
   import { answer as sendAnswer, phone } from "$lib/phone.svelte";
@@ -36,30 +38,31 @@
 
 <svelte:head><title>{t("phone.nav.sessions")} · OpenCompanion</title></svelte:head>
 
-<header class="bar"><span class="brand grow">OpenCompanion <Cloud size={20} aria-hidden="true" /></span></header>
-<main class="content" id="phone-sessions">
+<PhoneTopBar />
+<main class="content dense" id="phone-sessions">
   <div class="head-row">
     <h1 class="m-h1">{t("phone.nav.sessions")}</h1>
-    <a class="btn secondary" href="/m/new" id="btn-new-session"><Plus size={16} aria-hidden="true" />{t("phone.newSession")}</a>
+    <a class="m-icon-btn secondary" href="/m/new" id="btn-new-session" aria-label={t("phone.newSession")} title={t("phone.newSession")}><Plus size={20} aria-hidden="true" /></a>
   </div>
-  <p class="conn">{phone.connection === "online" ? t("phone.sessions.online") : t("phone.sessions.connecting")}</p>
 
-  {#if failure}<p class="err-text" role="alert" style="margin:0">{tb(failure)}</p>{/if}
+  {#if failure}<p class="err-text m-appear" role="alert" style="margin:0">{tb(failure)}</p>{/if}
 
   {#if !phone.loaded}
-    <p class="m-p" role="status">{t("phone.sessions.loading")}</p>
+    <p class="m-p m-inline" role="status"><SpinnerGap size={16} class="spin" aria-hidden="true" />{t("phone.sessions.loading")}</p>
   {:else if phone.sessions.length === 0}
     <p class="m-p">{t("phone.sessions.empty")}</p>
+    <a class="btn primary block" href="/m/new"><Plus size={16} aria-hidden="true" />{t("phone.newSession")}</a>
   {/if}
 
   {#each waiting as s (s.id)}
-    <section class="m-needs" aria-labelledby="mn-{s.id}">
-      <div class="row">
-        <CliMark kind={s.cli} />
+    <section class="m-needs m-appear" aria-labelledby="mn-{s.id}">
+      <div class="row m-needs-head">
+        <CliMark kind={s.cli} small />
         <div class="grow">
           <h2 id="mn-{s.id}">{waitingTitle(s)}</h2>
           <div class="meta">{folderName(s.cwd)}{s.waiting ? ` · ${t("phone.sessions.asked", { ago: ago(s.waiting.since, now) })}` : ""}</div>
         </div>
+        <a class="m-icon-btn" href="/m/session?id={s.id}" aria-label={t("phone.openSession")} title={t("phone.openSession")}><ArrowSquareOut size={18} aria-hidden="true" /></a>
       </div>
       {#if s.waiting?.detail}<div class="cmd"><small>{s.waiting.tool ?? t("phone.request")}</small><code>{s.waiting.detail}</code></div>{/if}
       {#if s.waiting?.canAnswer}
@@ -70,16 +73,15 @@
       {:else}
         <p class="small" style="margin:0">{t("phone.answerOnComputer")}</p>
       {/if}
-      <a class="btn secondary" href="/m/session?id={s.id}">{t("phone.openSession")}</a>
     </section>
   {/each}
 
   {#if running.length}
     <section class="m-sec" aria-labelledby="m-running">
-      <h2 id="m-running">{t("phone.sessions.running")}</h2>
+      <h2 id="m-running">{t("phone.sessions.running")} · {running.length}</h2>
       {#each running as s (s.id)}
-        <a class="m-card" href="/m/session?id={s.id}">
-          <div class="row"><CliMark kind={s.cli} /><span class="task grow">{s.title}</span><StatusChip status={s.status} /></div>
+        <a class="m-card m-press" href="/m/session?id={s.id}">
+          <span class="row"><CliMark kind={s.cli} small /><span class="task grow">{s.title}</span><PhoneStatus status={s.status} /></span>
           <span class="meta">{CLI_LABEL[s.cli]} · {folderName(s.cwd)} · {trackLine(s, now)}</span>
         </a>
       {/each}
@@ -88,13 +90,31 @@
 
   {#if today.length}
     <section class="m-sec" aria-labelledby="m-today">
-      <h2 id="m-today">{t("phone.sessions.today")}</h2>
+      <h2 id="m-today">{t("phone.sessions.today")} · {today.length}</h2>
       {#each today as s (s.id)}
-        <a class="m-card" href="/m/session?id={s.id}">
-          <div class="row"><CliMark kind={s.cli} /><span class="task grow">{s.title}</span><StatusChip status={s.status} /></div>
+        <a class="m-card m-press" href="/m/session?id={s.id}">
+          <span class="row"><CliMark kind={s.cli} small /><span class="task grow">{s.title}</span><PhoneStatus status={s.status} /></span>
           <span class="meta">{CLI_LABEL[s.cli]} · {folderName(s.cwd)} · {trackLine(s, now)}</span>
         </a>
       {/each}
     </section>
   {/if}
 </main>
+
+<style>
+  .m-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .m-needs-head {
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .m-needs-head .meta {
+    font-size: 12px;
+  }
+  .m-needs-head .m-icon-btn {
+    margin: -6px -6px 0 0;
+  }
+</style>

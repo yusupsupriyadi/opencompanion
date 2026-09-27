@@ -37,6 +37,13 @@
     };
   });
 
+  // iOS shows :active, the pressed look of keys, buttons and cards, only where a touch listener is.
+  onMount(() => {
+    const none = () => undefined;
+    document.addEventListener("touchstart", none, { passive: true });
+    return () => document.removeEventListener("touchstart", none);
+  });
+
   onMount(() => {
     registerWorker();
     // The phone speaks the desktop's UI language; asking needs no pairing.

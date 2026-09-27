@@ -2,15 +2,17 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import Check from "phosphor-svelte/lib/Check";
-  import Cloud from "phosphor-svelte/lib/Cloud";
+  import Note from "phosphor-svelte/lib/Note";
   import Play from "phosphor-svelte/lib/Play";
+  import SpinnerGap from "phosphor-svelte/lib/SpinnerGap";
   import TerminalWindow from "phosphor-svelte/lib/TerminalWindow";
   import X from "phosphor-svelte/lib/X";
   import { onMount } from "svelte";
   import type { Column, Task } from "$lib/api";
   import CliMark from "$lib/CliMark.svelte";
   import Dialog from "$lib/Dialog.svelte";
-  import StatusChip from "$lib/StatusChip.svelte";
+  import PhoneStatus from "$lib/PhoneStatus.svelte";
+  import PhoneTopBar from "$lib/PhoneTopBar.svelte";
   import { CLI_LABEL, folderName, isLive, shortPath, waitingTitle } from "$lib/format";
   import { t, tb } from "$lib/i18n.svelte";
   import { answer as sendAnswer, call, notify, onMessage, phone } from "$lib/phone.svelte";
@@ -114,12 +116,12 @@
 
 <svelte:head><title>{t("phone.nav.board")} · OpenCompanion</title></svelte:head>
 
-<header class="bar"><span class="brand grow">OpenCompanion <Cloud size={20} aria-hidden="true" /></span></header>
-<main class="content" id="phone-board">
+<PhoneTopBar />
+<main class="content dense" id="phone-board">
   <h1 class="m-h1">{t("phone.nav.board")}</h1>
 
   {#if loadState === "loading"}
-    <p class="m-p" role="status">{t("phone.board.loading")}</p>
+    <p class="m-p m-inline" role="status"><SpinnerGap size={16} class="spin" aria-hidden="true" />{t("phone.board.loading")}</p>
   {:else if loadState === "error"}
     <p class="err-text" role="alert" style="margin:0">{t("phone.board.loadFailed", { error: loadError })}</p>
     <button class="btn secondary block" type="button" onclick={() => load()}>{t("phone.tryAgain")}</button>
@@ -139,24 +141,30 @@
       {/if}
       {#each byCol[col] as task (task.id)}
         {@const s = sessionOf(task)}
-        <button class="m-card" class:needs={s?.status === "waiting"} type="button" onclick={() => openCard(task)}>
+        <button class="m-card m-press" class:needs={s?.status === "waiting"} type="button" onclick={() => openCard(task)}>
           <span class="row">
-            {#if task.cli}<CliMark kind={task.cli} />{/if}
+            {#if task.cli}<CliMark kind={task.cli} small />{/if}
             <span class="task grow">{task.title}</span>
-            {#if s}<StatusChip status={s.status} />{/if}
+            {#if s}<PhoneStatus status={s.status} />{/if}
           </span>
-          <span class="meta">{task.project ? folderName(task.project) : t("phone.board.noFolder")}{task.cli ? ` · ${CLI_LABEL[task.cli]}` : ""}{task.notes ? ` · ${t("phone.board.hasNotes")}` : ""}</span>
+          <span class="meta">
+            {task.project ? folderName(task.project) : t("phone.board.noFolder")}{task.cli ? ` · ${CLI_LABEL[task.cli]}` : ""}
+            {#if task.notes}<Note size={13} class="m-note" aria-hidden="true" /><span class="sr-only">{t("phone.board.hasNotes")}</span>{/if}
+          </span>
         </button>
       {/each}
     </section>
   {/if}
 </main>
 
-<Dialog bind:open={sheetOpen} labelledby="card-sheet-title">
+<Dialog bind:open={sheetOpen} labelledby="card-sheet-title" sheet>
   {#if opened}
     {@const s = openedSession}
-    <div class="d-body" style="gap:14px">
-      <h2 id="card-sheet-title" style="font-size:20px;overflow-wrap:anywhere">{opened.title}</h2>
+    <div class="d-body" style="gap:12px">
+      <div class="m-sheet-head">
+        <h2 id="card-sheet-title">{opened.title}</h2>
+        <button class="m-icon-btn" type="button" aria-label={t("phone.board.close")} title={t("phone.board.close")} onclick={() => (sheetOpen = false)}><X size={20} aria-hidden="true" /></button>
+      </div>
       <p class="meta" style="margin:0">
         {COLS.find((c) => c.id === opened.column)?.name}{opened.cli ? ` · ${CLI_LABEL[opened.cli]}` : ""}
         {#if opened.project} · <span class="mono" style="overflow-wrap:anywhere">{shortPath(opened.project)}</span>{/if}
@@ -165,7 +173,7 @@
 
       {#if s?.status === "waiting"}
         <section class="m-needs" aria-labelledby="sheet-needs">
-          <h3 id="sheet-needs" style="margin:0;font-size:16px;font-weight:800">{waitingTitle(s)}</h3>
+          <h3 id="sheet-needs" style="margin:0;font-size:15px;font-weight:800">{waitingTitle(s)}</h3>
           {#if s.waiting?.detail}<div class="cmd"><small>{s.waiting.tool ?? t("phone.request")}</small><code>{s.waiting.detail}</code></div>{/if}
           {#if s.waiting?.canAnswer}
             <div class="pair-btns">
@@ -178,7 +186,7 @@
         </section>
       {/if}
 
-      {#if failure}<p class="err-text" role="alert" style="margin:0">{tb(failure)}</p>{/if}
+      {#if failure}<p class="err-text m-appear" role="alert" style="margin:0">{tb(failure)}</p>{/if}
 
       <div class="sheet-acts">
         {#if (opened.column === "todo" || opened.column === "pending") && !(s && isLive(s))}
@@ -197,8 +205,34 @@
           {/each}
         </div>
       </div>
-
-      <button class="btn ghost" type="button" onclick={() => (sheetOpen = false)}>{t("phone.board.close")}</button>
     </div>
   {/if}
 </Dialog>
+
+<style>
+  .m-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .m-card :global(.m-note) {
+    margin-left: 6px;
+    vertical-align: -2px;
+  }
+  /* The title leaves room for Close, the sheet's one way out besides Escape. */
+  .m-sheet-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .m-sheet-head h2 {
+    flex: 1;
+    min-width: 0;
+    padding-top: 6px;
+    font-size: 18px;
+    overflow-wrap: anywhere;
+  }
+  .m-sheet-head .m-icon-btn {
+    margin: -2px -8px 0 0;
+  }
+</style>
