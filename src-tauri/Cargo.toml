@@ -1,6 +1,6 @@
 [package]
 name = "opencompanion"
-version = "0.1.0"
+version = "0.1.1"
 description = "Local control room for AI coding CLIs"
 authors = ["OpenCompanion"]
 edition = "2021"
