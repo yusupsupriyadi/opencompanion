@@ -6,7 +6,7 @@
 <title>OpenCompanion</title>
 <meta name="description" content="OpenCompanion is a desktop app that starts and watches Claude Code, Codex CLI and OpenCode on your computer, and tells you when a session needs you.">
 <meta name="theme-color" content="#2F5A36">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Crect width='256' height='256' rx='56' fill='%23FBF3CF'/%3E%3Cpath transform='translate(26 30) scale(.8)' fill='%232F5A36' d='M160,40A88.09,88.09,0,0,0,81.29,88.67,64,64,0,1,0,72,216h88a88,88,0,0,0,0-176Zm0,160H72a48,48,0,0,1,0-96c1.1,0,2.2,0,3.29.11A88,88,0,0,0,72,128a8,8,0,0,0,16,0,72,72,0,1,1,72,72Z'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Crect width='256' height='256' rx='56' fill='%23FBF3CF'/%3E%3Cpath fill='%232F5A36' d='M0 196C64 136 148 118 256 146V200A56 56 0 0 1 200 256H56A56 56 0 0 1 0 200Z'/%3E%3Cpath fill='%2333361F' d='M160 96h16v16h-16z'/%3E%3Cpath fill='%232C5A8C' d='M144 112h48v32h-48z'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Nunito:wght@600;700;800&family=Pixelify+Sans:wght@400;500&display=swap">
@@ -113,7 +113,7 @@ button.btn.secondary:hover, a.btn.secondary:hover { background: var(--surface-2)
 #site-nav { position: fixed; left: 0; right: 0; top: 0; z-index: 6; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 12px 16px; pointer-events: none; }
 #site-nav > * { pointer-events: auto; }
 .brand { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 14px; font-size: 18px; font-weight: 800; text-decoration: none; }
-.brand .ic { width: 20px; height: 20px; }
+.brand .ic { width: 24px; height: 24px; }
 .links { display: flex; align-items: center; gap: 4px; padding: 4px; }
 .links a { display: inline-flex; align-items: center; min-height: 44px; padding: 6px 12px; border-radius: 8px; font-size: 14px; font-weight: 700; text-decoration: none; }
 .links a:not(.btn):hover { background: rgba(255, 255, 255, .22); }
@@ -386,7 +386,7 @@ html:not(.motion) .m-only { display: none !important; }
 <a class="skip" href="#clis">Skip the story</a>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
-  <symbol id="i-cloud" viewBox="0 0 256 256"><path d="M160,40A88.09,88.09,0,0,0,81.29,88.67,64,64,0,1,0,72,216h88a88,88,0,0,0,0-176Zm0,160H72a48,48,0,0,1,0-96c1.1,0,2.2,0,3.29.11A88,88,0,0,0,72,128a8,8,0,0,0,16,0,72,72,0,1,1,72,72Z"/></symbol>
+  <symbol id="i-logo" viewBox="0 0 256 256"><rect width="256" height="256" rx="56" fill="#FBF3CF"/><path fill="#2F5A36" d="M0 196C64 136 148 118 256 146V200A56 56 0 0 1 200 256H56A56 56 0 0 1 0 200Z"/><rect x="160" y="96" width="16" height="16" fill="#33361F"/><rect x="144" y="112" width="48" height="32" fill="#2C5A8C"/></symbol>
   <symbol id="i-play" viewBox="0 0 256 256"><path d="M232.4,114.49,88.32,26.35a16,16,0,0,0-16.2-.3A15.86,15.86,0,0,0,64,39.87V216.13A15.94,15.94,0,0,0,80,232a16.07,16.07,0,0,0,8.36-2.35L232.4,141.51a15.81,15.81,0,0,0,0-27ZM80,215.94V40l143.83,88Z"/></symbol>
   <symbol id="i-pencil" viewBox="0 0 256 256"><path d="M227.31,73.37,182.63,28.68a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31L227.31,96a16,16,0,0,0,0-22.63ZM92.69,208H48V163.31l88-88L180.69,120ZM192,108.68,147.31,64l24-24L216,84.68Z"/></symbol>
   <symbol id="i-send" viewBox="0 0 256 256"><path d="M227.32,28.68a16,16,0,0,0-15.66-4.08l-.15,0L19.57,82.84a16,16,0,0,0-2.49,29.8L102,154l41.3,84.87A15.86,15.86,0,0,0,157.74,248q.69,0,1.38-.06a15.88,15.88,0,0,0,14-11.51l58.2-191.94c0-.05,0-.1,0-.15A16,16,0,0,0,227.32,28.68ZM157.83,231.85l-.05.14,0-.07-40.06-82.3,48-48a8,8,0,0,0-11.31-11.31l-48,48L24.08,98.25l-.07,0,.14,0L216,40Z"/></symbol>
@@ -445,7 +445,7 @@ html:not(.motion) .m-only { display: none !important; }
 <div id="fore" aria-hidden="true"><svg id="grass" viewBox="0 0 1600 420" preserveAspectRatio="xMidYMax slice"></svg></div>
 
 <header id="site-nav">
-  <a class="plate brand" href="#top"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg>OpenCompanion</a>
+  <a class="plate brand" href="#top"><svg class="ic" aria-hidden="true"><use href="#i-logo"/></svg>OpenCompanion</a>
   <nav class="plate links" aria-label="Page">
     <a class="opt" href="#how">How it works</a>
     <a class="opt" href="#clis">CLIs</a>
@@ -553,7 +553,7 @@ html:not(.motion) .m-only { display: none !important; }
           <div class="mock mock-phone" role="img" aria-label="The phone companion: Claude Code wants to run npm install in uninote, with Approve and Deny buttons.">
             <div class="device" id="p-device">
               <div class="screen">
-                <div class="m-bar"><span class="m-brand"><svg class="ic"><use href="#i-cloud"/></svg>OpenCompanion</span><span class="chip run">Connected</span></div>
+                <div class="m-bar"><span class="m-brand"><svg class="ic"><use href="#i-logo"/></svg>OpenCompanion</span><span class="chip run">Connected</span></div>
                 <div class="m-content">
                   <p class="m-conn">To your desktop · 192.168.1.24</p>
                   <div class="m-headrow"><b class="m-h1">Sessions</b><span class="btn secondary sm"><svg class="ic"><use href="#i-plus"/></svg>New session</span></div>
@@ -609,8 +609,8 @@ html:not(.motion) .m-only { display: none !important; }
           <p>No account, no cloud server, no telemetry. Each CLI talks to its own provider, the same as in your terminal.</p>
         </div>
         <div class="toasts" role="img" aria-label="Two notifications from OpenCompanion: Codex CLI finished in ai-remote, and Claude Code finished in uninote.">
-          <div class="ntf" id="n1"><span class="ntf-app"><svg class="ic"><use href="#i-cloud"/></svg>OpenCompanion</span><b>Codex CLI finished</b><span>ai-remote · Fix the failing tests</span></div>
-          <div class="ntf" id="n2"><span class="ntf-app"><svg class="ic"><use href="#i-cloud"/></svg>OpenCompanion</span><b>Claude Code finished</b><span>uninote · Write the API docs</span></div>
+          <div class="ntf" id="n1"><span class="ntf-app"><svg class="ic"><use href="#i-logo"/></svg>OpenCompanion</span><b>Codex CLI finished</b><span>ai-remote · Fix the failing tests</span></div>
+          <div class="ntf" id="n2"><span class="ntf-app"><svg class="ic"><use href="#i-logo"/></svg>OpenCompanion</span><b>Claude Code finished</b><span>uninote · Write the API docs</span></div>
         </div>
       </div>
 
@@ -658,7 +658,7 @@ bun run tauri build</pre>
 
 <footer class="foot">
   <div class="plate foot-in">
-    <span class="brand-sm"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg>OpenCompanion 0.1.0</span>
+    <span class="brand-sm"><svg class="ic" aria-hidden="true"><use href="#i-logo"/></svg>OpenCompanion 0.1.0</span>
     <a href="https://github.com/yusupsupriyadi/opencompanion">Source on GitHub</a>
     <a href="#top">Back to the morning</a>
   </div>

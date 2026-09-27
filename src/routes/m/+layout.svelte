@@ -3,11 +3,11 @@
   import { page } from "$app/state";
   import ArrowClockwise from "phosphor-svelte/lib/ArrowClockwise";
   import ChatsCircle from "phosphor-svelte/lib/ChatsCircle";
-  import Cloud from "phosphor-svelte/lib/Cloud";
   import House from "phosphor-svelte/lib/House";
   import Kanban from "phosphor-svelte/lib/Kanban";
   import { onMount } from "svelte";
   import "$lib/phone.css";
+  import AppLogo from "$lib/AppLogo.svelte";
   import { setLang, t } from "$lib/i18n.svelte";
   import { connect, getToken, loadSessions, phone, reconnectNow, registerWorker } from "$lib/phone.svelte";
 
@@ -96,7 +96,7 @@
 </div>
 {#if offline}
   <div class="phone offline-layer" id="phone-offline-layer">
-    <header class="bar"><span class="brand grow">OpenCompanion <Cloud size={20} aria-hidden="true" /></span></header>
+    <header class="bar"><span class="brand grow"><AppLogo />OpenCompanion</span></header>
     <main class="content" id="phone-offline">
       <img class="art" src="/meadow-day.png" alt="" aria-hidden="true" />
       <h1 class="m-h1">{t("phone.offline.title")}</h1>

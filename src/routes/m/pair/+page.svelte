@@ -1,8 +1,8 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
-  import Cloud from "phosphor-svelte/lib/Cloud";
   import { onMount, tick } from "svelte";
+  import AppLogo from "$lib/AppLogo.svelte";
   import { t, tb } from "$lib/i18n.svelte";
   import { call, connect, iosHomeScreen, loadSessions, phone, setToken } from "$lib/phone.svelte";
 
@@ -86,7 +86,7 @@
 
 <svelte:head><title>{t("phone.pair.title")} · OpenCompanion</title></svelte:head>
 
-<header class="bar"><span class="brand grow">OpenCompanion <Cloud size={20} aria-hidden="true" /></span></header>
+<header class="bar"><span class="brand grow"><AppLogo />OpenCompanion</span></header>
 <main class="content" id="phone-pair">
   <img class="art" src="/meadow-day.png" alt="" aria-hidden="true" />
   <h1 class="m-h1">{t("phone.pair.title")}</h1>

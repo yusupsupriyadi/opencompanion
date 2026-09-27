@@ -1,8 +1,8 @@
 <script lang="ts">
-  import Cloud from "phosphor-svelte/lib/Cloud";
   import Plus from "phosphor-svelte/lib/Plus";
   import { onMount } from "svelte";
   import type { ChatThread } from "$lib/api";
+  import AppLogo from "$lib/AppLogo.svelte";
   import { ago } from "$lib/format";
   import { t } from "$lib/i18n.svelte";
   import { call, onMessage } from "$lib/phone.svelte";
@@ -44,7 +44,7 @@
 
 <svelte:head><title>{t("phone.nav.chat")} · OpenCompanion</title></svelte:head>
 
-<header class="bar"><span class="brand grow">OpenCompanion <Cloud size={20} aria-hidden="true" /></span></header>
+<header class="bar"><span class="brand grow"><AppLogo />OpenCompanion</span></header>
 <main class="content" id="phone-chat-list">
   <div class="head-row">
     <h1 class="m-h1">{t("phone.nav.chat")}</h1>

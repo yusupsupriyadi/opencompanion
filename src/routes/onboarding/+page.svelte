@@ -2,8 +2,8 @@
   import { goto } from "$app/navigation";
   import ArrowClockwise from "phosphor-svelte/lib/ArrowClockwise";
   import CheckCircle from "phosphor-svelte/lib/CheckCircle";
-  import Cloud from "phosphor-svelte/lib/Cloud";
   import { errorText, type CliKind } from "$lib/api";
+  import AppLogo from "$lib/AppLogo.svelte";
   import CliMark from "$lib/CliMark.svelte";
   import { shortPath } from "$lib/format";
   import { t, tb } from "$lib/i18n.svelte";
@@ -38,7 +38,7 @@
 <main class="scene" id="onboarding">
   <img class="scene-art" src={meadow} alt="" aria-hidden="true" />
   <section class="panel" aria-labelledby="ob-title">
-    <div class="brand"><span>OpenCompanion</span><Cloud size={20} aria-hidden="true" /></div>
+    <div class="brand"><AppLogo /><span>OpenCompanion</span></div>
     <div>
       <h1 id="ob-title">{app.clisState === "ready" && planners.length === 0 ? t("work.onboarding.noneFound") : t("work.onboarding.found")}</h1>
       <p class="lead">{t("work.onboarding.lead")}</p>

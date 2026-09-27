@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Cloud from "phosphor-svelte/lib/Cloud";
+  import AppLogo from "./AppLogo.svelte";
   import { t } from "./i18n.svelte";
   import { phone } from "./phone.svelte";
 
@@ -9,7 +9,7 @@
 </script>
 
 <header class="bar m-bar-tight">
-  <span class="brand grow">OpenCompanion <Cloud size={20} aria-hidden="true" /></span>
+  <span class="brand grow"><AppLogo />OpenCompanion</span>
   <span class="m-conn" class:on={online} role="status">
     <i class="m-dot" class:live={!online} aria-hidden="true"></i>{online ? t("phone.conn.online") : t("phone.conn.connecting")}
   </span>

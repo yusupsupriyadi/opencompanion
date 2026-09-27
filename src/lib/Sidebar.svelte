@@ -3,7 +3,6 @@
   import Books from "phosphor-svelte/lib/Books";
   import CaretDown from "phosphor-svelte/lib/CaretDown";
   import ChatsCircle from "phosphor-svelte/lib/ChatsCircle";
-  import Cloud from "phosphor-svelte/lib/Cloud";
   import DeviceMobile from "phosphor-svelte/lib/DeviceMobile";
   import FolderSimple from "phosphor-svelte/lib/FolderSimple";
   import GearSix from "phosphor-svelte/lib/GearSix";
@@ -17,6 +16,7 @@
   import TerminalWindow from "phosphor-svelte/lib/TerminalWindow";
   import Trash from "phosphor-svelte/lib/Trash";
   import type { SessionView } from "./api";
+  import AppLogo from "./AppLogo.svelte";
   import CliMark from "./CliMark.svelte";
   import { CLI_LABEL, STATUS, folderName, isLive } from "./format";
   import { plural, t } from "./i18n.svelte";
@@ -110,7 +110,7 @@
 </script>
 
 <aside class="sidebar" aria-label="OpenCompanion">
-  <a class="brand" href="/" aria-label={t("shell.sidebar.brand")}><span class="lbl">OpenCompanion</span><Cloud size={20} aria-hidden="true" /></a>
+  <a class="brand" href="/" aria-label={t("shell.sidebar.brand")}><AppLogo /><span class="lbl">OpenCompanion</span></a>
   <nav class="nav" aria-label={t("shell.nav.label")}>
     {#each NAV as n (n.href)}
       <a href={n.href} aria-current={active(n.href) ? "page" : undefined} title={t(n.key)}>
