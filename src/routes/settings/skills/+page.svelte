@@ -10,6 +10,7 @@
   import CliMark from "$lib/CliMark.svelte";
   import Dialog from "$lib/Dialog.svelte";
   import { ago, shortPath } from "$lib/format";
+  import SettingsHead from "$lib/SettingsHead.svelte";
   import { plural, t, tb, type Key } from "$lib/i18n.svelte";
   import { cellFor, copySteps, entryIn, filterSkills, joinPath, skillCounts, skillSources, type Cell, type CopyStep, type SkillFilter } from "$lib/skills";
   import { app, showToast } from "$lib/store.svelte";
@@ -120,15 +121,13 @@
 {/snippet}
 
 <main class="main" id="skills-main">
-  <header class="page-head">
-    <div class="grow">
-      <h1>{t("work.skills.heading")}</h1>
-      <p class="sub">{t("work.skills.sub")}</p>
-    </div>
+  <SettingsHead>
     <button class="btn secondary" type="button" id="btn-rescan-skills" disabled={scanning} onclick={load}>
       <ArrowClockwise size={16} aria-hidden="true" /><span>{scanning ? t("work.skills.reading") : t("work.rescan")}</span>
     </button>
-  </header>
+  </SettingsHead>
+  <h2 class="sr-only">{t("work.skills.heading")}</h2>
+  <p class="note">{t("work.skills.sub")}</p>
 
   {#if loadState === "loading"}
     <p class="hint" role="status">{t("work.skills.loading")}</p>

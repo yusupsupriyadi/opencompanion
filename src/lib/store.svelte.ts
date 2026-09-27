@@ -38,7 +38,7 @@ export const app = $state({
 
 export async function refreshSessions() {
   try {
-    app.sessions = await api.listSessions(80);
+    app.sessions = await api.listSessions();
     app.sessionsState = "ready";
   } catch (e) {
     app.sessionsState = "error";

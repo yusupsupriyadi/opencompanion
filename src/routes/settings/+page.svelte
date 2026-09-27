@@ -3,6 +3,8 @@
   import ArrowClockwise from "phosphor-svelte/lib/ArrowClockwise";
   import Copy from "phosphor-svelte/lib/Copy";
   import DeviceMobile from "phosphor-svelte/lib/DeviceMobile";
+  import Moon from "phosphor-svelte/lib/Moon";
+  import Sun from "phosphor-svelte/lib/Sun";
   import Warning from "phosphor-svelte/lib/Warning";
   import QRCode from "qrcode";
   import { onMount } from "svelte";
@@ -21,7 +23,8 @@
   } from "$lib/api";
   import { MODES, TEXT_SIZES, ago, folderName, modeLabel, shortPath } from "$lib/format";
   import { LANGS, plural, t, tb, type Key } from "$lib/i18n.svelte";
-  import { app, loadSettings, refreshSessions, saveSettings, showToast } from "$lib/store.svelte";
+  import SettingsHead from "$lib/SettingsHead.svelte";
+  import { app, currentTheme, loadSettings, refreshSessions, saveSettings, setTheme, showToast } from "$lib/store.svelte";
 
   let settings = $state<Settings | null>(null);
   let loadError = $state("");
@@ -349,7 +352,7 @@
 <svelte:head><title>{t("settings.pageTitle")}</title></svelte:head>
 
 <main class="main" id="settings-main">
-  <header class="page-head"><h1 class="grow">{t("settings.title")}</h1></header>
+  <SettingsHead />
 
   {#if loadError}
     <div class="state-box" role="alert">
@@ -683,6 +686,24 @@
                 {#if s === 100}<small>{t("settings.text.default")}</small>{/if}
               </label>
             {/each}
+          </div>
+        </fieldset>
+      </section>
+
+      <section class="card" id="theme" aria-labelledby="theme-title">
+        <h2 id="theme-title">{t("settings.theme.title")}</h2>
+        <p class="meta" style="margin:0">{t("settings.theme.desc")}</p>
+        <fieldset class="bare">
+          <legend class="sr-only">{t("settings.theme.title")}</legend>
+          <div class="opts">
+            <label class="opt">
+              <input type="radio" name="theme" value="light" checked={currentTheme() === "light"} onchange={() => setTheme("light")} />
+              <Sun size={18} aria-hidden="true" /><b>{t("settings.theme.day")}</b>
+            </label>
+            <label class="opt">
+              <input type="radio" name="theme" value="dark" checked={currentTheme() === "dark"} onchange={() => setTheme("dark")} />
+              <Moon size={18} aria-hidden="true" /><b>{t("settings.theme.dusk")}</b>
+            </label>
           </div>
         </fieldset>
       </section>

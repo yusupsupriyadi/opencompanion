@@ -12,8 +12,6 @@ export const en = {
   "shell.nav.board": "Board",
   "shell.nav.chat": "Chat",
   "shell.nav.terminal": "Terminal",
-  "shell.nav.clis": "CLIs",
-  "shell.nav.skills": "Skills",
   "shell.nav.settings": "Settings",
   "shell.sidebar.brand": "OpenCompanion, Overview",
   "shell.sidebar.sessions": "Sessions",
@@ -28,12 +26,6 @@ export const en = {
   "shell.sidebar.pinSession": "Pin session",
   "shell.sidebar.unpinSession": "Unpin session",
   "shell.sidebar.pinSessionNamed": "Pin session: {title}",
-  "shell.sidebar.phone": "Phone access",
-  "shell.sidebar.on": "On",
-  "shell.sidebar.off": "Off",
-  "shell.sidebar.theme": "Theme",
-  "shell.sidebar.day": "Day",
-  "shell.sidebar.dusk": "Dusk",
 
   // Title bar
   "shell.titlebar.minimize": "Minimize",
@@ -155,8 +147,6 @@ export const id: Record<keyof typeof en, string> = {
   "shell.nav.board": "Board",
   "shell.nav.chat": "Chat",
   "shell.nav.terminal": "Terminal",
-  "shell.nav.clis": "CLI",
-  "shell.nav.skills": "Skill",
   "shell.nav.settings": "Pengaturan",
   "shell.sidebar.brand": "OpenCompanion, Ringkasan",
   "shell.sidebar.sessions": "Sesi",
@@ -171,12 +161,6 @@ export const id: Record<keyof typeof en, string> = {
   "shell.sidebar.pinSession": "Sematkan sesi",
   "shell.sidebar.unpinSession": "Lepas sematan sesi",
   "shell.sidebar.pinSessionNamed": "Sematkan sesi: {title}",
-  "shell.sidebar.phone": "Akses HP",
-  "shell.sidebar.on": "Aktif",
-  "shell.sidebar.off": "Nonaktif",
-  "shell.sidebar.theme": "Tema",
-  "shell.sidebar.day": "Siang",
-  "shell.sidebar.dusk": "Senja",
 
   // Windows' own Indonesian names for the window buttons.
   "shell.titlebar.minimize": "Minimalkan",

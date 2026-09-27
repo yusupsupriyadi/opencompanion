@@ -3,6 +3,8 @@
 export const en = {
   "settings.pageTitle": "Settings · OpenCompanion",
   "settings.title": "Settings",
+  "settings.tabs.label": "Settings sections",
+  "settings.tabs.general": "General",
   "settings.loadError": "Settings could not be loaded",
   "settings.tryAgain": "Try again",
   "settings.loading": "Loading settings…",
@@ -142,6 +144,11 @@ export const en = {
   "settings.text.default": "Default",
   "settings.text.saved": "Text size is {size}%.",
 
+  "settings.theme.title": "Theme",
+  "settings.theme.desc": "Until you pick one, OpenCompanion follows the light or dark setting in Windows.",
+  "settings.theme.day": "Day",
+  "settings.theme.dusk": "Dusk",
+
   "settings.language.title": "Language",
   "settings.language.label": "Show OpenCompanion in",
   "settings.language.help": "Changes every screen on this computer and the phone page. Messages from the CLIs stay as the CLIs write them.",
@@ -186,6 +193,8 @@ export const en = {
 export const id: Record<keyof typeof en, string> = {
   "settings.pageTitle": "Pengaturan · OpenCompanion",
   "settings.title": "Pengaturan",
+  "settings.tabs.label": "Bagian pengaturan",
+  "settings.tabs.general": "Umum",
   "settings.loadError": "Pengaturan tidak bisa dimuat",
   "settings.tryAgain": "Coba lagi",
   "settings.loading": "Memuat pengaturan…",
@@ -324,6 +333,11 @@ export const id: Record<keyof typeof en, string> = {
     "Memperbesar atau memperkecil teks, beserta tombol dan jarak di sekitarnya, di setiap layar. Halaman HP tetap memakai ukuran teks yang diatur di HP.",
   "settings.text.default": "Bawaan",
   "settings.text.saved": "Ukuran teks sekarang {size}%.",
+
+  "settings.theme.title": "Tema",
+  "settings.theme.desc": "Sebelum Anda memilih, OpenCompanion mengikuti mode terang atau gelap di Windows.",
+  "settings.theme.day": "Siang",
+  "settings.theme.dusk": "Senja",
 
   "settings.language.title": "Bahasa",
   "settings.language.label": "Tampilkan OpenCompanion dalam",

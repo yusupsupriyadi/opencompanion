@@ -283,7 +283,8 @@ struct SessionView {
 
 #[tauri::command]
 fn list_sessions(state: State<'_, AppState>, limit: Option<u32>) -> Res<Vec<SessionView>> {
-    let sessions = state.db.sessions(limit.unwrap_or(80))?;
+    // Without a limit it returns every session: the sidebar lists them all.
+    let sessions = state.db.sessions(limit.unwrap_or(u32::MAX))?;
     Ok(sessions
         .into_iter()
         .map(|info| {

@@ -9,6 +9,7 @@
   import CliMark from "$lib/CliMark.svelte";
   import Dialog from "$lib/Dialog.svelte";
   import { shortPath } from "$lib/format";
+  import SettingsHead from "$lib/SettingsHead.svelte";
   import { t, tb } from "$lib/i18n.svelte";
   import { app, refreshClis, saveSettings, showToast } from "$lib/store.svelte";
 
@@ -115,15 +116,13 @@
 <svelte:head><title>{t("work.clis.pageTitle")}</title></svelte:head>
 
 <main class="main" id="clis-main">
-  <header class="page-head">
-    <div class="grow">
-      <h1>{t("work.clis.heading")}</h1>
-      <p class="sub">{sub[0]}<span class="mono">--version</span>{sub[1]}</p>
-    </div>
+  <SettingsHead>
     <button class="btn secondary" type="button" id="btn-rescan" disabled={app.checkingClis} onclick={rescan}>
       <ArrowClockwise size={16} aria-hidden="true" /><span>{app.checkingClis ? t("work.scanning") : t("work.rescan")}</span>
     </button>
-  </header>
+  </SettingsHead>
+  <h2 class="sr-only">{t("work.clis.heading")}</h2>
+  <p class="note">{sub[0]}<span class="mono">--version</span>{sub[1]}</p>
 
   {#if app.clisState === "loading"}
     <p class="hint" role="status">{t("work.clis.checking")}</p>

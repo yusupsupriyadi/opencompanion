@@ -1,8 +1,9 @@
 import { render, screen, within } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { expect, test } from "vitest";
-import { backend } from "../../test/fixtures";
-import { skillScan } from "../../test/skill-scan";
+import { setUrl } from "../../../test/app-state.svelte";
+import { backend } from "../../../test/fixtures";
+import { skillScan } from "../../../test/skill-scan";
 import SkillsPage from "./+page.svelte";
 
 const H = String.raw`C:\Users\me`;
@@ -10,6 +11,16 @@ const H = String.raw`C:\Users\me`;
 function rowOf(name: string) {
   return screen.getByRole("button", { name }).closest("tr") as HTMLElement;
 }
+
+test("Skills is a tab of Settings, marked as the open one", async () => {
+  setUrl("/settings/skills");
+  backend({ scan_skills: () => skillScan() });
+  render(SkillsPage);
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Settings");
+  expect(screen.getByRole("link", { name: "Skills" })).toHaveAttribute("aria-current", "page");
+  await screen.findByRole("button", { name: "antislop" });
+  expect(screen.getByRole("button", { name: "Rescan" })).toBeInTheDocument();
+});
 
 test("the matrix shows what each folder holds", async () => {
   backend({ scan_skills: () => skillScan() });

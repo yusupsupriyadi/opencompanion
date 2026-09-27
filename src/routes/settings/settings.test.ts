@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, onTestFinished, test, vi } from "vitest";
 import type { Settings } from "$lib/api";
 import { setLang } from "$lib/i18n.svelte";
-import { app, toast } from "$lib/store.svelte";
+import { app, initTheme, toast } from "$lib/store.svelte";
+import { setUrl } from "../../test/app-state.svelte";
 import { CLIS, backend } from "../../test/fixtures";
 import SettingsPage from "./+page.svelte";
 
@@ -309,4 +310,34 @@ test("picking Bahasa Indonesia saves the language and the page then reads in Ind
   expect(screen.getByRole("checkbox", { name: "Tetap berjalan di tray" })).toBeChecked();
   expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Pengaturan");
   await vi.waitFor(() => expect(toast.text).toBe("OpenCompanion sekarang memakai Bahasa Indonesia."));
+});
+
+test("the Settings tabs lead to General, CLIs and Skills, with General marked", async () => {
+  api();
+  setUrl("/settings");
+  render(SettingsPage);
+  const tabs = within(screen.getByRole("navigation", { name: "Settings sections" }));
+  expect(tabs.getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+    ["General", "/settings"],
+    ["CLIs", "/settings/clis"],
+    ["Skills", "/settings/skills"],
+  ]);
+  expect(tabs.getByRole("link", { name: "General" })).toHaveAttribute("aria-current", "page");
+  expect(tabs.getByRole("link", { name: "CLIs" })).not.toHaveAttribute("aria-current");
+  // Phone access sits here now that the sidebar no longer links to it.
+  expect(await screen.findByRole("switch", { name: "Phone access" })).toBeInTheDocument();
+});
+
+test("Day and Dusk switch the theme and show which one is on", async () => {
+  api();
+  initTheme();
+  const user = userEvent.setup();
+  render(SettingsPage);
+  const dusk = await screen.findByRole("radio", { name: "Dusk" });
+  await user.click(dusk);
+  expect(document.documentElement.dataset.theme).toBe("dark");
+  expect(dusk).toBeChecked();
+  await user.click(screen.getByRole("radio", { name: "Day" }));
+  expect(document.documentElement.dataset.theme).toBe("light");
+  expect(dusk).not.toBeChecked();
 });

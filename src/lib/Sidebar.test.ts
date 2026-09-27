@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/svelte";
+import { render, screen, within } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { tick } from "svelte";
 import { beforeEach, expect, test } from "vitest";
@@ -6,7 +6,7 @@ import { i18n } from "$lib/i18n.svelte";
 import { setUrl } from "../test/app-state.svelte";
 import { session } from "../test/fixtures";
 import Sidebar from "./Sidebar.svelte";
-import { app, initTheme, pendingNew } from "./store.svelte";
+import { app, pendingNew } from "./store.svelte";
 
 beforeEach(() => {
   app.sessions = [];
@@ -20,21 +20,19 @@ beforeEach(() => {
 
 test("every nav item points at a screen that exists", () => {
   render(Sidebar);
-  const hrefs = ["Overview", "Board", "Chat", "Terminal", "CLIs", "Skills", "Settings"].map((n) => screen.getByRole("link", { name: n }).getAttribute("href"));
-  expect(hrefs).toEqual(["/", "/board", "/chat", "/terminal", "/clis", "/skills", "/settings"]);
+  const nav = within(screen.getByRole("navigation", { name: "Main" }));
+  const hrefs = nav.getAllByRole("link").map((a) => a.getAttribute("href"));
+  expect(hrefs).toEqual(["/", "/board", "/chat", "/terminal", "/settings"]);
   expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
 });
 
-test("Day and Dusk switch the theme and say which one is on", async () => {
-  window.matchMedia ??= (() => ({ matches: false, addEventListener() {} })) as unknown as typeof window.matchMedia;
-  initTheme();
-  const user = userEvent.setup();
+test("CLIs, Skills, Phone access and the theme are under Settings, not in the sidebar", () => {
+  setUrl("/settings/skills");
+  app.companion = { running: true, address: "192.168.1.5", port: 8765, error: null };
   render(Sidebar);
-  await user.click(screen.getByRole("button", { name: "Dusk" }));
-  expect(document.documentElement.dataset.theme).toBe("dark");
-  expect(screen.getByRole("button", { name: "Dusk" })).toHaveAttribute("aria-pressed", "true");
-  await user.click(screen.getByRole("button", { name: "Day" }));
-  expect(document.documentElement.dataset.theme).toBe("light");
+  expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
+  for (const name of [/^CLIs$/, /^Skills$/, /Phone access/]) expect(screen.queryByRole("link", { name })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Dusk" })).toBeNull();
 });
 
 test("waiting sessions come first in the session list, named by their task", () => {
@@ -134,7 +132,18 @@ test("with no sessions yet, Sessions still offers New session", () => {
 
 const groupNames = () => [...document.querySelectorAll(".folder-head .mono")].map((e) => e.textContent);
 
-test("a pinned session stays past the six most recent, first in its folder, after a restart", async () => {
+test("every session stays listed, however many there are", () => {
+  app.sessions = Array.from({ length: 30 }, (_, n) =>
+    session({ id: `s${n}`, title: `Task ${n}`, cwd: n % 2 ? "C:\\p\\uninote" : "C:\\p\\calendar", status: n === 29 ? "waiting" : "done" }),
+  );
+  render(Sidebar);
+  const titles = [...document.querySelectorAll(".mini b")].map((b) => b.textContent);
+  expect(titles).toHaveLength(30);
+  expect(groupNames()).toEqual(["uninote", "calendar"]);
+  expect(titles[0]).toBe("Task 29");
+});
+
+test("a pinned session comes first in its folder, after a restart", async () => {
   const user = userEvent.setup();
   const older = Array.from({ length: 6 }, (_, n) => session({ id: `o${n}`, title: `Older ${n}`, cwd: "C:\\p\\uninote", status: "done" }));
   app.sessions = older;
@@ -149,7 +158,7 @@ test("a pinned session stays past the six most recent, first in its folder, afte
   app.sessions = [...newer, ...older];
   render(Sidebar);
   const titles = [...document.querySelectorAll(".mini b")].map((b) => b.textContent);
-  expect(titles).toEqual(["Older 5", "Newer 0", "Newer 1", "Newer 2", "Newer 3", "Newer 4", "Newer 5"]);
+  expect(titles).toEqual(["Older 5", "Newer 0", "Newer 1", "Newer 2", "Newer 3", "Newer 4", "Newer 5", "Older 0", "Older 1", "Older 2", "Older 3", "Older 4"]);
   expect(screen.getByRole("button", { name: "Pin session: Older 5" })).toHaveAttribute("aria-pressed", "true");
 });
 
@@ -175,12 +184,6 @@ test("a pinned folder stays on top, even with no recent session, ready for a new
   expect(unpin).toHaveAttribute("aria-pressed", "true");
   await user.click(unpin);
   expect(groupNames()).toEqual(["calendar"]);
-});
-
-test("phone access shows its real state", () => {
-  app.companion = { running: true, address: "192.168.1.5", port: 8765, error: null };
-  render(Sidebar);
-  expect(screen.getByRole("link", { name: /Phone access/ })).toHaveTextContent("On");
 });
 
 test("switching the UI language to Indonesian relabels the open sidebar", async () => {

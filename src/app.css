@@ -111,7 +111,9 @@ dialog, .rail.pop, .mention { --surface: var(--glass-pop); }
 .nav a[aria-current="page"] { background: var(--surface-2); color: var(--ink); font-weight: 700; }
 .nav a[aria-current="page"] svg { color: var(--forest); }
 .side-label { padding: 0 12px 4px; font-size: 12px; font-weight: 700; color: var(--ink-2); }
-.minis { display: flex; flex-direction: column; gap: 6px; }
+.side-sessions { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+/* Every session is listed, so the list scrolls on its own and the brand and nav stay put. The 4px pad keeps focus rings unclipped. */
+.minis { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow-y: auto; margin: 0 -4px -4px; padding: 4px; }
 .folder-group { display: flex; flex-direction: column; gap: 2px; }
 /* Caret 12 and folder 16 line up with the rows below: folder icon over the provider mark, name over the titles. */
 .folder-head { display: flex; gap: 4px; align-items: center; width: 100%; min-height: 30px; padding: 4px 12px 4px 8px; border: 0; border-radius: var(--r-btn); background: transparent; color: var(--ink); font-size: 12px; text-align: left; cursor: pointer; }
@@ -134,13 +136,11 @@ dialog, .rail.pop, .mention { --surface: var(--glass-pop); }
 @keyframes shimmer { to { background-position: -200% 0; } }
 .dot { width: 8px; height: 8px; flex: none; }
 .dot.wait { background: var(--accent); } .dot.run { background: var(--st-run); } .dot.done { background: var(--line-strong); } .dot.err { background: var(--st-err); }
-.side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
-.phone-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; min-height: 40px; border-radius: var(--r-btn); background: var(--surface); border: 1px solid var(--line); font-size: 13px; font-weight: 700; }
-.phone-row:hover { background: var(--surface-2); }
-.phone-row svg { color: var(--ink-2); }
 .seg { display: flex; gap: 2px; padding: 3px; border-radius: var(--r-btn); background: var(--surface-2); }
-.seg button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 10px; min-height: 34px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink-2); font-weight: 600; font-size: 13px; cursor: pointer; }
-.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 700; }
+.seg button, .seg a { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 10px; min-height: 34px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink-2); font-weight: 600; font-size: 13px; cursor: pointer; }
+.seg button[aria-pressed="true"], .seg a[aria-current="page"] { background: var(--surface); color: var(--ink); font-weight: 700; }
+.seg a:not([aria-current="page"]):hover span { text-decoration: underline; }
+.seg a[aria-current="page"] svg { color: var(--forest); }
 /* Positioned so absolute children (.sr-only, hidden radios) scroll with the page instead of stretching the window. */
 .main { position: relative; overflow-y: auto; padding: 28px 40px; display: flex; flex-direction: column; gap: 28px; min-width: 0; }
 /* The page takes focus only when the control that had it went away (lib/focus.ts); it is not a control. */
@@ -344,12 +344,11 @@ dialog[open] { animation: rise .18s ease-out; }
 @media (max-width: 1100px) {
   .app { grid-template-columns: 76px minmax(0, 1fr); }
   .sidebar { padding: 22px 12px; align-items: stretch; }
-  .sidebar .side-sessions, .phone-row .chip { display: none; }
+  .sidebar .side-sessions { display: none; }
   /* Icons only, but the labels stay the buttons' and links' names for screen readers. */
   .sidebar .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .brand { justify-content: center; padding: 0; }
-  .nav a, .phone-row { justify-content: center; padding: 9px; }
-  .seg { flex-direction: column; }
+  .nav a { justify-content: center; padding: 9px; }
   .srow { grid-template-columns: 30px minmax(0, 1fr) 124px; }
   .srow .track { display: none; }
   .main { padding: 24px 24px; }
@@ -358,9 +357,6 @@ dialog[open] { animation: rise .18s ease-out; }
   .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: auto; min-height: 100vh; padding: var(--titlebar) 8px 8px; gap: 8px; }
   .sidebar { flex-direction: row; align-items: center; gap: 8px; padding: 10px 16px; overflow-x: auto; }
   .nav { flex-direction: row; }
-  .side-foot { margin: 0 0 0 auto; flex-direction: row; }
-  .phone-row { display: none; }
-  .seg { flex-direction: row; }
   .main { padding: 20px 16px; overflow: visible; }
   .page-head { flex-wrap: wrap; }
   .srow { grid-template-columns: 30px minmax(0, 1fr); }

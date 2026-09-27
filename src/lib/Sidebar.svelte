@@ -1,35 +1,29 @@
 <script lang="ts">
   import { page } from "$app/state";
-  import Books from "phosphor-svelte/lib/Books";
   import CaretDown from "phosphor-svelte/lib/CaretDown";
   import ChatsCircle from "phosphor-svelte/lib/ChatsCircle";
-  import DeviceMobile from "phosphor-svelte/lib/DeviceMobile";
   import FolderSimple from "phosphor-svelte/lib/FolderSimple";
   import GearSix from "phosphor-svelte/lib/GearSix";
   import HandPalm from "phosphor-svelte/lib/HandPalm";
   import House from "phosphor-svelte/lib/House";
   import Kanban from "phosphor-svelte/lib/Kanban";
-  import Moon from "phosphor-svelte/lib/Moon";
   import Plus from "phosphor-svelte/lib/Plus";
   import PushPin from "phosphor-svelte/lib/PushPin";
-  import Sun from "phosphor-svelte/lib/Sun";
   import TerminalIcon from "phosphor-svelte/lib/Terminal";
-  import TerminalWindow from "phosphor-svelte/lib/TerminalWindow";
   import Trash from "phosphor-svelte/lib/Trash";
   import type { SessionView } from "./api";
   import AppLogo from "./AppLogo.svelte";
   import CliMark from "./CliMark.svelte";
   import { CLI_LABEL, STATUS, folderName, isLive } from "./format";
   import { plural, t } from "./i18n.svelte";
-  import { app, askDelete, askNewSession, currentTheme, setTheme } from "./store.svelte";
+  import { app, askDelete, askNewSession } from "./store.svelte";
 
+  // CLIs, Skills, Phone access and the theme live under Settings.
   const NAV = [
     { href: "/", key: "shell.nav.overview", icon: House },
     { href: "/board", key: "shell.nav.board", icon: Kanban },
     { href: "/chat", key: "shell.nav.chat", icon: ChatsCircle },
     { href: "/terminal", key: "shell.nav.terminal", icon: TerminalIcon },
-    { href: "/clis", key: "shell.nav.clis", icon: TerminalWindow },
-    { href: "/skills", key: "shell.nav.skills", icon: Books },
     { href: "/settings", key: "shell.nav.settings", icon: GearSix },
   ] as const;
 
@@ -82,15 +76,14 @@
     saveList(PINNED_SESSIONS_KEY, pinnedSessions);
   }
 
-  // Shown: every pinned session plus the six most urgent others (live first, waiting on top,
-  // then recent finished). Pinned folders lead, even empty; the rest follow their most urgent
-  // session. Inside a folder, pinned sessions come first.
+  // Every session is shown, most urgent first: live (waiting on top), then finished, newest first.
+  // Pinned folders lead, even empty; the rest follow their most urgent session. Inside a folder,
+  // pinned sessions come first.
   const groups = $derived.by(() => {
     const live = app.sessions.filter(isLive);
     live.sort((a, b) => Number(b.status === "waiting") - Number(a.status === "waiting"));
     const ordered = [...live, ...app.sessions.filter((s) => !isLive(s))];
     const pinned = new Set(pinnedSessions);
-    const shown = new Set([...ordered.filter((s) => pinned.has(s.id)), ...ordered.filter((s) => !pinned.has(s.id)).slice(0, 6)]);
 
     const byFolder = new Map<string, { key: string; cwd: string; pinned: boolean; sessions: SessionView[] }>();
     for (const cwd of pinnedFolders) {
@@ -98,7 +91,6 @@
       if (!byFolder.has(key)) byFolder.set(key, { key, cwd, pinned: true, sessions: [] });
     }
     for (const s of ordered) {
-      if (!shown.has(s)) continue;
       const key = folderKey(s.cwd);
       const group = byFolder.get(key);
       if (group) group.sessions.push(s);
@@ -107,8 +99,6 @@
     for (const g of byFolder.values()) g.sessions.sort((a, b) => Number(pinned.has(b.id)) - Number(pinned.has(a.id)));
     return [...byFolder.values()];
   });
-
-  const phoneOn = $derived(app.companion?.running ?? false);
 </script>
 
 <aside class="sidebar" aria-label="OpenCompanion">
@@ -221,21 +211,6 @@
         {/each}
       </div>
     {/if}
-  </div>
-  <div class="side-foot">
-    <a class="phone-row" href="/settings#phone" title={t("shell.sidebar.phone")}>
-      <DeviceMobile size={18} aria-hidden="true" />
-      <span class="lbl grow">{t("shell.sidebar.phone")}</span>
-      <span class="chip {phoneOn ? 'run' : 'idle'}">{phoneOn ? t("shell.sidebar.on") : t("shell.sidebar.off")}</span>
-    </a>
-    <div class="seg" role="group" aria-label={t("shell.sidebar.theme")}>
-      <button type="button" title={t("shell.sidebar.day")} aria-pressed={currentTheme() === "light"} onclick={() => setTheme("light")}>
-        <Sun size={16} aria-hidden="true" /><span class="lbl">{t("shell.sidebar.day")}</span>
-      </button>
-      <button type="button" title={t("shell.sidebar.dusk")} aria-pressed={currentTheme() === "dark"} onclick={() => setTheme("dark")}>
-        <Moon size={16} aria-hidden="true" /><span class="lbl">{t("shell.sidebar.dusk")}</span>
-      </button>
-    </div>
   </div>
 </aside>
 
