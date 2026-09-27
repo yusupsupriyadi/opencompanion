@@ -31,7 +31,6 @@ function backend(handlers: Parameters<typeof mockBackend>[0]) {
 }
 
 beforeEach(() => {
-  localStorage.removeItem("air-terminal-shell");
   vi.mocked(listen).mockImplementation(async () => () => undefined);
 });
 
@@ -59,8 +58,9 @@ test("with no terminal open the screen says what a terminal is for and opens one
   expect(calls.calls("terminal_open")[0]).toMatchObject({ cwd: String.raw`C:\Users\me\Project\api`, shell: "cmd" });
   const tab = await screen.findByRole("button", { name: /api\s*Command Prompt/ });
   expect(tab).toHaveAttribute("aria-current", "true");
-  // The shell picked here is picked again next time.
-  expect(localStorage.getItem("air-terminal-shell")).toBe("cmd");
+  // The next terminal starts in the default shell again, not in the one picked last.
+  await user.click(screen.getByRole("button", { name: "New terminal" }));
+  expect(await screen.findByRole("combobox", { name: "Shell" })).toHaveValue("pwsh");
 });
 
 test("a missing folder opens nothing", async () => {

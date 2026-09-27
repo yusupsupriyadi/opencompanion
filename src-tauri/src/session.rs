@@ -564,6 +564,7 @@ impl Manager {
                 cols: cols.unwrap_or(120),
                 rows: rows.unwrap_or(32),
                 env,
+                powershell: crate::terminal::powershell(),
             },
             Box::new(move |bytes| {
                 let text = {

@@ -13,23 +13,6 @@
     oncancel,
   }: { initialCwd?: string; onsubmit: (cwd: string, shell: string) => Promise<void>; oncancel: () => void } = $props();
 
-  // The shell picked last is picked again next time.
-  const SHELL_KEY = "air-terminal-shell";
-  function savedShell(): string {
-    try {
-      return localStorage.getItem(SHELL_KEY) ?? "";
-    } catch {
-      return "";
-    }
-  }
-  function saveShell(id: string) {
-    try {
-      localStorage.setItem(SHELL_KEY, id);
-    } catch {
-      // Private windows can refuse storage; the default shell is picked instead next time.
-    }
-  }
-
   // The dialog remounts the form every time it opens.
   let cwd = $state(untrack(() => initialCwd));
   let shells = $state<ShellInfo[]>([]);
@@ -45,8 +28,8 @@
   onMount(async () => {
     try {
       shells = await api.terminalShells();
-      const saved = savedShell();
-      shell = shells.some((s) => s.id === saved) ? saved : (shells[0]?.id ?? "");
+      // Every terminal starts in the default shell, PowerShell on Windows, whatever was picked last.
+      shell = shells[0]?.id ?? "";
       shellsState = "ready";
     } catch (e) {
       failure = errorText(e);
@@ -64,7 +47,6 @@
     }
     busy = true;
     try {
-      saveShell(shell);
       await onsubmit(dir, shell);
     } catch (err) {
       failure = errorText(err);

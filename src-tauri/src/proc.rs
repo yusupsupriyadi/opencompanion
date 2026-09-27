@@ -61,6 +61,37 @@ pub fn cmd_unsafe(arg: &str) -> bool {
     arg.contains(['&', '|', '<', '>', '^', '%', '!', '"', '\r', '\n'])
 }
 
+/// One Windows command line that the program's C runtime splits back into exactly `args`.
+pub fn command_line(args: &[String]) -> String {
+    let mut line = String::new();
+    for arg in args {
+        if !line.is_empty() {
+            line.push(' ');
+        }
+        if !arg.is_empty() && !arg.contains([' ', '\t', '\n', '\x0b', '"']) {
+            line.push_str(arg);
+            continue;
+        }
+        // Backslashes are literal unless they precede a quote, so only those runs are doubled.
+        line.push('"');
+        let mut backslashes = 0;
+        for c in arg.chars() {
+            match c {
+                '\\' => backslashes += 1,
+                '"' => {
+                    line.extend(std::iter::repeat_n('\\', backslashes + 1));
+                    backslashes = 0;
+                }
+                _ => backslashes = 0,
+            }
+            line.push(c);
+        }
+        line.extend(std::iter::repeat_n('\\', backslashes));
+        line.push('"');
+    }
+    line
+}
+
 /// How to start `program` without cmd.exe in between. npm installs Codex, Claude Code and
 /// Gemini CLI as a `.cmd` shim that runs a node script; that becomes `node <script>`, so a prompt
 /// never passes through cmd.exe, where `&` in it would run a command. Anything else starts as it is.
@@ -218,6 +249,16 @@ endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\node_
         assert!(cmd_unsafe("first line\nsecond"));
         assert!(cmd_unsafe("%USERNAME%"));
         assert!(!cmd_unsafe("Fix the failing tests in src/app.ts"));
+    }
+
+    #[test]
+    fn a_command_line_quotes_only_what_would_split_or_vanish() {
+        let line = |args: &[&str]| command_line(&args.iter().map(|a| a.to_string()).collect::<Vec<_>>());
+        assert_eq!(line(&["--resume", "abc", "Fix the tests", ""]), r#"--resume abc "Fix the tests" """#);
+        assert_eq!(line(&[r#"say "hi""#]), r#""say \"hi\"""#);
+        assert_eq!(line(&[r#"a\"b"#]), r#""a\\\"b""#);
+        assert_eq!(line(&[r"C:\dir\", r"C:\my dir\"]), r#"C:\dir\ "C:\my dir\\""#);
+        assert_eq!(line(&["$HOME 'x' `n"]), r#""$HOME 'x' `n""#);
     }
 
     #[cfg(windows)]

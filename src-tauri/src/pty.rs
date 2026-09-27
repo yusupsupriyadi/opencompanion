@@ -14,7 +14,23 @@ pub struct PtySpec {
     pub cols: u16,
     pub rows: u16,
     pub env: Vec<(String, String)>,
+    /// Starts the program from this PowerShell, as if typed at its prompt, so the user's
+    /// profile (PATH, environment) applies to it.
+    pub powershell: Option<PathBuf>,
 }
+
+/// Runs the program with the environment the profile left and exits with its code. The program and
+/// its arguments arrive as environment variables: PowerShell would parse `$` or quotes in a prompt.
+const POWERSHELL_HOST: &str = "$ErrorActionPreference = 'Stop'; \
+    $start = New-Object System.Diagnostics.ProcessStartInfo; \
+    $start.FileName = $env:OPENCOMPANION_PROGRAM; \
+    $start.Arguments = $env:OPENCOMPANION_ARGS; \
+    $start.WorkingDirectory = $env:OPENCOMPANION_CWD; \
+    $start.UseShellExecute = $false; \
+    foreach ($name in 'OPENCOMPANION_PROGRAM', 'OPENCOMPANION_ARGS', 'OPENCOMPANION_CWD') { [Environment]::SetEnvironmentVariable($name, $null) }; \
+    $cli = [System.Diagnostics.Process]::Start($start); \
+    $cli.WaitForExit(); \
+    exit $cli.ExitCode";
 
 pub type OutputSink = Box<dyn FnMut(&[u8]) + Send>;
 
@@ -58,22 +74,34 @@ impl PtySession {
         // An npm shim runs as `node <script>`. Any other batch file needs cmd.exe as its host,
         // which reads `&`, `%` and quotes in the arguments as its own syntax.
         let (program, lead) = crate::proc::launcher(&spec.program);
-        let mut cmd = if crate::proc::is_batch(&program) {
-            if spec.args.iter().any(|a| crate::proc::cmd_unsafe(a)) {
-                return Err(format!(
-                    "{} is a batch file, so cmd.exe would run parts of this text as commands or cut it at a line break.                      Set the CLI's .exe or .js file as its path on the CLIs screen, or leave out & | < > ^ % ! and quotes.",
-                    program.display()
-                ));
-            }
-            let mut c = CommandBuilder::new("cmd.exe");
-            c.args(["/d", "/c"]);
-            c.arg(&program);
+        let batch = crate::proc::is_batch(&program);
+        if batch && spec.args.iter().any(|a| crate::proc::cmd_unsafe(a)) {
+            return Err(format!(
+                "{} is a batch file, so cmd.exe would run parts of this text as commands or cut it at a line break.                      Set the CLI's .exe or .js file as its path on the CLIs screen, or leave out & | < > ^ % ! and quotes.",
+                program.display()
+            ));
+        }
+        let mut cmd = if let Some(powershell) = &spec.powershell {
+            let mut c = CommandBuilder::new(powershell);
+            c.args(["-NoLogo", "-Command", POWERSHELL_HOST]);
+            let args: Vec<String> = lead.into_iter().chain(spec.args.iter().cloned()).collect();
+            c.env("OPENCOMPANION_PROGRAM", &program);
+            c.env("OPENCOMPANION_ARGS", crate::proc::command_line(&args));
+            c.env("OPENCOMPANION_CWD", &spec.cwd);
             c
         } else {
-            CommandBuilder::new(&program)
+            let mut c = if batch {
+                let mut c = CommandBuilder::new("cmd.exe");
+                c.args(["/d", "/c"]);
+                c.arg(&program);
+                c
+            } else {
+                CommandBuilder::new(&program)
+            };
+            c.args(&lead);
+            c.args(&spec.args);
+            c
         };
-        cmd.args(&lead);
-        cmd.args(&spec.args);
         cmd.cwd(&spec.cwd);
         for var in crate::proc::INHERITED_SESSION_VARS {
             cmd.env_remove(var);
@@ -241,5 +269,53 @@ mod tests {
         assert_eq!(count_cursor_queries(&mut carry, b"text \x1b["), 0);
         assert_eq!(count_cursor_queries(&mut carry, b"6n and \x1b[6n"), 2);
         assert_eq!(count_cursor_queries(&mut carry, b"\x1b[6m"), 0);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_program_started_from_powershell_keeps_its_arguments_folder_environment_and_exit_code() {
+        let root = std::env::var_os("SystemRoot").map(PathBuf::from).expect("SystemRoot");
+        let dir = std::env::temp_dir().join(format!("oc host {}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let text = Arc::new(Mutex::new(String::new()));
+        let sink = Arc::clone(&text);
+        // PowerShell would expand $HOME and drop the quotes if the arguments went through its parser.
+        let args = ["/d", "/c", "echo", "$HOME", "'x'", "%OC_TEST%", "&", "cd", "&", "set", "OPENCOMPANION", "&", "exit", "3"];
+        let mut pty = PtySession::spawn(
+            PtySpec {
+                program: root.join(r"System32\cmd.exe"),
+                args: args.iter().map(|a| a.to_string()).collect(),
+                cwd: dir.clone(),
+                cols: 160,
+                rows: 30,
+                env: vec![("OC_TEST".into(), "reached".into())],
+                powershell: Some(crate::terminal::powershell().expect("PowerShell is installed")),
+            },
+            Box::new(move |bytes| sink.lock().unwrap().push_str(&String::from_utf8_lossy(bytes))),
+        )
+        .expect("PowerShell starts");
+        let pid = sysinfo::Pid::from_u32(pty.pid().expect("pid"));
+        let mut sys = sysinfo::System::new();
+        sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
+        let host = sys.process(pid).map(|p| p.name().to_string_lossy().to_lowercase()).unwrap_or_default();
+        assert!(host == "powershell.exe" || host == "pwsh.exe", "started {host}");
+
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let code = loop {
+            if let Some(code) = pty.exit_code() {
+                break code;
+            }
+            assert!(Instant::now() < deadline, "never exited: {}", pty.screen_text());
+            thread::sleep(Duration::from_millis(50));
+        };
+        while !pty.screen_text().contains(&dir.display().to_string()) && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(50));
+        }
+        let screen = pty.screen_text();
+        assert_eq!(code, 3, "{screen}");
+        assert!(screen.contains("$HOME 'x' reached"), "{screen}");
+        assert!(screen.contains(&dir.display().to_string()), "{screen}");
+        assert!(!text.lock().unwrap().contains("OPENCOMPANION_"), "{screen}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

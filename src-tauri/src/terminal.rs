@@ -60,18 +60,8 @@ fn shell(id: &str, label: &str, path: PathBuf, args: &[&str]) -> Shell {
 /// PowerShell, Command Prompt and Git Bash.
 #[cfg(windows)]
 pub fn available_shells() -> Vec<Shell> {
-    let root = std::env::var_os("SystemRoot")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(r"C:\Windows"));
-    let mut out = Vec::new();
-    if let Ok(pwsh) = which::which("pwsh") {
-        out.push(shell("pwsh", "PowerShell", pwsh, &["-NoLogo"]));
-    }
-    let powershell = root.join(r"System32\WindowsPowerShell\v1.0\powershell.exe");
-    if powershell.is_file() {
-        out.push(shell("powershell", "Windows PowerShell", powershell, &["-NoLogo"]));
-    }
-    let cmd = root.join(r"System32\cmd.exe");
+    let mut out = powershells();
+    let cmd = system_root().join(r"System32\cmd.exe");
     if cmd.is_file() {
         out.push(shell("cmd", "Command Prompt", cmd, &[]));
     }
@@ -79,6 +69,38 @@ pub fn available_shells() -> Vec<Shell> {
         out.push(shell("gitbash", "Git Bash", bash, &["--login", "-i"]));
     }
     out
+}
+
+#[cfg(windows)]
+fn system_root() -> PathBuf {
+    std::env::var_os("SystemRoot")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(r"C:\Windows"))
+}
+
+#[cfg(windows)]
+fn powershells() -> Vec<Shell> {
+    let mut out = Vec::new();
+    if let Ok(pwsh) = which::which("pwsh") {
+        out.push(shell("pwsh", "PowerShell", pwsh, &["-NoLogo"]));
+    }
+    let powershell = system_root().join(r"System32\WindowsPowerShell\v1.0\powershell.exe");
+    if powershell.is_file() {
+        out.push(shell("powershell", "Windows PowerShell", powershell, &["-NoLogo"]));
+    }
+    out
+}
+
+/// The PowerShell a session starts its CLI from: PowerShell 7 when it is installed, else Windows
+/// PowerShell. Elsewhere a CLI starts on its own.
+#[cfg(windows)]
+pub fn powershell() -> Option<PathBuf> {
+    powershells().into_iter().next().map(|s| PathBuf::from(s.path))
+}
+
+#[cfg(not(windows))]
+pub fn powershell() -> Option<PathBuf> {
+    None
 }
 
 /// Git for Windows' bash. Searching the PATH for `bash` would find WSL's launcher instead.
@@ -226,6 +248,7 @@ impl Terminals {
                     ("TERM".into(), "xterm-256color".into()),
                     ("COLORTERM".into(), "truecolor".into()),
                 ],
+                powershell: None,
             },
             Box::new(move |bytes| {
                 if sink_term.generation.load(Ordering::SeqCst) != generation {
