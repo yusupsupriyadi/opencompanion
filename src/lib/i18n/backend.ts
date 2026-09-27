@@ -82,7 +82,7 @@ const RULES: Rule[] = [
   [/^The planner is still answering in this chat\. Send again when it is done\.$/, "Planner masih menjawab di chat ini. Kirim lagi setelah selesai."],
   [/^The planner is still answering in this chat\. Delete it when the answer is in\.$/, "Planner masih menjawab di chat ini. Hapus setelah jawabannya masuk."],
   [/^Unknown CLI\.$/, "CLI tidak dikenal."],
-  [/^No CLI is installed that can plan tasks\. Install Claude Code, Codex CLI or OpenCode, then rescan on the CLIs screen\.$/, "Belum ada CLI terpasang yang bisa merencanakan tugas. Pasang Claude Code, Codex CLI atau OpenCode, lalu pindai ulang di layar CLI."],
+  [/^No CLI is installed that can plan tasks\. Install Claude Code, Codex CLI, OpenCode or Pi, then rescan on the CLIs screen\.$/, "Belum ada CLI terpasang yang bisa merencanakan tugas. Pasang Claude Code, Codex CLI, OpenCode, atau Pi, lalu pindai ulang di layar CLI."],
   [/^The chat CLI is not installed\.$/, "CLI untuk chat tidak terpasang."],
   [/^Gemini CLI cannot be the chat planner yet\.$/, "Gemini CLI belum bisa menjadi planner chat."],
   [/^CCS can plan in Chat only with its default profile or an account profile, not (.+)\.$/, "CCS hanya bisa merencanakan di Chat dengan profil default atau profil akun, bukan $1."],

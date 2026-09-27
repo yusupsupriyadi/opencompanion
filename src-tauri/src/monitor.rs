@@ -50,6 +50,10 @@ pub fn classify(name: &str, args: &[String]) -> Option<CliKind> {
         if joined.contains("@kaitranntt/ccs") {
             return Some(CliKind::Ccs);
         }
+        // Pi's own installer starts `node ~/.pi/agent/bin/pi-launcher.js`, which runs the package.
+        if joined.contains("/pi-coding-agent/") || joined.contains("/.pi/agent/bin/pi-launcher.js") {
+            return Some(CliKind::Pi);
+        }
     }
     None
 }
@@ -58,6 +62,7 @@ pub fn classify(name: &str, args: &[String]) -> Option<CliKind> {
 /// the prompt text or tokens.
 pub fn run_mode(kind: CliKind, args: &[String]) -> RunMode {
     let has = |flag: &str| args.iter().skip(1).any(|a| a == flag);
+    let has_mode = |mode: &str| args.windows(2).any(|w| w[0] == "--mode" && w[1] == mode);
     let first = args
         .iter()
         .skip(1)
@@ -71,6 +76,8 @@ pub fn run_mode(kind: CliKind, args: &[String]) -> RunMode {
         }
         CliKind::Opencode if first == Some("run") => RunMode::Headless,
         CliKind::Opencode if matches!(first, Some("serve") | Some("web")) => RunMode::Server,
+        CliKind::Pi if has_mode("rpc") => RunMode::Server,
+        CliKind::Pi if has("-p") || has("--print") || has_mode("json") => RunMode::Headless,
         _ => RunMode::Interactive,
     }
 }
@@ -295,6 +302,14 @@ mod tests {
         let ccs = args(&["node", r"C:\nvm4w\nodejs\node_modules\@kaitranntt\ccs\dist\ccs.js", "work", "-p"]);
         assert_eq!(classify("node.exe", &ccs), Some(CliKind::Ccs));
         assert_eq!(run_mode(CliKind::Ccs, &ccs), RunMode::Headless);
+        let launcher = args(&["node", r"C:\Users\me\.pi\agent\bin\pi-launcher.js", "--mode", "json"]);
+        assert_eq!(classify("node.exe", &launcher), Some(CliKind::Pi));
+        assert_eq!(run_mode(CliKind::Pi, &launcher), RunMode::Headless);
+        let pi = args(&["node", r"C:\npm\node_modules\@earendil-works\pi-coding-agent\dist\bundle\cli.js"]);
+        assert_eq!(classify("node.exe", &pi), Some(CliKind::Pi));
+        assert_eq!(run_mode(CliKind::Pi, &pi), RunMode::Interactive);
+        assert_eq!(run_mode(CliKind::Pi, &args(&["pi", "--mode", "rpc"])), RunMode::Server);
+        assert_eq!(classify("pi.exe", &[]), Some(CliKind::Pi));
     }
 
     /// Regression: the app's own `opencode --version` probe was listed as an outside session.

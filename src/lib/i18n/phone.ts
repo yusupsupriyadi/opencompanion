@@ -146,7 +146,7 @@ export const en = {
   "phone.chat.loading": "Loading your chats…",
   "phone.chat.loadFailed": "The chat list could not be loaded: {error}",
   "phone.chat.planner": "Planner: {planner}. It answers with a card for each session, and nothing starts until you press Run.",
-  "phone.chat.noPlanner": "Nothing can plan yet. Install Claude Code, Codex CLI or OpenCode on your computer, or choose a planner in its Settings.",
+  "phone.chat.noPlanner": "Nothing can plan yet. Install Claude Code, Codex CLI, OpenCode or Pi on your computer, or choose a planner in its Settings.",
   "phone.chat.empty": "No chats yet. Your first message starts one, and every chat keeps its own history on your computer.",
   "phone.chat.saved": "Saved chats",
   "phone.chat.answering": "Planner is answering…",
@@ -349,7 +349,7 @@ export const id: Record<keyof typeof en, string> = {
   "phone.chat.loadFailed": "Daftar chat tidak bisa dimuat: {error}",
   "phone.chat.planner": "Planner: {planner}. Jawabannya berupa satu kartu untuk tiap sesi, dan tidak ada yang dimulai sebelum Anda menekan Jalankan.",
   "phone.chat.noPlanner":
-    "Belum ada yang bisa membuat rencana. Pasang Claude Code, Codex CLI, atau OpenCode di komputer Anda, atau pilih planner di Pengaturan OpenCompanion.",
+    "Belum ada yang bisa membuat rencana. Pasang Claude Code, Codex CLI, OpenCode, atau Pi di komputer Anda, atau pilih planner di Pengaturan OpenCompanion.",
   "phone.chat.empty": "Belum ada chat. Pesan pertama Anda memulai chat baru, dan tiap chat menyimpan riwayatnya sendiri di komputer Anda.",
   "phone.chat.saved": "Chat tersimpan",
   "phone.chat.answering": "Planner sedang menjawab…",

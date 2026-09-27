@@ -111,13 +111,14 @@ pub fn launcher(program: &Path) -> (PathBuf, Vec<String>) {
 }
 
 /// The node script an npm cmd-shim runs: `"%dp0%\node_modules\@openai\codex\bin\codex.js" %*`.
+/// Pi's own installer writes `node "%~dp0pi-launcher.js" %*`, with no backslash after `%~dp0`.
 fn shim_script(text: &str) -> Option<PathBuf> {
-    for marker in ["\"%dp0%\\", "\"%~dp0\\"] {
+    for marker in ["\"%dp0%\\", "\"%~dp0\\", "\"%~dp0"] {
         let mut rest = text;
         while let Some(at) = rest.find(marker) {
             rest = &rest[at + marker.len()..];
             let Some(end) = rest.find('"') else { break };
-            let rel = &rest[..end];
+            let rel = rest[..end].trim_start_matches('\\');
             let lower = rel.to_ascii_lowercase();
             if [".js", ".cjs", ".mjs"].iter().any(|x| lower.ends_with(x)) {
                 return Some(PathBuf::from(rel.replace('\\', std::path::MAIN_SEPARATOR_STR)));
@@ -241,6 +242,8 @@ endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\node_
         assert!(script.starts_with("node_modules"));
         // A shim for a native exe has no script; `cli::unwrap_shim` swaps those for the exe.
         assert_eq!(shim_script(r#""%dp0%\node_modules\opencode-ai\bin\opencode.exe" %*"#), None);
+        let pi = shim_script("@ECHO off\r\nnode \"%~dp0pi-launcher.js\" %*\r\n").expect("pi script");
+        assert_eq!(pi, PathBuf::from("pi-launcher.js"));
     }
 
     #[test]

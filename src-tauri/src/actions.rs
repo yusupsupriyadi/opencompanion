@@ -128,7 +128,7 @@ pub fn chat_send(manager: &Arc<Manager>, own: &HashSet<u32>, thread_id: Option<S
         }
         None => msg(
             "error",
-            "No CLI is installed that can plan tasks. Install Claude Code, Codex CLI or OpenCode, then rescan on the CLIs screen.".into(),
+            "No CLI is installed that can plan tasks. Install Claude Code, Codex CLI, OpenCode or Pi, then rescan on the CLIs screen.".into(),
             vec![],
         ),
         Some(kind) => {

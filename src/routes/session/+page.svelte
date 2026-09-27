@@ -297,6 +297,7 @@
             {:else if s.mode === "headless" && s.cli === "claude"}{SIGNAL_TEXT.stdio}
             {:else if s.mode === "interactive" && s.cli === "claude"}{SIGNAL_TEXT.hook}
             {:else if s.mode === "headless" && s.cli === "opencode"}{t("sessions.detail.signalOpenCode")}
+            {:else if s.cli === "pi"}{t("sessions.detail.signalPi")}
             {:else}{SIGNAL_TEXT.screen}{/if}
           </p>
         </div>

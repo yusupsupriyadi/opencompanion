@@ -15,15 +15,18 @@ pub enum CliKind {
     Gemini,
     /// CCS (`@kaitranntt/ccs`) starts Claude Code with a profile: `ccs [profile] [claude args]`.
     Ccs,
+    /// Pi (`@earendil-works/pi-coding-agent`). It has no permission prompts.
+    Pi,
 }
 
 impl CliKind {
-    pub const ALL: [CliKind; 5] = [
+    pub const ALL: [CliKind; 6] = [
         CliKind::Claude,
         CliKind::Codex,
         CliKind::Opencode,
         CliKind::Gemini,
         CliKind::Ccs,
+        CliKind::Pi,
     ];
 
     pub fn bin(self) -> &'static str {
@@ -33,6 +36,7 @@ impl CliKind {
             CliKind::Opencode => "opencode",
             CliKind::Gemini => "gemini",
             CliKind::Ccs => "ccs",
+            CliKind::Pi => "pi",
         }
     }
 
@@ -43,6 +47,7 @@ impl CliKind {
             CliKind::Opencode => "OpenCode",
             CliKind::Gemini => "Gemini CLI",
             CliKind::Ccs => "CCS",
+            CliKind::Pi => "Pi",
         }
     }
 
@@ -54,6 +59,7 @@ impl CliKind {
             CliKind::Opencode => &["1.18"],
             CliKind::Gemini => &[],
             CliKind::Ccs => &["8.10"],
+            CliKind::Pi => &["0.87"],
         }
     }
 
@@ -61,6 +67,11 @@ impl CliKind {
     /// history.
     pub fn runs_claude_code(self) -> bool {
         matches!(self, CliKind::Claude | CliKind::Ccs)
+    }
+
+    /// True for Pi, whose print mode, JSON events and session files the Pi adapter reads.
+    pub fn runs_pi(self) -> bool {
+        self == CliKind::Pi
     }
 
     pub fn from_bin(name: &str) -> Option<CliKind> {
@@ -88,6 +99,8 @@ fn extra_dirs() -> Vec<PathBuf> {
         dirs.push(home.join(".local").join("bin"));
         dirs.push(home.join(".bun").join("bin"));
         dirs.push(home.join(".opencode").join("bin"));
+        // Pi's own installer puts its launcher here.
+        dirs.push(home.join(".pi").join("agent").join("bin"));
     }
     if let Some(appdata) = std::env::var_os("APPDATA") {
         dirs.push(PathBuf::from(appdata).join("npm"));
@@ -253,5 +266,8 @@ mod tests {
         assert!(!is_tested(CliKind::Gemini, "0.9.0"));
         assert!(is_tested(CliKind::Ccs, "8.10.0"));
         assert_eq!(parse_version("CCS (Claude Codex Switch) v8.10.0").as_deref(), Some("8.10.0"));
+        assert!(is_tested(CliKind::Pi, "0.87.1"));
+        assert_eq!(parse_version("0.87.1
+").as_deref(), Some("0.87.1"));
     }
 }

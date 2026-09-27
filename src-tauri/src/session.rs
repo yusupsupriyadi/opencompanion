@@ -114,6 +114,17 @@ impl Drop for Spawning<'_> {
     }
 }
 
+/// The Pi session an interactive session wrote, found by folder and start time: Pi does not
+/// report its session id in a terminal.
+fn pi_session(info: &SessionInfo) -> Option<String> {
+    if !info.cli.runs_pi() {
+        return None;
+    }
+    let since = std::time::UNIX_EPOCH + Duration::from_millis(u64::try_from(info.started_at).ok()?);
+    let agent_dir = crate::pi::agent_dir(&crate::projects::home()?);
+    crate::pi::session_id(&crate::pi::newest_session(&agent_dir, Path::new(&info.cwd), since)?)
+}
+
 fn title_for(kind: CliKind, cwd: &str, prompt: &str) -> String {
     let first = prompt.lines().map(str::trim).find(|l| !l.is_empty());
     match first {
@@ -913,6 +924,7 @@ impl Manager {
                 events::parse_line(kind, line)
             }
             Stream::Stderr if kind == CliKind::Opencode => events::opencode_stderr(line).into_iter().collect(),
+            Stream::Stderr if kind.runs_pi() => crate::pi::stderr_event(line).into_iter().collect(),
             Stream::Stderr => vec![],
         };
 
@@ -1123,7 +1135,10 @@ impl Manager {
                 let live = self.register(info.clone(), self.claude_hooks(info.cli));
                 live.stop_requested.store(false, Ordering::SeqCst);
                 live.done_requested.store(false, Ordering::SeqCst);
-                let resume = info.cli_session_id.clone();
+                let resume = info.cli_session_id.clone().or_else(|| pi_session(&info));
+                if resume != info.cli_session_id {
+                    self.update(&live, |i| i.cli_session_id = resume.clone());
+                }
                 self.spawn_pty(&live, &exe, "", resume.as_deref(), cols, rows)?;
                 Ok(self.info(&live))
             }

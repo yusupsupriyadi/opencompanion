@@ -46,7 +46,7 @@ export const en = {
   "sessions.overview.detected": "{n} detected",
   "sessions.overview.scanning": "Scanning…",
   "sessions.overview.scanFailed": "The process list could not be read: {error}",
-  "sessions.overview.noneOutside": "No Claude Code, Codex CLI, OpenCode, Gemini CLI or CCS is running in another terminal.",
+  "sessions.overview.noneOutside": "No Claude Code, Codex CLI, OpenCode, Gemini CLI, CCS or Pi is running in another terminal.",
   "sessions.overview.outsideStarted": "Started {time} · {duration}",
   "sessions.overview.outsidePid": "PID {pid} · {memory}",
   "sessions.overview.outsideHint":
@@ -135,6 +135,7 @@ export const en = {
   "sessions.detail.cliSession": "CLI session",
   "sessions.detail.signal": "Needs-you signal",
   "sessions.detail.signalOpenCode": "OpenCode's run mode refuses permission prompts by itself; refusals appear in the output.",
+  "sessions.detail.signalPi": "Pi does not ask for permission: it runs its tools right away. In Plan mode it only gets tools that read files.",
   "sessions.detail.boardCard": "Board card",
   "sessions.detail.stopTitle": "Stop this session?",
   "sessions.detail.stopBody": "OpenCompanion sends {cli} in {folder} an interrupt first. If it has not exited after 3 seconds, it is stopped by force.",
@@ -219,7 +220,7 @@ export const id: Record<keyof typeof en, string> = {
   "sessions.overview.detected": "{n} terdeteksi",
   "sessions.overview.scanning": "Memindai…",
   "sessions.overview.scanFailed": "Daftar proses tidak bisa dibaca: {error}",
-  "sessions.overview.noneOutside": "Tidak ada Claude Code, Codex CLI, OpenCode, Gemini CLI, atau CCS yang berjalan di terminal lain.",
+  "sessions.overview.noneOutside": "Tidak ada Claude Code, Codex CLI, OpenCode, Gemini CLI, CCS, atau Pi yang berjalan di terminal lain.",
   "sessions.overview.outsideStarted": "Dimulai {time} · {duration}",
   "sessions.overview.outsidePid": "PID {pid} · {memory}",
   "sessions.overview.outsideHint":
@@ -308,6 +309,7 @@ export const id: Record<keyof typeof en, string> = {
   "sessions.detail.cliSession": "Sesi CLI",
   "sessions.detail.signal": "Sinyal Butuh Anda",
   "sessions.detail.signalOpenCode": "Mode run OpenCode menolak prompt izin dengan sendirinya; penolakannya muncul di output.",
+  "sessions.detail.signalPi": "Pi tidak meminta izin: tool-nya langsung dijalankan. Di mode Plan, Pi hanya mendapat tool untuk membaca file.",
   "sessions.detail.boardCard": "Kartu Board",
   "sessions.detail.stopTitle": "Hentikan sesi ini?",
   "sessions.detail.stopBody": "OpenCompanion lebih dulu mengirim interupsi ke {cli} di {folder}. Jika belum keluar setelah 3 detik, prosesnya dihentikan paksa.",

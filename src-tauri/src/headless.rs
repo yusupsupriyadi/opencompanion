@@ -61,7 +61,8 @@ impl PermMode {
 
 /// Flags and environment per CLI for a permission mode, checked against each CLI's `--help`
 /// on 2026-09-25 (Claude Code 2.1.282, Codex CLI 0.153.4, OpenCode 1.18.32). Gemini CLI is not
-/// installed on the test machine, so it gets none.
+/// installed on the test machine, so it gets none. Pi (0.87.1) never asks: only Plan changes
+/// anything, by giving it read-only tools.
 ///
 /// `headless_resume` covers `codex exec resume`, which accepts only the bypass flag: the
 /// resumed thread keeps the sandbox it started with.
@@ -92,6 +93,10 @@ pub fn mode_flags(kind: CliKind, mode: PermMode, interactive: bool, headless_res
             PermMode::Auto | PermMode::Bypass => strings(&["--auto"]),
         },
         CliKind::Gemini => vec![],
+        CliKind::Pi => match mode {
+            PermMode::Plan => strings(&["--tools", crate::pi::READ_ONLY_TOOLS]),
+            _ => vec![],
+        },
     };
     let env = if kind == CliKind::Opencode && mode == PermMode::Bypass {
         vec![("OPENCODE_PERMISSION".to_string(), r#"{"*":"allow"}"#.to_string())]
@@ -220,6 +225,24 @@ pub fn opencode_invocation(cwd: &Path, prompt: &str, opts: &TurnOptions) -> Invo
     }
 }
 
+/// `pi --mode json` reads the prompt from stdin when no message argument is given, so a prompt
+/// that starts with `@` is not taken for a file to attach.
+pub fn pi_invocation(prompt: &str, opts: &TurnOptions) -> Invocation {
+    let mut args = strings(&["--mode", "json"]);
+    if let Some(id) = opts.resume {
+        args.extend(strings(&["--session", id]));
+    }
+    let (flags, env) = mode_flags(CliKind::Pi, opts.mode, false, false);
+    args.extend(flags);
+    args.extend(opts.extra.iter().cloned());
+    Invocation {
+        args,
+        env,
+        stdin_first: Some(prompt.to_string()),
+        keep_stdin: false,
+    }
+}
+
 /// Splits the extra arguments from Settings into those that go right after the program and those
 /// that go before the prompt. CCS reads its profile from its first argument, so for CCS they lead.
 pub fn split_extra(kind: CliKind, extra: &[String]) -> (&[String], &[String]) {
@@ -235,6 +258,7 @@ pub fn invocation(kind: CliKind, cwd: &Path, prompt: &str, opts: &TurnOptions) -
         CliKind::Codex => Some(codex_invocation(cwd, prompt, opts)),
         CliKind::Opencode => Some(opencode_invocation(cwd, prompt, opts)),
         CliKind::Gemini => None,
+        CliKind::Pi => Some(pi_invocation(prompt, opts)),
     }
 }
 
@@ -272,6 +296,12 @@ pub fn interactive_args(
             args.extend(flags);
         }
         CliKind::Gemini => args.extend(flags),
+        CliKind::Pi => {
+            if let Some(id) = resume {
+                args.extend(strings(&["--session", id]));
+            }
+            args.extend(flags);
+        }
     }
     args.extend(extra.iter().cloned());
     let prompt = prompt.trim();
@@ -280,6 +310,9 @@ pub fn interactive_args(
             CliKind::Opencode => args.extend(["--prompt".to_string(), prompt.to_string()]),
             // Unverified: Gemini CLI is not installed on the test machine.
             CliKind::Gemini => args.extend(["-i".to_string(), prompt.to_string()]),
+            // Pi reads an argument that starts with `@` as a file to attach, even after `--`.
+            CliKind::Pi if prompt.starts_with('@') => args.extend(["--".to_string(), format!(" {prompt}")]),
+            CliKind::Pi => args.extend(["--".to_string(), prompt.to_string()]),
             _ => args.push(prompt.to_string()),
         }
     }
@@ -445,5 +478,22 @@ mod tests {
         assert!(ccs.keep_stdin);
         let (args, _) = interactive_args(CliKind::Ccs, "hi", Some("s1"), PermMode::Ask, none);
         assert_eq!(args, ["--permission-mode", "manual", "--resume", "s1", "hi"]);
+    }
+
+    #[test]
+    fn pi_takes_the_prompt_on_stdin_and_plan_as_read_only_tools() {
+        let extra = strings(&["--model", "anthropic/claude-sonnet-4-5"]);
+        let opts = TurnOptions { resume: Some("01a0e43a"), mode: PermMode::Plan, extra: &extra };
+        let inv = invocation(CliKind::Pi, Path::new("C:/w"), "@README.md tidy it", &opts).unwrap();
+        assert_eq!(inv.args, ["--mode", "json", "--session", "01a0e43a", "--tools", "read,grep,find,ls", "--model", "anthropic/claude-sonnet-4-5"]);
+        assert_eq!(inv.stdin_first.as_deref(), Some("@README.md tidy it"));
+        assert!(!inv.keep_stdin);
+        for mode in [PermMode::Ask, PermMode::Auto, PermMode::Bypass] {
+            assert!(mode_flags(CliKind::Pi, mode, true, false).0.is_empty());
+        }
+        let (args, _) = interactive_args(CliKind::Pi, "-v means verbose?", Some("s1"), PermMode::Ask, &[]);
+        assert_eq!(args, ["--session", "s1", "--", "-v means verbose?"]);
+        let (args, _) = interactive_args(CliKind::Pi, "@src/app.ts fix it", None, PermMode::Ask, &[]);
+        assert_eq!(args, ["--", " @src/app.ts fix it"]);
     }
 }

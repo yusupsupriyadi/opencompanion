@@ -10,6 +10,7 @@ pub mod models;
 pub mod monitor;
 pub mod orchestrator;
 pub mod paste;
+pub mod pi;
 pub mod proc;
 pub mod projects;
 pub mod pty;

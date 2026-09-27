@@ -78,6 +78,7 @@ pub fn read_in(home: &Path, kind: CliKind, cwd: Option<&Path>, started_at: u64) 
         CliKind::Codex => codex(home, cwd, since),
         CliKind::Opencode => opencode(home, cwd, since),
         CliKind::Gemini => return unavailable("Transcript not available for this CLI."),
+        CliKind::Pi => pi(&crate::pi::agent_dir(home), cwd, since),
     };
     match found {
         Ok(Some(mut t)) => {
@@ -407,6 +408,50 @@ fn opencode_db(db: &Path, cwd: &Path, since_ms: i64) -> rusqlite::Result<Option<
     }))
 }
 
+// Pi: <agent dir>/sessions/--<folder>--/<time>_<session>.jsonl, one entry per line.
+
+fn pi_lines(v: &Value) -> Vec<Line> {
+    if v["type"] != "message" {
+        return vec![];
+    }
+    let at = v["timestamp"].as_str().and_then(parse_time);
+    let m = &v["message"];
+    let blocks = m["content"].as_array().map(Vec::as_slice).unwrap_or_default();
+    match m["role"].as_str() {
+        Some("user") => match &m["content"] {
+            Value::String(s) => say(Speaker::You, s, at).into_iter().collect(),
+            _ => blocks
+                .iter()
+                .filter(|b| b["type"] == "text")
+                .filter_map(|b| say(Speaker::You, b["text"].as_str().unwrap_or_default(), at))
+                .collect(),
+        },
+        Some("assistant") => blocks
+            .iter()
+            .filter_map(|b| match b["type"].as_str() {
+                Some("text") => say(Speaker::Cli, b["text"].as_str().unwrap_or_default(), at),
+                Some("toolCall") => tool(b["name"].as_str().unwrap_or("tool"), &b["arguments"], at),
+                _ => None,
+            })
+            .collect(),
+        _ => vec![],
+    }
+}
+
+fn pi(agent_dir: &Path, cwd: &Path, since: SystemTime) -> Result<Option<Transcript>, String> {
+    let Some(file) = crate::pi::newest_session(agent_dir, cwd, since) else { return Ok(None) };
+    let lines = tail_lines(&file).map_err(|e| e.to_string())?;
+    Ok(Some(Transcript {
+        source: Some(file.display().to_string()),
+        lines: lines
+            .iter()
+            .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+            .flat_map(|v| pi_lines(&v))
+            .collect(),
+        note: None,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -543,6 +588,34 @@ mod tests {
         assert!(read_in(&home, CliKind::Claude, None, 0).note.unwrap().contains("did not share this process's folder"));
         assert_eq!(read_in(&home, CliKind::Gemini, Some(Path::new("C:/w")), 0).note.as_deref(), Some("Transcript not available for this CLI."));
         assert!(read_in(&home, CliKind::Codex, Some(Path::new("C:/w")), 0).note.unwrap().starts_with("Codex CLI has not written"));
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    // Trimmed from the session file of a Pi run that wrote hello.txt.
+    #[test]
+    fn pi_transcript_is_the_newest_session_file_for_the_folder() {
+        let home = temp_home("pi");
+        let dir = home.join(".pi").join("agent").join("sessions").join("--C--Users-me-Project-app--");
+        fs::create_dir_all(&dir).unwrap();
+        let lines = [
+            r#"{"type":"session","version":3,"id":"01a0e43a","timestamp":"2026-09-27T18:57:31.919Z","cwd":"C:\\Users\\me\\Project\\app"}"#,
+            r#"{"type":"model_change","id":"2388c714","parentId":null,"timestamp":"2026-09-27T18:57:32.176Z","provider":"mock","modelId":"mock-model"}"#,
+            r#"{"type":"message","id":"679d7380","timestamp":"2026-09-27T18:57:32.180Z","message":{"role":"system","content":"","sections":{"preamble":"You are an expert coding assistant"}}}"#,
+            r#"{"type":"message","id":"b9cedcd4","timestamp":"2026-09-27T18:57:32.190Z","message":{"role":"user","content":[{"type":"text","text":"Create hello.txt"}]}}"#,
+            r#"{"type":"message","id":"8e838c0b","timestamp":"2026-09-27T18:57:32.411Z","message":{"role":"assistant","content":[{"type":"text","text":"Writing the file."},{"type":"toolCall","id":"call_1","name":"write","arguments":{"path":"hello.txt","content":"hi"}}]}}"#,
+            r#"{"type":"message","id":"d15fb19a","timestamp":"2026-09-27T18:57:32.417Z","message":{"role":"toolResult","toolName":"write","content":[{"type":"text","text":"Successfully wrote to hello.txt"}]}}"#,
+            r#"{"type":"message","id":"ec9b1a80","timestamp":"2026-09-27T18:57:32.427Z","message":{"role":"assistant","content":[{"type":"text","text":"Wrote hello.txt."}]}}"#,
+        ];
+        fs::write(dir.join("2026-09-27T18-57-31-919Z_01a0e43a.jsonl"), lines.join("\n")).unwrap();
+
+        let t = read_in(&home, CliKind::Pi, Some(Path::new(r"C:\Users\me\Project\app")), now_secs());
+        let got: Vec<(Speaker, &str)> = t.lines.iter().map(|l| (l.speaker, l.text.as_str())).collect();
+        assert_eq!(
+            got,
+            [(Speaker::You, "Create hello.txt"), (Speaker::Cli, "Writing the file."), (Speaker::Tool, "write hello.txt"), (Speaker::Cli, "Wrote hello.txt.")]
+        );
+        assert_eq!(t.lines[0].at, parse_time("2026-09-27T18:57:32.190Z"));
+        assert!(read_in(&home, CliKind::Pi, Some(Path::new(r"C:\elsewhere")), now_secs()).note.unwrap().starts_with("Pi has not written"));
         let _ = fs::remove_dir_all(&home);
     }
 }

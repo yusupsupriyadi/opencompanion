@@ -468,7 +468,7 @@
       <div class="table-wrap">
         <table>
           <caption class="sr-only">{t("settings.perm.caption")}</caption>
-          <thead><tr><th scope="col">{t("settings.perm.mode")}</th><th scope="col">Claude Code</th><th scope="col">Codex CLI</th><th scope="col">OpenCode</th></tr></thead>
+          <thead><tr><th scope="col">{t("settings.perm.mode")}</th><th scope="col">Claude Code</th><th scope="col">Codex CLI</th><th scope="col">OpenCode</th><th scope="col">Pi</th></tr></thead>
           <tbody>
             {#each MODES as m (m.id)}
               <tr class:current={settings.permissionMode === m.id}>
@@ -476,6 +476,7 @@
                 <td class="mono">{m.flags.claude}</td>
                 <td class="mono">{m.flags.codex}</td>
                 <td class="mono">{m.flags.opencode}</td>
+                <td class="mono">{m.flags.pi}</td>
               </tr>
             {/each}
           </tbody>
@@ -1024,7 +1025,7 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 13px;
-    min-width: 640px;
+    min-width: 760px;
   }
   th,
   td {

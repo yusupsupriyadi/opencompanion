@@ -1,6 +1,7 @@
 //! Models and thinking levels for the chat planner. Each CLI names them its own way: Claude
-//! Code takes an alias plus `--effort`, Codex a catalog slug plus `model_reasoning_effort`, and
-//! OpenCode `provider/model` plus a per-model `--variant`.
+//! Code takes an alias plus `--effort`, Codex a catalog slug plus `model_reasoning_effort`,
+//! OpenCode `provider/model` plus a per-model `--variant`, and Pi `provider/model` plus
+//! `--thinking`.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -268,6 +269,7 @@ pub fn list(cli: &CliInstall, work_dir: &Path, extra: &[String]) -> Result<Model
             Ok(parse_opencode(&text))
         }
         CliKind::Gemini => Err("Gemini CLI cannot be the chat planner yet.".into()),
+        CliKind::Pi => Ok(crate::pi::parse_models(&output(kind, exe, work_dir, &["--list-models"])?)),
     }
 }
 
@@ -286,6 +288,7 @@ pub fn args(kind: CliKind, model: &str, effort: &str) -> Vec<String> {
         CliKind::Codex => ("-m", "-c"),
         CliKind::Opencode => ("-m", "--variant"),
         CliKind::Gemini => return vec![],
+        CliKind::Pi => ("--model", "--thinking"),
     };
     let mut out = Vec::new();
     if let Some(m) = model {
@@ -382,6 +385,7 @@ mod tests {
         assert_eq!(args(CliKind::Claude, "", "max"), ["--effort", "max"]);
         assert_eq!(args(CliKind::Codex, "", ""), Vec::<String>::new());
         assert_eq!(args(CliKind::Gemini, "gemini-pro", "high"), Vec::<String>::new());
+        assert_eq!(args(CliKind::Pi, "anthropic/claude-sonnet-4-5", "high"), ["--model", "anthropic/claude-sonnet-4-5", "--thinking", "high"]);
     }
 
     #[test]
