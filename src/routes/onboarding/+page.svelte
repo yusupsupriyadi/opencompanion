@@ -99,22 +99,34 @@
     display: flex;
     align-items: flex-start;
     padding: 84px 112px 48px;
+    --scene-dim: brightness(1);
+  }
+  /* As in the app shell: the painting fits the window whole (contain), never cropped. The band left at the window's
+     edges is the same painting, cover-scaled and blurred, so no flat bar shows. */
+  .scene::before {
+    content: "";
+    position: fixed;
+    inset: -48px;
+    z-index: 0;
+    background: var(--bg) url(/meadow-day.png) 70% 100% / cover no-repeat;
+    filter: blur(32px) var(--scene-dim);
   }
   .scene-art {
     position: fixed;
     inset: 0;
     width: 100%;
     height: 100%;
-    object-fit: cover;
-    object-position: 70% 60%;
+    object-fit: contain;
+    object-position: 70% 100%;
     z-index: 0;
+    filter: var(--scene-dim);
   }
-  :global(:root[data-theme="dark"]) .scene-art {
-    filter: brightness(0.42) saturate(0.85);
+  :global(:root[data-theme="dark"]) .scene {
+    --scene-dim: brightness(0.42) saturate(0.85);
   }
   @media (prefers-color-scheme: dark) {
-    :global(:root:not([data-theme="light"])) .scene-art {
-      filter: brightness(0.42) saturate(0.85);
+    :global(:root:not([data-theme="light"])) .scene {
+      --scene-dim: brightness(0.42) saturate(0.85);
     }
   }
   .panel {

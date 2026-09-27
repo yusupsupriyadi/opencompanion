@@ -24,7 +24,9 @@
 .dock > div { width: 100%; max-width: 448px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .dock > div.one { grid-template-columns: 1fr; }
 .dock .btn { min-height: 48px; }
-.art { width: calc(100% + 32px); margin: -16px -16px 4px; height: 280px; object-fit: cover; object-position: 85% 72%; border-radius: 0 0 var(--r-lg) var(--r-lg); display: block; }
+/* The painting shows whole at full width: the box takes its 1672 × 941 ratio instead of a fixed height, and contain
+   keeps it uncropped should the file's ratio change. */
+.art { width: calc(100% + 32px); margin: -16px -16px 4px; aspect-ratio: 1672 / 941; height: auto; object-fit: contain; object-position: 50% 100%; border-radius: 0 0 var(--r-lg) var(--r-lg); display: block; }
 :root[data-theme="dark"] .art { filter: brightness(.42) saturate(.85); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .art { filter: brightness(.42) saturate(.85); } }
 .m-h1 { margin: 0; font-size: 22px; font-weight: 800; line-height: 1.25; }
