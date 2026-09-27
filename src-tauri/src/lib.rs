@@ -8,6 +8,7 @@ pub mod headless;
 pub mod models;
 pub mod monitor;
 pub mod orchestrator;
+pub mod paste;
 pub mod proc;
 pub mod projects;
 pub mod pty;
@@ -502,6 +503,18 @@ async fn terminal_close(state: State<'_, AppState>, id: String) -> Res<()> {
     blocking(move || terminals.close(&id)).await
 }
 
+/// An image pasted into a session or terminal, as the raw body with its type in `x-image-type`.
+/// Returns the saved file's path for the terminal to paste.
+#[tauri::command]
+fn save_pasted_image(request: tauri::ipc::Request<'_>) -> Res<String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("The pasted image is empty.".into());
+    };
+    let mime = request.headers().get("x-image-type").and_then(|v| v.to_str().ok()).unwrap_or_default();
+    let dir = std::env::temp_dir().join("opencompanion-paste");
+    paste::save_image(&dir, bytes, mime).map(|p| p.display().to_string())
+}
+
 // Chat
 
 #[tauri::command]
@@ -870,6 +883,7 @@ pub fn run() {
             terminal_output,
             terminal_restart,
             terminal_close,
+            save_pasted_image,
             chat_threads,
             chat_history,
             chat_send,

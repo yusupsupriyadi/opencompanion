@@ -419,6 +419,9 @@ export const api = {
   terminalRestart: (id: string) => invoke<TerminalInfo>("terminal_restart", { id }),
   /** Ends the shell and what it started, such as a dev server. */
   terminalClose: (id: string) => invoke<void>("terminal_close", { id }),
+  /** Saves an image pasted into a session or terminal to a temporary file and returns its path. */
+  savePastedImage: (image: Uint8Array, type: string) =>
+    invoke<string>("save_pasted_image", image, { headers: { "x-image-type": type } }),
 
   chatThreads: () => invoke<ChatThread[]>("chat_threads"),
   chatHistory: (threadId: string) => invoke<ChatMessage[]>("chat_history", { threadId }),

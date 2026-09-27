@@ -6,6 +6,7 @@
   import { onMount } from "svelte";
   import { api } from "./api";
   import { t } from "./i18n.svelte";
+  import { pastedImage, pathForPaste, shiftEnter } from "./term-input";
 
   // `session` is an AI CLI session; `terminal` a plain shell from the Terminal screen.
   let { id, live, label, kind = "session" }: { id: string; live: boolean; label: string; kind?: "session" | "terminal" } = $props();
@@ -83,6 +84,16 @@
         brightWhite: "#FFF8E1",
       },
     });
+    // Set while ConPTY takes win32-input-mode keys, which carry the Shift that plain VT drops.
+    let win32Input = false;
+    const onWin32Mode = (on: boolean) => (params: (number | number[])[]) => {
+      if (params.includes(9001)) win32Input = on;
+      return false;
+    };
+    term.parser.registerCsiHandler({ prefix: "?", final: "h" }, onWin32Mode(true));
+    term.parser.registerCsiHandler({ prefix: "?", final: "l" }, onWin32Mode(false));
+    const windows = navigator.userAgent.includes("Windows");
+
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(box);
@@ -95,16 +106,26 @@
     // Tab belongs to the CLI while it runs, so Ctrl+Tab and Ctrl+Shift+Tab leave the terminal
     // instead. A closed terminal takes no keys, and Tab moves on as everywhere else.
     term.attachCustomKeyEventHandler((e) => {
-      // A shell has no clipboard keys of its own, so they work as in Windows Terminal: Ctrl+C copies
-      // a selection (and interrupts without one), Ctrl+V lets the browser paste into xterm. The AI
-      // CLIs read Ctrl+V themselves, to paste images, so sessions keep it.
-      if (kind === "terminal" && e.ctrlKey && !e.altKey && !e.metaKey) {
+      if (e.ctrlKey && !e.altKey && !e.metaKey) {
         const key = e.key.toLowerCase();
-        if (key === "v") return false;
-        if (key === "c" && term.hasSelection()) {
+        // Ctrl+V lets the browser paste, as in Windows Terminal. The AI CLIs expect that on Windows
+        // (Claude Code pastes its own images on Alt+V); elsewhere a session keeps Ctrl+V for the CLI.
+        if (key === "v" && (kind === "terminal" || windows)) return false;
+        // A shell has no copy key of its own: Ctrl+C copies a selection and interrupts without one.
+        if (kind === "terminal" && key === "c" && term.hasSelection()) {
           if (e.type === "keydown") {
             navigator.clipboard?.writeText(term.getSelection()).catch(() => undefined);
             term.clearSelection();
+          }
+          return false;
+        }
+      }
+      if (e.key === "Enter" && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        const seq = shiftEnter(kind, win32Input);
+        if (seq) {
+          if (e.type === "keydown") {
+            e.preventDefault();
+            term.input(seq);
           }
           return false;
         }
@@ -158,6 +179,24 @@
         early.splice(0).forEach(show);
       });
 
+    // xterm pastes text only, so a screenshot is saved to a file and its path pasted instead.
+    // Runs in the capture phase, before xterm's own listener pastes nothing.
+    const onPaste = (e: ClipboardEvent) => {
+      const image = pastedImage(e.clipboardData);
+      if (!image) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (!acceptInput) return;
+      image
+        .arrayBuffer()
+        .then((buf) => api.savePastedImage(new Uint8Array(buf), image.type))
+        .then((path) => {
+          if (!gone) term.paste(pathForPaste(path));
+        })
+        .catch(() => undefined);
+    };
+    box.addEventListener("paste", onPaste, true);
+
     const ro = new ResizeObserver(() => {
       try {
         fit.fit();
@@ -170,6 +209,7 @@
 
     return () => {
       gone = true;
+      box.removeEventListener("paste", onPaste, true);
       ro.disconnect();
       unlisten.then((f) => f());
       term.dispose();
