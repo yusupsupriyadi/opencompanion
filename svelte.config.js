@@ -12,6 +12,12 @@ const config = {
     adapter: adapter({
       fallback: "index.html",
     }),
+    // Only the phone companion registers the service worker (routes/m), and only where the browser
+    // allows one; the desktop window never does. It keeps the static files the phone screens show.
+    serviceWorker: {
+      register: false,
+      files: (file) => file === "favicon.png" || file === "meadow-day.png" || file.startsWith("m/"),
+    },
   },
 };
 

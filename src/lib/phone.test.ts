@@ -45,6 +45,28 @@ afterEach(() => {
   localStorage.clear();
 });
 
+test("the service worker is registered for /m only in a secure context, and never in the desktop window", async () => {
+  const { registerWorker } = await client();
+  const register = vi.fn(async () => ({}));
+  Object.defineProperty(navigator, "serviceWorker", { value: { register }, configurable: true });
+  try {
+    // The LAN address over plain HTTP.
+    vi.stubGlobal("isSecureContext", false);
+    registerWorker();
+    vi.stubGlobal("isSecureContext", true);
+    vi.stubGlobal("__TAURI_INTERNALS__", {});
+    registerWorker();
+    expect(register).not.toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
+    vi.stubGlobal("isSecureContext", true);
+    registerWorker();
+    expect(register).toHaveBeenCalledWith("/service-worker.js", expect.objectContaining({ scope: "/m" }));
+  } finally {
+    delete (navigator as { serviceWorker?: unknown }).serviceWorker;
+  }
+});
+
 test("a phone removed on the desktop goes back to pairing when its connection closes", async () => {
   phoneServer({ "GET /api/sessions": () => [200, { sessions: [] }] });
   const { connect, getToken, phone } = await client();

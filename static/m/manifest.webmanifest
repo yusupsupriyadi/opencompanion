@@ -1,0 +1,17 @@
+{
+  "id": "/m",
+  "name": "OpenCompanion",
+  "short_name": "OpenCompanion",
+  "description": "Answer prompts, start sessions and move Board cards on the computer running OpenCompanion, over your own network.",
+  "start_url": "/m",
+  "scope": "/m",
+  "display": "standalone",
+  "background_color": "#FBF3CF",
+  "theme_color": "#FBF3CF",
+  "icons": [
+    { "src": "/m/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/m/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/m/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/m/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

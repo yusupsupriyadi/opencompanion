@@ -46,6 +46,23 @@ test("a wrong code shows the desktop's reason", async () => {
   expect(localStorage.getItem("air-token")).toBeNull();
 });
 
+test("the Home Screen app on an iPhone asks for the typed code and names itself apart from Safari", () => {
+  setUrl("/m/pair");
+  vi.stubGlobal("fetch", respond(200, {}));
+  const ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
+  Object.defineProperty(navigator, "userAgent", { value: ua, configurable: true });
+  Object.defineProperty(navigator, "standalone", { value: true, configurable: true });
+  try {
+    render(Pair);
+    expect(screen.getByText(/keeps its own pairing, apart from Safari/)).toBeInTheDocument();
+    expect(screen.queryByText(/scan the code there/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Name for this phone")).toHaveValue("iPhone · Home Screen");
+  } finally {
+    delete (navigator as { userAgent?: string }).userAgent;
+    delete (navigator as { standalone?: boolean }).standalone;
+  }
+});
+
 test("an incomplete code is caught before anything is sent", async () => {
   setUrl("/m/pair");
   const fetchMock = respond(200, {});

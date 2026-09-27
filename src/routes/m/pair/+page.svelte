@@ -4,7 +4,7 @@
   import Cloud from "phosphor-svelte/lib/Cloud";
   import { onMount, tick } from "svelte";
   import { t, tb } from "$lib/i18n.svelte";
-  import { call, connect, loadSessions, phone, setToken } from "$lib/phone.svelte";
+  import { call, connect, iosHomeScreen, loadSessions, phone, setToken } from "$lib/phone.svelte";
 
   let digits = $state(["", "", "", "", "", ""]);
   let name = $state("");
@@ -12,11 +12,16 @@
   let failure = $state("");
   let busy = $state(false);
   const fromQr = page.url.searchParams.get("code")?.replace(/\D/g, "").slice(0, 6) ?? "";
+  // Pairing again after Add to Home Screen: a code from the QR would open Safari, so the code is typed here.
+  const homeScreen = iosHomeScreen();
 
   function guessName() {
     const ua = navigator.userAgent;
     const device = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? t("phone.pair.androidPhone") : t("phone.pair.phone");
-    const browser = /CriOS|Chrome/.test(ua) ? "Chrome" : /FxiOS|Firefox/.test(ua) ? "Firefox" : /Safari/.test(ua) ? "Safari" : t("phone.pair.browser");
+    // Safari and the Home Screen app are two devices in Settings on the desktop; the name tells them apart.
+    const browser = homeScreen
+      ? t("phone.pair.homeScreen")
+      : /CriOS|Chrome/.test(ua) ? "Chrome" : /FxiOS|Firefox/.test(ua) ? "Firefox" : /Safari/.test(ua) ? "Safari" : t("phone.pair.browser");
     return `${device} · ${browser}`;
   }
 
@@ -87,6 +92,8 @@
   <h1 class="m-h1">{t("phone.pair.title")}</h1>
   {#if fromQr.length === 6}
     <p class="m-p">{t("phone.pair.fromQr")}</p>
+  {:else if homeScreen}
+    <p class="m-p">{t("phone.pair.homeScreenHowTo")}</p>
   {:else}
     <p class="m-p">{t("phone.pair.howTo")}</p>
   {/if}

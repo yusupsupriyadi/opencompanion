@@ -1,11 +1,15 @@
 /* Phone companion (DESIGN.md section 10). Ported from the phone prototype. */
-.phone { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
+/* The page runs to the screen edges (viewport-fit=cover, set by routes/m), so the top bar and the page
+   bottom take the safe-area insets; the tabs, docks and sheets already do. The 480px column never
+   reaches the side insets of a phone held sideways, so those are left alone. dvh follows the browser
+   bars as they come and go; the installed app has none. */
+.phone { max-width: 480px; margin: 0 auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; background: var(--bg); }
 /* Covers the screen it pauses; that screen stays in the page underneath, inert. */
 .offline-layer { position: fixed; inset: 0; z-index: 20; overflow-y: auto; }
-.bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; min-height: 56px; border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; z-index: 2; }
+.bar { display: flex; align-items: center; gap: 10px; padding: calc(12px + env(safe-area-inset-top)) 16px 12px; min-height: calc(56px + env(safe-area-inset-top)); border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; z-index: 2; }
 .bar .brand { padding: 0; font-size: 18px; }
 .back { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 8px 0 0; border: 0; background: transparent; font-weight: 700; cursor: pointer; color: var(--ink); }
-.content { flex: 1; display: flex; flex-direction: column; gap: 16px; padding: 16px 16px 24px; }
+.content { flex: 1; display: flex; flex-direction: column; gap: 16px; padding: 16px 16px calc(24px + env(safe-area-inset-bottom)); }
 .content.has-dock { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 .conn { font-size: 12px; color: var(--ink-2); margin-top: -8px; }
 .m-needs { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: var(--r-lg); background: var(--surface); border: 1.5px solid var(--accent); }

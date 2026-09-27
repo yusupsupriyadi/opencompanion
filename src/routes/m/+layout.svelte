@@ -9,7 +9,7 @@
   import { onMount } from "svelte";
   import "$lib/phone.css";
   import { setLang, t } from "$lib/i18n.svelte";
-  import { connect, getToken, loadSessions, phone, reconnectNow } from "$lib/phone.svelte";
+  import { connect, getToken, loadSessions, phone, reconnectNow, registerWorker } from "$lib/phone.svelte";
 
   let { children } = $props();
   const onPair = $derived(page.url.pathname.startsWith("/m/pair"));
@@ -26,7 +26,19 @@
   const waiting = $derived(phone.sessions.filter((s) => s.status === "waiting").length);
   const offline = $derived(phone.connection === "offline" && !onPair);
 
+  // The phone draws to the screen edges and keeps clear of the notch and home indicator with the
+  // safe-area insets in phone.css. The desktop window keeps app.html's viewport as it is.
   onMount(() => {
+    const viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+    const before = viewport?.content;
+    if (viewport) viewport.content = "width=device-width, initial-scale=1, viewport-fit=cover";
+    return () => {
+      if (viewport && before !== undefined) viewport.content = before;
+    };
+  });
+
+  onMount(() => {
+    registerWorker();
     // The phone speaks the desktop's UI language; asking needs no pairing.
     fetch("/api/hello")
       .then((r) => r.json())
@@ -45,7 +57,18 @@
   });
 </script>
 
-<svelte:head><meta name="theme-color" content="#FBF3CF" /></svelte:head>
+<!-- Lets the phone add this page to its home screen and open it without browser bars. The status bar
+     stays "default": "black-translucent" would put white status text over the cream Day theme. -->
+<svelte:head>
+  <link rel="manifest" href="/m/manifest.webmanifest" />
+  <meta name="theme-color" content="#FBF3CF" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#1B1F1A" media="(prefers-color-scheme: dark)" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="OpenCompanion" />
+  <link rel="apple-touch-icon" href="/m/icons/apple-touch-icon.png" />
+</svelte:head>
 
 <!-- The screen underneath stays mounted while the desktop is away, so a half-written form or chat survives. -->
 <div class="phone" class:has-tabs={tabbed} inert={offline}>

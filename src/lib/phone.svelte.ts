@@ -26,6 +26,22 @@ export function setToken(token: string | null) {
 let memoryToken: string | null = null;
 const token = () => getToken() ?? memoryToken;
 
+/** Opened from the iPhone or iPad Home Screen. Such an app keeps its storage apart from Safari, so a
+ * pairing made in Safari, or by scanning the QR code (which opens Safari), is not found here. */
+export function iosHomeScreen(): boolean {
+  return (navigator as Navigator & { standalone?: boolean }).standalone === true;
+}
+
+/** Keeps the app shell on the phone (src/service-worker.ts), so the installed app opens while the
+ * desktop is away. Browsers allow a service worker only in a secure context, which the plain-HTTP
+ * LAN address is not, and the desktop window never needs one. */
+export function registerWorker() {
+  if (!window.isSecureContext || !("serviceWorker" in navigator) || "__TAURI_INTERNALS__" in window) return;
+  navigator.serviceWorker
+    .register("/service-worker.js", { scope: "/m", type: import.meta.env.DEV ? "module" : "classic" })
+    .catch(() => undefined);
+}
+
 export class PhoneError extends Error {
   constructor(
     message: string,

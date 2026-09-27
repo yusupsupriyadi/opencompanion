@@ -748,10 +748,21 @@ async fn static_file(State(ctx): State<Ctx>, uri: Uri) -> Response {
             break;
         }
         if let Some((bytes, mime)) = (ctx.assets)(candidate) {
-            return ([(header::CONTENT_TYPE, mime)], bytes).into_response();
+            return ([(header::CONTENT_TYPE, content_type(candidate, mime))], bytes).into_response();
         }
     }
     fail(StatusCode::NOT_FOUND, "Not found. Build the frontend with `bun run build`.")
+}
+
+/// Tauri guesses a file's type from its bytes and extension, and an extension it does not know
+/// becomes `text/html`. The phone's browser needs the real types to install the app from its
+/// manifest and to register the service worker.
+fn content_type(path: &str, guessed: String) -> String {
+    match path.rsplit_once('.').map(|(_, ext)| ext) {
+        Some("webmanifest") => "application/manifest+json".into(),
+        Some("js" | "mjs") => "text/javascript".into(),
+        _ => guessed,
+    }
 }
 
 #[cfg(test)]
@@ -766,6 +777,15 @@ mod tests {
         assert_eq!(code.len(), 6);
         assert!(code.chars().all(|c| c.is_ascii_digit()));
         assert_eq!(random_hex(32).len(), 64);
+    }
+
+    #[test]
+    fn the_phone_app_files_get_the_types_browsers_need() {
+        assert_eq!(content_type("m/manifest.webmanifest", "text/html".into()), "application/manifest+json");
+        assert_eq!(content_type("service-worker.js", "application/octet-stream".into()), "text/javascript");
+        assert_eq!(content_type("_app/immutable/entry/start.mjs", "text/html".into()), "text/javascript");
+        assert_eq!(content_type("m/icons/icon-192.png", "image/png".into()), "image/png");
+        assert_eq!(content_type("index.html", "text/html".into()), "text/html");
     }
 
     #[test]

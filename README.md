@@ -54,4 +54,5 @@ Known limits:
 - Codex success-path events are parsed from its documentation; on the development machine Codex could not authenticate, so only its failure path was observed.
 - On Windows, clicking a notification while it is on screen opens its session (FR-40); one clicked later from the notification center only brings OpenCompanion forward. On macOS and Linux a click does not open the session yet: the Tauri notification plugin has no click action there.
 - Not built yet: Web Push to the phone (FR-42). It needs HTTPS and a push service; on the plain-HTTP LAN the phone shows notifications while its page is open.
+- The phone page can be added to the home screen (web app manifest, Apple tags). On the plain-HTTP LAN, Chrome shows no install prompt and no service worker runs, so the installed app opens only while the desktop answers; over HTTPS or on localhost the service worker keeps the app shell and the offline screen. On iPhone the Home Screen app keeps its own storage, apart from Safari, so it is paired once more by typing the code.
 - Windows 11 is the tested platform. macOS and Linux build from the same code but are untested.

@@ -119,6 +119,9 @@ export const en = {
   "phone.pair.fromQr": "The code from your computer is filled in. Check the name, then press Pair.",
   "phone.pair.howTo":
     "On your computer, open OpenCompanion, go to Settings, turn on Phone access and scan the code there with your camera app. Or type the 6-digit code below.",
+  "phone.pair.homeScreenHowTo":
+    "This Home Screen app keeps its own pairing, apart from Safari. On your computer, open OpenCompanion, go to Settings, turn on Phone access and type the 6-digit code from there below. Scanning the QR code with the camera pairs Safari, not this app.",
+  "phone.pair.homeScreen": "Home Screen",
   "phone.pair.code": "Pairing code",
   "phone.pair.digit": "Digit {n}",
   "phone.pair.name": "Name for this phone",
@@ -310,6 +313,9 @@ export const id: Record<keyof typeof en, string> = {
   "phone.pair.fromQr": "Kode dari komputer Anda sudah terisi. Periksa namanya, lalu tekan Pasangkan.",
   "phone.pair.howTo":
     "Di komputer Anda, buka OpenCompanion, masuk ke Pengaturan, nyalakan Akses HP, lalu pindai kode di sana dengan aplikasi kamera. Atau ketik kode 6 digit di bawah.",
+  "phone.pair.homeScreenHowTo":
+    "Aplikasi di Layar Utama ini menyimpan pairing sendiri, terpisah dari Safari. Di komputer Anda, buka OpenCompanion, masuk ke Pengaturan, nyalakan Akses HP, lalu ketik kode 6 digit dari sana di bawah. Memindai kode QR dengan kamera memasangkan Safari, bukan aplikasi ini.",
+  "phone.pair.homeScreen": "Layar Utama",
   "phone.pair.code": "Kode pairing",
   "phone.pair.digit": "Digit ke-{n}",
   "phone.pair.name": "Nama untuk HP ini",

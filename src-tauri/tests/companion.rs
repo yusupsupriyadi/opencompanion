@@ -1,5 +1,6 @@
 //! Phone companion over real HTTP on localhost: pairing, device tokens, the session API,
-//! Chat and Board from the phone, and the SPA fallback (PRD FR-50 to FR-57, FR-77, section 11).
+//! Chat and Board from the phone, the SPA fallback and the files that install the phone app
+//! (PRD FR-50 to FR-57, FR-77, section 11).
 
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -22,6 +23,25 @@ impl Emit for Quiet {
 }
 
 fn http(port: u16, method: &str, path: &str, token: Option<&str>, body: Option<&str>) -> (u16, String) {
+    let raw = exchange(port, method, path, token, body);
+    let status: u16 = raw.split_whitespace().nth(1).unwrap().parse().unwrap();
+    let body = raw.split_once("\r\n\r\n").map(|(_, b)| b.to_string()).unwrap_or_default();
+    (status, body)
+}
+
+/// A response header's value for a plain GET, or "" when it is not sent.
+fn header(port: u16, path: &str, name: &str) -> String {
+    let raw = exchange(port, "GET", path, None, None);
+    let head = raw.split_once("\r\n\r\n").map(|(h, _)| h).unwrap_or(&raw);
+    head.lines()
+        .filter_map(|line| line.split_once(':'))
+        .find(|(k, _)| k.eq_ignore_ascii_case(name))
+        .map(|(_, v)| v.trim().to_string())
+        .unwrap_or_default()
+}
+
+/// The whole raw response to one request.
+fn exchange(port: u16, method: &str, path: &str, token: Option<&str>, body: Option<&str>) -> String {
     let mut s = TcpStream::connect(("127.0.0.1", port)).expect("server is listening");
     s.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
     let body = body.unwrap_or("");
@@ -33,9 +53,7 @@ fn http(port: u16, method: &str, path: &str, token: Option<&str>, body: Option<&
     s.write_all(req.as_bytes()).unwrap();
     let mut raw = String::new();
     s.read_to_string(&mut raw).unwrap();
-    let status: u16 = raw.split_whitespace().nth(1).unwrap().parse().unwrap();
-    let body = raw.split_once("\r\n\r\n").map(|(_, b)| b.to_string()).unwrap_or_default();
-    (status, body)
+    raw
 }
 
 fn json(body: &str) -> Value {
@@ -50,6 +68,9 @@ fn pairing_tokens_and_the_session_api() {
     let assets: AssetLookup = Arc::new(|path: &str| match path {
         "index.html" => Some((b"<!doctype html><title>shell</title>".to_vec(), "text/html".into())),
         "_app/app.js" => Some((b"console.log(1)".to_vec(), "text/javascript".into())),
+        // What Tauri's resolver guesses for these: it does not know `.webmanifest`.
+        "m/manifest.webmanifest" => Some((br#"{"name":"OpenCompanion"}"#.to_vec(), "text/html".into())),
+        "service-worker.js" => Some((b"self.addEventListener('fetch', () => {})".to_vec(), "application/octet-stream".into())),
         _ => None,
     });
     let companion = Companion::new(Arc::clone(&db), manager, assets);
@@ -93,6 +114,12 @@ fn pairing_tokens_and_the_session_api() {
     assert!(body.contains("<title>shell</title>"));
     assert_eq!(http(port, "GET", "/_app/app.js", None, None).0, 200);
     assert_eq!(http(port, "GET", "/_app/gone.js", None, None).0, 404);
+
+    // The phone can install the app and register its service worker, which sits at the root so its
+    // scope may cover `/m` without a Service-Worker-Allowed header.
+    assert_eq!(header(port, "/m/manifest.webmanifest", "content-type"), "application/manifest+json");
+    assert_eq!(header(port, "/service-worker.js", "content-type"), "text/javascript");
+    assert_eq!(header(port, "/m/pair", "content-type"), "text/html");
 
     // A removed device is locked out at once.
     db.remove_device(&devices[0].id).unwrap();
