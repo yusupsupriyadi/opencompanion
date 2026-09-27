@@ -111,6 +111,7 @@
   const s = $derived(phone.sessions.find((x) => x.id === id) ?? loaded?.session ?? null);
   const live = $derived(s ? isLive(s) : false);
   const terminal = $derived(s?.mode === "interactive");
+  const canMarkDone = $derived(Boolean(s && s.mode === "interactive" && s.status === "idle"));
   const answerable = $derived(Boolean(s && s.status === "waiting" && s.waiting?.canAnswer));
   const events = $derived(loaded?.events ?? []);
   const files = $derived(loaded?.files ?? []);
@@ -211,6 +212,21 @@
     }
   }
 
+  // Resume undoes it, so unlike Stop it goes without a confirmation sheet.
+  async function markDone() {
+    if (!s) return;
+    busy = true;
+    failure = "";
+    try {
+      await call(`/api/sessions/${id}/done`, { method: "POST" });
+      notify(t("phone.session.markedDone", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) }));
+    } catch (e) {
+      failure = e instanceof Error ? e.message : String(e);
+    } finally {
+      busy = false;
+    }
+  }
+
   async function stop() {
     stopOpen = false;
     busy = true;
@@ -235,6 +251,11 @@
         <CliMark kind={s.cli} small />
         <h1 class="m-stitle">{s.title}</h1>
         <span role="status"><PhoneStatus status={s.status} /></span>
+        {#if canMarkDone}
+          <button class="m-icon-btn secondary m-done" type="button" id="btn-mark-done" aria-label={t("phone.session.markDone")} title={t("phone.session.markDone")} disabled={busy} onclick={markDone}>
+            <Check size={18} weight="bold" aria-hidden="true" />
+          </button>
+        {/if}
         {#if live}
           <button class="m-icon-btn danger" type="button" id="btn-stop-session" aria-label={t("phone.session.stop")} title={t("phone.session.stop")} disabled={busy} onclick={() => (stopOpen = true)}>
             <Stop size={18} weight="fill" aria-hidden="true" />
@@ -424,6 +445,9 @@
   }
   .m-shead-row > a {
     margin-left: -6px;
+  }
+  .m-done:not([disabled]) {
+    color: var(--forest);
   }
   .m-stitle {
     flex: 1;

@@ -170,3 +170,25 @@ test("a closed terminal offers Resume instead of a text box", async () => {
   expect(sent(fetchMock, "POST /api/sessions/s1/resume")).toHaveLength(1);
   expect(screen.queryByLabelText("Type into the terminal")).not.toBeInTheDocument();
 });
+
+test("an idle terminal can be marked done without a confirmation sheet", async () => {
+  const s = session({ mode: "interactive", status: "idle", endedAt: null });
+  const fetchMock = phoneServer({
+    [`GET /api/sessions/${s.id}`]: () => [200, { session: s, events: [], tail: "claude> ready" }],
+    [`POST /api/sessions/${s.id}/done`]: () => [200, { ok: true }],
+  });
+  const user = userEvent.setup();
+  render(Session);
+  const done = await screen.findByRole("button", { name: "Mark done" });
+  expect(done).toHaveAttribute("title", "Mark done");
+  await user.click(done);
+  expect(sent(fetchMock, "POST /api/sessions/s1/done")).toHaveLength(1);
+  expect(screen.queryByRole("heading", { name: "Stop this session?" })).not.toBeInTheDocument();
+});
+
+test("a terminal that is still working offers Stop but not Mark done", async () => {
+  serve(session({ mode: "interactive", status: "running", endedAt: null }));
+  render(Session);
+  expect(await screen.findByRole("button", { name: "Stop" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Mark done" })).not.toBeInTheDocument();
+});

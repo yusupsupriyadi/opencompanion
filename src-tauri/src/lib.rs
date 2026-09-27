@@ -358,6 +358,11 @@ fn stop_session(state: State<'_, AppState>, id: String) -> Res<()> {
 }
 
 #[tauri::command]
+fn mark_session_done(state: State<'_, AppState>, id: String) -> Res<()> {
+    state.manager.mark_done(&id)
+}
+
+#[tauri::command]
 async fn answer_session(state: State<'_, AppState>, id: String, allow: bool) -> Res<SessionInfo> {
     let manager = Arc::clone(&state.manager);
     blocking(move || manager.answer(&id, allow)).await
@@ -785,6 +790,7 @@ pub fn run() {
             send_input,
             resize_session,
             stop_session,
+            mark_session_done,
             answer_session,
             resume_session,
             delete_history,

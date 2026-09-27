@@ -256,7 +256,7 @@ Status di file `design/ai-remote.pen`: ✓ = sudah ada, ✗ = belum dibuat.
 
 ### D4 Session detail ✓
 - Tujuan: melihat dan mengendalikan satu sesi. Fokus: terminal.
-- Header: breadcrumb "Overview / ai-remote", CliMark + judul 24/800 + chip, meta "Codex CLI 0.153.4 · interactive · ~/Project/ai-remote · started 12 min ago", tombol Restart dan Stop.
+- Header: breadcrumb "Overview / ai-remote", CliMark + judul 24/800 + chip, meta "Codex CLI 0.153.4 · interactive · ~/Project/ai-remote · started 12 min ago", tombol Restart dan Stop. Terminal yang Idle (giliran terakhirnya selesai) juga mendapat tombol primary `check` "Mark done" di depan Stop: CLI ditutup seperti Stop, tetapi sesi berakhir Done, kartu Board pindah ke Done, dan tidak ada notifikasi "finished". Resume membukanya lagi.
 - Baris Activity: label pixel + Horizon + "Commands, file edits and approvals in the last 12 min".
 - Body: terminal (lebar sisa) + kolom kanan 300: "Files changed" (path mono + diff mono), "Process" (PID, CPU, Memory, Child processes; diukur tiap 3 detik selama sesi berjalan, "Measuring CPU and memory…" sebelum hasil pertama), "Needs-you signal" (metode deteksi: event stream, hooks, atau pola teks, sesuai FR-16).
 - State Waiting for you: panel Needs you versi ringkas muncul di atas terminal, input bar dinonaktifkan dengan teks "Answer the approval above first".
@@ -342,11 +342,11 @@ Bottom tab bar di tiga layar utama (Sessions, Chat, Board): tinggi 52 + safe are
 
 ### M3 Session detail ✗
 - Layar setinggi satu layar HP: header dan bar aksi tetap, output di antaranya yang menggulir.
-- Header satu baris: ikon `caret-left` "Back to sessions" (40), CliMark 24, judul 15/800 maksimal 2 baris, chip status bertitik (label pendek "Waiting" untuk Waiting for you), dan selama sesi berjalan ikon `stop` terisi "Stop" (danger, 40). Di bawahnya meta 12 satu baris "Claude Code · headless · 14 min · uninote", lalu Horizon lebar penuh sebagai tepi bawah header.
+- Header satu baris: ikon `caret-left` "Back to sessions" (40), CliMark 24, judul 15/800 maksimal 2 baris, chip status bertitik (label pendek "Waiting" untuk Waiting for you), dan selama sesi berjalan ikon `stop` terisi "Stop" (danger, 40), didahului ikon `check` "Mark done" (secondary, ikon `forest`, 40) saat terminal Idle. Di bawahnya meta 12 satu baris "Claude Code · headless · 14 min · uninote", lalu Horizon lebar penuh sebagai tepi bawah header.
 - Panel Needs you ringkas di bawah header bila sesi menunggu; blok perintahnya tinggi maksimal 7.5em dan menggulir sendiri.
 - Segmented "Terminal | Activity | Details" (ikon + kata, tinggi 40; headless tanpa Terminal dan terbuka di Activity). Terminal: layar yang dikirim desktop (vt100 sudah memproses kode ANSI), mono 12.5/1.45 di `term-bg`, membungkus baris; kotak TUI (╭─╮ │ ╰─╯) digambar ulang sebagai bingkai dengan judulnya dan garis penuh sebagai garis tipis, baris kosong berturut dilipat jadi satu. Activity: timeline desktop (warna `t-*` yang sama). Keduanya mengikuti output terbaru kecuali pembaca menggulir ke atas; lalu muncul tombol ikon `arrow-down` "Jump to the latest output" di pojok kanan bawah, bertitik `accent` bila ada output baru. Details: isi panel samping desktop (folder, CLI dan mode, mulai, durasi, status, PID, CPU, memori, proses anak, kode keluar, sesi CLI, file yang diubah, sinyal Needs you, kartu Board).
 - Bar aksi bawah: saat Waiting for you yang bisa dijawab = Approve (accent) + Deny (44); terminal berjalan = satu baris key cap 40 (Esc, Tab, ikon ↑, ↓, return, Ctrl+C) + field teks dan ikon `paper-plane-tilt` "Send" (primary, 44; spinner saat mengirim); terminal tertutup = "Resume terminal"; headless = textarea follow-up + ikon Send, dan alasannya bila belum bisa.
-- Stop membuka sheet konfirmasi dari bawah dengan "Stop session" dan "Keep running".
+- Stop membuka sheet konfirmasi dari bawah dengan "Stop session" dan "Keep running". Mark done langsung berjalan tanpa sheet, karena Resume membatalkannya.
 
 ### M5 New session ✗
 - Bar atas 48: ikon `caret-left` "Back to sessions" (atau "Back to Board" saat menjalankan kartu, `?task=`) + H1 17/800 satu baris "New session" atau judul kartu.

@@ -36,6 +36,8 @@ const RULES: Rule[] = [
   [/^The custom path does not exist: (.+)$/, "Path kustom tidak ada: $1"],
   [/^Stopped by you$/, "Dihentikan oleh Anda"],
   [/^Stopped on (.+)$/, "Dihentikan dari $1"],
+  [/^Marked done by you$/, "Ditandai selesai oleh Anda"],
+  [/^Marked done on (.+)$/, "Ditandai selesai dari $1"],
   [/^Exited with code (-?\d+)$/, "Keluar dengan kode $1"],
   [/^OpenCompanion was closed while this session ran$/, "OpenCompanion ditutup saat sesi ini berjalan"],
   [/^OpenCompanion was closed$/, "OpenCompanion ditutup"],

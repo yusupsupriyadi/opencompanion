@@ -375,6 +375,8 @@ export const api = {
   sendInput: (id: string, text: string) => invoke<SessionInfo>("send_input", { id, text }),
   resizeSession: (id: string, cols: number, rows: number) => invoke<void>("resize_session", { id, cols, rows }),
   stopSession: (id: string) => invoke<void>("stop_session", { id }),
+  /** Closes the CLI like Stop, but the session ends Done and its Board card moves to Done. */
+  markSessionDone: (id: string) => invoke<void>("mark_session_done", { id }),
   answerSession: (id: string, allow: boolean) => invoke<SessionInfo>("answer_session", { id, allow }),
   resumeSession: (id: string, cols?: number, rows?: number) => invoke<SessionInfo>("resume_session", { id, cols, rows }),
   deleteHistory: () => invoke<void>("delete_history"),

@@ -74,6 +74,9 @@ struct Live {
     log: Mutex<Option<File>>,
     last_output: Mutex<Instant>,
     stop_requested: AtomicBool,
+    /// Set with `stop_requested` by Done: the user says the work is finished, so the exit
+    /// counts as Done instead of Stopped.
+    done_requested: AtomicBool,
     /// Bumped on every spawn; a watcher whose generation is stale leaves quietly.
     generation: AtomicU64,
     /// Set while the headless turn reported a failure, so the exit maps to Error.
@@ -392,6 +395,7 @@ impl Manager {
             log: Mutex::new(log),
             last_output: Mutex::new(Instant::now()),
             stop_requested: AtomicBool::new(false),
+            done_requested: AtomicBool::new(false),
             generation: AtomicU64::new(0),
             turn_failed: AtomicBool::new(false),
             pending_input: Mutex::new(None),
@@ -422,12 +426,13 @@ impl Manager {
             (before, info.clone())
         };
         if before != after.status {
-            self.on_status_change(before, &after);
+            self.on_status_change(before, &after, live.stop_requested.load(Ordering::SeqCst));
         }
         after
     }
 
-    fn on_status_change(&self, before: Status, info: &SessionInfo) {
+    /// `by_you` is set when Stop or Done ended the session, which needs no notification.
+    fn on_status_change(&self, before: Status, info: &SessionInfo, by_you: bool) {
         let settings = self.db.settings().unwrap_or_default();
         let place = folder_name(&info.cwd);
         let who = info.cli.label();
@@ -444,7 +449,7 @@ impl Manager {
                 };
                 self.emit.notify(&what, &format!("{place} · {}", info.title), &info.id);
             }
-            Status::Done if settings.notifies(Notice::Done, info.cli, &info.cwd) && before != Status::Done => {
+            Status::Done if !by_you && settings.notifies(Notice::Done, info.cli, &info.cwd) && before != Status::Done => {
                 self.emit.notify(&say(format!("{who} finished"), format!("{who} selesai")), &format!("{place} · {}", info.title), &info.id);
             }
             Status::Error if settings.notifies(Notice::Error, info.cli, &info.cwd) => {
@@ -619,18 +624,12 @@ impl Manager {
                 Err(_) => return,
             };
             if let Some(code) = exit {
-                let stopped = live.stop_requested.load(Ordering::SeqCst);
-                let status = if stopped {
-                    Status::Stopped
-                } else if code == 0 {
-                    Status::Done
-                } else {
-                    Status::Error
-                };
-                let note = if stopped {
-                    "Stopped by you".to_string()
-                } else {
-                    format!("Exited with code {code}")
+                let asked = asked_end(&live);
+                let status = asked.unwrap_or(if code == 0 { Status::Done } else { Status::Error });
+                let note = match asked {
+                    Some(Status::Done) => "Marked done by you".to_string(),
+                    Some(_) => "Stopped by you".to_string(),
+                    None => format!("Exited with code {code}"),
                 };
                 self.finish(&live, status, Some(code as i32), Some(note));
                 return;
@@ -940,17 +939,17 @@ impl Manager {
             let Some(code) = code else { continue };
             // Give the reader threads a moment to deliver the last lines.
             thread::sleep(Duration::from_millis(300));
-            let status = if live.stop_requested.load(Ordering::SeqCst) {
-                Status::Stopped
-            } else if code != 0 || live.turn_failed.load(Ordering::SeqCst) {
+            let asked = asked_end(&live);
+            let status = asked.unwrap_or(if code != 0 || live.turn_failed.load(Ordering::SeqCst) {
                 Status::Error
             } else {
                 Status::Done
-            };
-            let note = match status {
-                Status::Stopped => Some("Stopped by you".to_string()),
-                Status::Error if code != 0 => Some(format!("Exited with code {code}")),
-                _ => None,
+            });
+            let note = match asked {
+                Some(Status::Done) => Some("Marked done by you".to_string()),
+                Some(_) => Some("Stopped by you".to_string()),
+                None if code != 0 => Some(format!("Exited with code {code}")),
+                None => None,
             };
             self.finish(&live, status, Some(code), note);
             return;
@@ -1080,6 +1079,7 @@ impl Manager {
             return Err("This turn is finishing. Send your message again in a moment.".into());
         }
         live.stop_requested.store(false, Ordering::SeqCst);
+        live.done_requested.store(false, Ordering::SeqCst);
         self.record(&live, SessionEvent::Message { text: format!("You: {text}") });
         self.spawn_turn(&live, &exe, text, Some(&resume))?;
         Ok(self.info(&live))
@@ -1098,6 +1098,7 @@ impl Manager {
             Mode::Interactive => {
                 let live = self.register(info.clone(), info.cli == CliKind::Claude);
                 live.stop_requested.store(false, Ordering::SeqCst);
+                live.done_requested.store(false, Ordering::SeqCst);
                 let resume = info.cli_session_id.clone();
                 self.spawn_pty(&live, &exe, "", resume.as_deref(), cols, rows)?;
                 Ok(self.info(&live))
@@ -1120,10 +1121,27 @@ impl Manager {
     }
 
     pub fn stop_from(&self, id: &str, device: Option<&str>) -> Result<(), String> {
+        self.end(id, device, false)
+    }
+
+    /// Done: the user says the work is finished, such as a terminal that sits idle after its
+    /// last turn. The CLI closes like Stop, but the session ends Done, so its Board card moves
+    /// to Done. Resume opens the conversation again.
+    pub fn mark_done(&self, id: &str) -> Result<(), String> {
+        self.mark_done_from(id, None)
+    }
+
+    pub fn mark_done_from(&self, id: &str, device: Option<&str>) -> Result<(), String> {
+        self.end(id, device, true)
+    }
+
+    fn end(&self, id: &str, device: Option<&str>, done: bool) -> Result<(), String> {
         let live = self.get_live(id)?;
         if let Some(d) = device {
-            self.record(&live, SessionEvent::Message { text: format!("Stopped on {d}") });
+            let text = if done { format!("Marked done on {d}") } else { format!("Stopped on {d}") };
+            self.record(&live, SessionEvent::Message { text });
         }
+        live.done_requested.store(done, Ordering::SeqCst);
         live.stop_requested.store(true, Ordering::SeqCst);
         let grace = Duration::from_secs(3);
         let handle = Arc::clone(&live);
@@ -1285,6 +1303,18 @@ impl Manager {
         for id in ids {
             let _ = self.stop(&id);
         }
+    }
+}
+
+/// How the user ended a session whose CLI has exited: Done, Stopped, or neither, when the
+/// exit code decides.
+fn asked_end(live: &Live) -> Option<Status> {
+    if live.done_requested.load(Ordering::SeqCst) {
+        Some(Status::Done)
+    } else if live.stop_requested.load(Ordering::SeqCst) {
+        Some(Status::Stopped)
+    } else {
+        None
     }
 }
 

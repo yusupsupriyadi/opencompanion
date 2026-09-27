@@ -295,6 +295,7 @@ fn router(ctx: Ctx) -> Router {
         .route("/api/sessions/{id}", get(one_session))
         .route("/api/sessions/{id}/answer", post(answer))
         .route("/api/sessions/{id}/stop", post(stop))
+        .route("/api/sessions/{id}/done", post(mark_done))
         .route("/api/sessions/{id}/input", post(input))
         .route("/api/sessions/{id}/resume", post(resume))
         .route("/api/folders", get(folders))
@@ -458,6 +459,17 @@ async fn stop(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<S
         Err(r) => return r,
     };
     match ctx.manager.stop_from(&id, Some(&device.name)) {
+        Ok(()) => Json(json!({ "ok": true })).into_response(),
+        Err(e) => fail(StatusCode::CONFLICT, e),
+    }
+}
+
+async fn mark_done(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<String>) -> Response {
+    let device = match authed(&ctx, &headers) {
+        Ok(d) => d,
+        Err(r) => return r,
+    };
+    match ctx.manager.mark_done_from(&id, Some(&device.name)) {
         Ok(()) => Json(json!({ "ok": true })).into_response(),
         Err(e) => fail(StatusCode::CONFLICT, e),
     }

@@ -190,6 +190,39 @@ fn stop_ends_a_waiting_session_as_stopped() {
 }
 
 #[test]
+fn done_ends_an_idle_terminal_as_done_and_moves_its_card() {
+    let r = rig("done");
+    let task = Task {
+        id: "card-done".into(),
+        title: "Fix the login bug".into(),
+        notes: String::new(),
+        project: r.work.display().to_string(),
+        cli: Some(CliKind::Claude),
+        column: "progress".into(),
+        position: 1.0,
+        session_id: None,
+        created_at: 1,
+        updated_at: 1,
+    };
+    r.db.save_task(&task).unwrap();
+    let s = start(&r, CliKind::Claude, Mode::Interactive, "", Some("card-done".into()));
+    wait_until(&r, &s.id, "prompt on screen", |_| r.rec.output.lock().unwrap().contains("fake ready"));
+
+    // Claude Code's Stop hook: the turn is over and the terminal waits for the next message.
+    let hooks = r.work.parent().unwrap().join("data").join("hooks").join(format!("{}.jsonl", s.id));
+    std::fs::write(&hooks, "{\"hook_event_name\":\"Stop\"}\n").unwrap();
+    wait_until(&r, &s.id, "idle", |s| s.status == Status::Idle);
+
+    r.manager.mark_done(&s.id).unwrap();
+    let s = wait_until(&r, &s.id, "done", |s| !s.status.is_live());
+    assert_eq!(s.status, Status::Done);
+    assert_eq!(s.last_event.as_deref(), Some("Marked done by you"));
+    assert_eq!(r.db.task("card-done").unwrap().unwrap().column, "done");
+    // The user ended it, so no "finished" notification tells them what they just did.
+    assert!(r.rec.notes.lock().unwrap().is_empty(), "{:?}", r.rec.notes.lock().unwrap());
+}
+
+#[test]
 fn interactive_session_streams_output_and_takes_input() {
     let r = rig("pty");
     let s = start(&r, CliKind::Opencode, Mode::Interactive, "", None);

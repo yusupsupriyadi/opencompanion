@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { render, screen } from "@testing-library/svelte";
+import { fireEvent, render, screen } from "@testing-library/svelte";
 import { beforeEach, expect, test, vi } from "vitest";
 import type { EventRow } from "$lib/api";
 import { app } from "$lib/store.svelte";
@@ -63,4 +63,25 @@ test("events that arrive while the page loads are kept, once each", async () => 
   handlers["session-event"]({ payload: early });
   await Promise.resolve();
   expect(screen.getAllByText(/Edit src\/app\.ts/)).toHaveLength(1);
+});
+
+test("an idle terminal can be marked done, and a working one only stopped", async () => {
+  const s = session({ mode: "interactive", status: "idle" });
+  app.sessions = [s];
+  const calls = backend({
+    get_session: () => ({ session: s, events: [], output: "", task: null }),
+    session_output: () => ({ data: "", seq: 0 }),
+  });
+  const { unmount } = render(SessionPage);
+
+  const done = await screen.findByRole("button", { name: "Mark done" });
+  expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
+  await fireEvent.click(done);
+  expect(calls.calls("mark_session_done")).toEqual([{ id: "s1" }]);
+  unmount();
+
+  app.sessions = [{ ...s, status: "running" }];
+  render(SessionPage);
+  expect(await screen.findByRole("button", { name: "Stop" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Mark done" })).not.toBeInTheDocument();
 });

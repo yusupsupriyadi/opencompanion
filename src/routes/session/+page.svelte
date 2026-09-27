@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from "$app/state";
   import { listen } from "@tauri-apps/api/event";
+  import Check from "phosphor-svelte/lib/Check";
   import Play from "phosphor-svelte/lib/Play";
   import Stop from "phosphor-svelte/lib/Stop";
   import { onMount } from "svelte";
@@ -27,6 +28,7 @@
   let sendError = $state("");
   let sending = $state(false);
   let resuming = $state(false);
+  let markingDone = $state(false);
   let termKey = $state(0);
   let sideOpen = $state(false);
 
@@ -74,6 +76,9 @@
   // The store receives every status change; fall back to the loaded copy.
   const s: SessionInfo | null = $derived(app.sessions.find((x) => x.id === id) ?? detail?.session ?? null);
   const live = $derived(s ? isLive(s) : false);
+  // A terminal that sits idle after its last turn stays open until someone closes it; Done closes
+  // it and says the work is finished, where Stop would say it was cut short.
+  const canMarkDone = $derived(Boolean(s && s.mode === "interactive" && s.status === "idle"));
   const version = $derived(s ? app.clis.find((c) => c.kind === s.cli)?.version : null);
   const marks = $derived(
     events
@@ -155,6 +160,19 @@
     }
   }
 
+  async function markDone() {
+    if (!s) return;
+    markingDone = true;
+    try {
+      await api.markSessionDone(s.id);
+      showToast(t("sessions.detail.markedDone", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) }));
+    } catch (err) {
+      showToast(tb(errorText(err)));
+    } finally {
+      markingDone = false;
+    }
+  }
+
   async function resume() {
     if (!s) return;
     resuming = true;
@@ -204,6 +222,9 @@
         </div>
       </div>
       {#if live}
+        {#if canMarkDone}
+          <button class="btn primary" type="button" id="btn-mark-done" disabled={markingDone} title={t("sessions.detail.markDoneHint", { cli: CLI_LABEL[s.cli] })} onclick={markDone}><Check size={16} aria-hidden="true" />{t("sessions.detail.markDone")}</button>
+        {/if}
         <button class="btn danger" type="button" onclick={() => (stopOpen = true)}><Stop size={16} aria-hidden="true" />{t("sessions.detail.stop")}</button>
       {:else if s.mode === "interactive"}
         <button class="btn primary" type="button" disabled={resuming} onclick={resume}><Play size={16} aria-hidden="true" />{resuming ? t("sessions.detail.resuming") : t("sessions.detail.resume")}</button>
