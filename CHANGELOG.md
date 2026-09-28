@@ -40,5 +40,6 @@ Planned as 0.1.0, the first public release. Windows 11 is tested by hand, Linux 
 - No Web Push to the phone yet; the phone shows notifications while its page is open.
 - macOS has not been built or run yet. On macOS a click on a notification does not open its session.
 - On a GNOME desktop the tray icon shows only with the AppIndicator extension.
+- On macOS and Linux, a child that detaches into a session of its own outlives Stop.
 
 [Unreleased]: https://github.com/yusupsupriyadi/opencompanion/commits/main

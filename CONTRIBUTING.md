@@ -65,7 +65,7 @@ bash e2e/linux/run.sh e2e      # build and install the .deb, then drive the app
 bash e2e/linux/run.sh all      # both
 ```
 
-The end-to-end run starts the installed app under Xvfb and drives it through `tauri-driver` with `e2e/linux/e2e.py` (standard library only). `claude` and `opencode` are wrappers around `fake-cli` that only the login shell's PATH holds, so the run also proves the app picks up that PATH. It covers onboarding, headless and interactive sessions, Approve, the Terminal screen with Ctrl+Shift+V paste, All sessions, the Board, language and theme, start at login, phone pairing, a click on a notification (through `dunst`), and a restart. Screenshots, `results.json` and logs land in `e2e/linux/out/`.
+The end-to-end run starts the installed app under Xvfb and drives it through `tauri-driver` with `e2e/linux/e2e.py` (standard library only). `claude` and `opencode` are wrappers around `fake-cli` that only the login shell's PATH holds, so the run also proves the app picks up that PATH. It covers onboarding, headless and interactive sessions, Approve, the Terminal screen with Ctrl+Shift+V paste, All sessions, the Board, language and theme, start at login, phone pairing, a click on a notification (through `dunst`), a restart, and a start with no tray library. Screenshots, `results.json` and logs land in `e2e/linux/out/`.
 
 ### CI
 

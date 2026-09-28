@@ -15,7 +15,7 @@ When you run Claude Code, Codex CLI or OpenCode in several folders at once, each
 
 It is a Tauri 2 + Svelte 5 app that runs on your computer. There is no account, no cloud server and no telemetry. Each CLI keeps talking to its own provider with your own login, as it does in your terminal.
 
-The UI is available in English and Indonesian (Settings › Language). The current version is 0.1.1. It runs on Windows, Linux and macOS; [Platforms](#platforms) says how each one was tested. There are no prebuilt releases yet, so you [build it from source](#build-from-source).
+The UI is available in English and Indonesian (Settings › Language). The current version is 0.1.1. It is made for Windows, Linux and macOS; [Platforms](#platforms) says how far each one was tested (macOS has not been built yet). There are no prebuilt releases yet, so you [build it from source](#build-from-source).
 
 ## Features
 
@@ -68,20 +68,20 @@ Notes:
 | Packages from `bun run tauri build` | `.msi`, `.exe` | `.deb`, `.rpm`, AppImage | `.app`, `.dmg` |
 | Window controls | OpenCompanion's own | OpenCompanion's own | Native traffic lights |
 | Paste in a terminal | Ctrl+V | Ctrl+Shift+V (Ctrl+V goes to the CLI) | ⌘V |
-| A click on a notification | Opens the session | Opens the session, with a notification server that supports actions (GNOME, KDE, dunst and most others) | Does not open the session |
+| A click on a notification | Opens the session | Opens the session when the notification server supports actions (tried with dunst; GNOME and KDE support actions but were not tried) | Does not open the session |
 | Start in the tray at sign-in | Run key in the registry | `~/.config/autostart/opencompanion.desktop` | `~/Library/LaunchAgents/dev.opencompanion.app.plist` |
 | Tray icon | Taskbar corner | Needs AppIndicator support; GNOME shows it only with the AppIndicator extension | Menu bar |
 
 The macOS column says what the code does. None of it has been tried on a Mac yet.
 
 - On macOS and Linux, OpenCompanion reads your login shell's environment when it starts (`$SHELL -ilc env`, at most 5 seconds). So a CLI installed with Homebrew, npm, nvm, volta or bun is found, `#!/usr/bin/env node` scripts find node, and variables you export in `~/.zshrc` or `~/.bashrc` (API keys, proxies) reach the CLI, even when OpenCompanion starts from Finder or a desktop launcher. If the shell does not answer, it adds the usual install folders to the PATH instead.
-- On macOS and Linux, Stop ends the CLI's whole process group, so the dev servers and tools it started stop with it, as on Windows.
-- If Linux cannot create the tray icon, OpenCompanion still starts, and closing the window quits it, so the window cannot end up hidden with no way back.
+- On macOS and Linux, Stop ends the CLI's whole process group, so the dev servers and tools it started stop with it. A child that starts a session of its own (a detached process) is not reached, where Windows would still end it.
+- If Linux has no AppIndicator library for the tray icon, OpenCompanion still starts, and closing the window quits it, so the window cannot end up hidden with no way back.
 - On Linux, folder rules (auto-run folders, notification rules) compare folder names with case, as the file system does. On Windows and macOS they ignore case.
 
 ## Requirements
 
-- Windows 11, a Linux desktop with WebKitGTK 4.1, or macOS.
+- Windows 11, a Linux desktop with WebKitGTK 4.1, or macOS (not built yet, see [Platforms](#platforms)).
 - Rust (stable), with the MSVC toolchain on Windows.
 - The Tauri 2 system prerequisites for your platform, see [tauri.app/start/prerequisites](https://tauri.app/start/prerequisites/): on Windows, Microsoft C++ Build Tools and WebView2 (WebView2 ships with Windows 11); on Linux, WebKitGTK 4.1, libayatana-appindicator and the other listed packages, plus `xdg-utils` to bundle an AppImage; on macOS, the Xcode Command Line Tools.
 - [Bun](https://bun.sh), and [Node.js](https://nodejs.org) (LTS) to run the tests.

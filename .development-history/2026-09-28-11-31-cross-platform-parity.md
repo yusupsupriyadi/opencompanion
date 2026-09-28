@@ -19,7 +19,8 @@ A Docker run on Ubuntu 24.04 found Linux-only failures and a code audit found ma
 ## Verification
 
 - `bash scripts/ci/checks.sh` on Windows: pass (Vitest 212, cargo 123/5/12, clippy -D warnings clean).
-- `bash e2e/linux/run.sh all`: checks pass on Linux; E2E 22/22 on the installed `.deb`.
+- `bash e2e/linux/run.sh all`: checks pass on Linux; E2E 23/23 on the installed `.deb`.
+- Final review (fresh reviewer) fixes: setsid for CLIs (login shell stopped under a TTY), Fedora `BASH_FUNC_*` in the env parser, tray start without AppIndicator, pinned Node 24.21.0 in CI, doc claims.
 - `circleci config validate`: valid.
 
 ## Limitations
