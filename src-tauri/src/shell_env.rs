@@ -95,40 +95,47 @@ fn with_fallback(base: &str, dirs: &[PathBuf]) -> String {
     parts.join(":")
 }
 
-/// The variables `env` printed between the two markers. A line that does not start a new
-/// `NAME=` continues the value before it, as a multi-line value prints.
+/// The variables `env` printed between the two markers. A line that starts with `NAME=` (no
+/// space before the `=`) starts an entry, and any other line continues the value before it, as a
+/// multi-line value prints. Entries whose name is not a variable name, such as the bash functions
+/// Fedora exports (`BASH_FUNC_which%%=() {`), are dropped together with their continuation.
 #[cfg(any(unix, test))]
 fn parse(out: &str) -> Vec<(String, String)> {
     let mut lines = out.lines();
     if !lines.any(|l| l == START) {
         return Vec::new();
     }
-    let mut vars: Vec<(String, String)> = Vec::new();
+    let is_name = |k: &str| {
+        let mut chars = k.chars();
+        chars.next().is_some_and(|c| c == '_' || c.is_ascii_alphabetic()) && chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
+    };
+    // `None` marks a dropped entry, so its continuation lines are dropped too.
+    let mut entries: Vec<Option<(String, String)>> = Vec::new();
     let mut ended = false;
     for line in lines {
         if line == END {
             ended = true;
             break;
         }
-        let name = line.split_once('=').map(|(k, _)| k).filter(|k| {
-            let mut chars = k.chars();
-            chars.next().is_some_and(|c| c == '_' || c.is_ascii_alphabetic())
-                && chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
-        });
-        match (name, vars.last_mut()) {
-            (Some(k), _) => vars.push((k.to_string(), line[k.len() + 1..].to_string())),
-            (None, Some((_, v))) => {
+        let starts = line.split_once('=').map(|(k, _)| k).filter(|k| !k.is_empty() && !k.contains(char::is_whitespace));
+        match (starts, entries.last_mut()) {
+            (Some(k), _) if is_name(k) => entries.push(Some((k.to_string(), line[k.len() + 1..].to_string()))),
+            (Some(_), _) => entries.push(None),
+            (None, Some(Some((_, v)))) => {
                 v.push('\n');
                 v.push_str(line);
             }
-            (None, None) => {}
+            (None, _) => {}
         }
     }
     if !ended {
         return Vec::new();
     }
-    vars.retain(|(k, _)| !SKIP.contains(&k.as_str()) && !crate::proc::INHERITED_SESSION_VARS.contains(&k.as_str()));
-    vars
+    entries
+        .into_iter()
+        .flatten()
+        .filter(|(k, _)| !SKIP.contains(&k.as_str()) && !crate::proc::INHERITED_SESSION_VARS.contains(&k.as_str()))
+        .collect()
 }
 
 /// Runs `shell args` with no terminal and stdin closed, without this module's own environment.
@@ -159,6 +166,12 @@ mod tests {
             .collect();
         assert_eq!(vars, want);
         assert!(parse("no markers at all").is_empty());
+        // Fedora and RHEL export `which` as a bash function; its name and body are not a variable.
+        let fedora = format!(
+            "{START}\nPATH=/usr/bin:/bin\nBASH_FUNC_which%%=() {{  ( alias;\n eval ${{which_declare}} ) | /usr/bin/which --tty-only \"$@\"\n}}\nHOME=/h\n{END}\n"
+        );
+        let vars = parse(&fedora);
+        assert_eq!(vars, [("PATH".to_string(), "/usr/bin:/bin".to_string()), ("HOME".to_string(), "/h".to_string())]);
         assert!(parse(&format!("{START}\nPATH=/a\n")).is_empty(), "a capture cut before its end marker is not trusted");
     }
 
@@ -198,6 +211,18 @@ mod tests {
         let vars = capture_with(Path::new("/bin/sh"), &["-c", &script], Duration::from_secs(5)).expect("sh answers");
         assert!(vars.iter().any(|(k, v)| k == "OC_PROBE" && v == "a b"), "{vars:?}");
         assert!(vars.iter().any(|(k, _)| k == "PATH"));
+    }
+
+    /// An interactive shell reads /dev/tty. Started from a terminal, it must answer instead of
+    /// being stopped for touching a terminal it does not own (run under `script` to have one).
+    #[cfg(unix)]
+    #[test]
+    fn an_interactive_shell_answers_when_the_app_has_a_terminal() {
+        let script = format!("printf '%s\\n' {START}; /usr/bin/env; printf '%s\\n' {END}");
+        let started = std::time::Instant::now();
+        let vars = capture_with(Path::new("/bin/bash"), &["-ic", &script], Duration::from_secs(5)).expect("bash answers");
+        assert!(vars.iter().any(|(k, _)| k == "PATH"));
+        assert!(started.elapsed() < Duration::from_secs(3), "took {:?}", started.elapsed());
     }
 
     #[cfg(windows)]

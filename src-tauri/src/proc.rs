@@ -44,11 +44,16 @@ pub(crate) fn hidden(program: impl AsRef<OsStr>) -> Command {
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
-    // Its own process group, so `kill_tree` ends the CLI together with what it started.
+    // Its own session, and so its own process group with its pid as the id: `kill_tree` ends the
+    // CLI together with what it started. With no controlling terminal, a shell or a prompt that
+    // opens /dev/tty gets an error instead of being stopped when the app itself runs from a terminal.
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
-        cmd.process_group(0);
+        // SAFETY: setsid(2) is async-signal-safe and touches no memory shared with the parent.
+        unsafe {
+            cmd.pre_exec(|| if libc::setsid() == -1 { Err(std::io::Error::last_os_error()) } else { Ok(()) });
+        }
     }
     cmd
 }
@@ -153,12 +158,7 @@ pub fn kill_tree(pid: u32) {
     // session), so its pid is the group id: SIGTERM first, SIGKILL for what is left after 2 s.
     #[cfg(unix)]
     {
-        // 0 is our own group and 1 would signal every process: never a CLI we started.
-        let Ok(pid) = i32::try_from(pid) else { return };
-        if pid <= 1 {
-            return;
-        }
-        let group = -pid;
+        let Some(group) = target_group(pid) else { return };
         // SAFETY: kill(2) only sends a signal; a negative pid names a process group.
         unsafe { libc::kill(group, libc::SIGTERM) };
         thread::spawn(move || {
@@ -173,6 +173,14 @@ pub fn kill_tree(pid: u32) {
             unsafe { libc::kill(group, libc::SIGKILL) };
         });
     }
+}
+
+/// The process group `kill_tree` signals for `pid`, as kill(2) names it. Never 0 (our own group)
+/// or -1 (every process we may signal): neither is a CLI we started.
+#[cfg(unix)]
+fn target_group(pid: u32) -> Option<i32> {
+    let pid = i32::try_from(pid).ok()?;
+    (pid > 1).then_some(-pid)
 }
 
 pub struct Captured {
@@ -346,12 +354,30 @@ endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\node_
     }
 
     /// 0 is the caller's own group and 1 would signal every process: neither is a CLI we started.
+    /// Tested on the pure function, so a broken guard fails here instead of signalling everything.
     #[cfg(unix)]
     #[test]
     fn kill_tree_never_signals_our_own_group_or_everyone() {
-        kill_tree(0);
-        kill_tree(1);
-        thread::sleep(Duration::from_millis(100));
+        assert_eq!(target_group(0), None);
+        assert_eq!(target_group(1), None);
+        assert_eq!(target_group(u32::MAX), None);
+        assert_eq!(target_group(4242), Some(-4242));
+    }
+
+    /// A CLI leads its own session, so it has no controlling terminal: a shell or a prompt that
+    /// opens /dev/tty gets an error instead of being stopped when the app runs from a terminal.
+    #[cfg(unix)]
+    #[test]
+    fn a_cli_leads_its_own_session() {
+        let out = hidden("/bin/sh")
+            .args(["-c", "echo $$ $(ps -o sid= -p $$)"])
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout);
+        let ids: Vec<&str> = text.split_whitespace().collect();
+        assert_eq!(ids.len(), 2, "{text}");
+        assert_eq!(ids[0], ids[1], "the child is not a session leader: {text}");
     }
 
     #[cfg(windows)]
