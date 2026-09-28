@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from "$app/state";
   import CaretDown from "phosphor-svelte/lib/CaretDown";
+  import CaretRight from "phosphor-svelte/lib/CaretRight";
   import ChatsCircle from "phosphor-svelte/lib/ChatsCircle";
   import FolderSimple from "phosphor-svelte/lib/FolderSimple";
   import GearSix from "phosphor-svelte/lib/GearSix";
@@ -8,10 +9,12 @@
   import House from "phosphor-svelte/lib/House";
   import Plus from "phosphor-svelte/lib/Plus";
   import PushPin from "phosphor-svelte/lib/PushPin";
+  import PushPinSlash from "phosphor-svelte/lib/PushPinSlash";
   import Trash from "phosphor-svelte/lib/Trash";
   import type { SessionView } from "./api";
   import AppLogo from "./AppLogo.svelte";
   import CliMark from "./CliMark.svelte";
+  import { folderEntries, menu, openMenu, sessionMenu } from "./context-menu.svelte";
   import { CLI_LABEL, STATUS, folderName, isLive } from "./format";
   import { plural, t } from "./i18n.svelte";
   import { app, askDelete, askNewSession } from "./store.svelte";
@@ -72,6 +75,26 @@
     saveList(PINNED_SESSIONS_KEY, pinnedSessions);
   }
 
+  type Group = { key: string; cwd: string; pinned: boolean; sessions: SessionView[] };
+
+  // Right-click menus: the row buttons' actions, plus the ones about the folder itself.
+  const menuFor = (key: string) => menu.open && menu.key === key;
+  function sessionContext(e: MouseEvent, s: SessionView) {
+    const pinned = pinnedSessions.includes(s.id);
+    openMenu(e, `side:${s.id}`, t("shell.menu.sessionLabel", { title: s.title }), sessionMenu(s, { pinned, toggle: () => pinSession(s.id) }));
+  }
+  function folderContext(e: MouseEvent, g: Group) {
+    const shut = collapsed.includes(g.key);
+    const folder = folderName(g.cwd);
+    openMenu(e, `folder:${g.key}`, t("shell.menu.folderLabel", { folder }), [
+      { label: t("shell.sidebar.newSessionIn", { folder }), icon: Plus, action: () => askNewSession(g.cwd) },
+      { label: t(g.pinned ? "shell.sidebar.unpinFolder" : "shell.sidebar.pinFolder"), icon: g.pinned ? PushPinSlash : PushPin, action: () => pinFolder(g) },
+      { label: t(shut ? "shell.menu.expand" : "shell.menu.collapse"), icon: shut ? CaretDown : CaretRight, action: () => toggle(g.key) },
+      null,
+      ...folderEntries(g.cwd),
+    ]);
+  }
+
   // Every session is shown, most urgent first: live (waiting on top), then finished, newest first.
   // Pinned folders lead, even empty; the rest follow their most urgent session. Inside a folder,
   // pinned sessions come first.
@@ -81,7 +104,7 @@
     const ordered = [...live, ...app.sessions.filter((s) => !isLive(s))];
     const pinned = new Set(pinnedSessions);
 
-    const byFolder = new Map<string, { key: string; cwd: string; pinned: boolean; sessions: SessionView[] }>();
+    const byFolder = new Map<string, Group>();
     for (const cwd of pinnedFolders) {
       const key = folderKey(cwd);
       if (!byFolder.has(key)) byFolder.set(key, { key, cwd, pinned: true, sessions: [] });
@@ -118,7 +141,9 @@
         {#each groups as g, i (g.key)}
           {@const shut = collapsed.includes(g.key)}
           <div class="folder-group" role="group" aria-labelledby="side-folder-{i}">
-            <div class="folder-row" class:pinned={g.pinned}>
+            <!-- The button inside takes the keys: Shift+F10 or the Menu key on it bubbles up here. -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div class="folder-row" class:pinned={g.pinned} class:menu-open={menuFor(`folder:${g.key}`)} oncontextmenu={(e) => folderContext(e, g)}>
               <button
                 class="folder-head"
                 type="button"
@@ -166,7 +191,14 @@
               {/if}
               {#each g.sessions as s (s.id)}
                 {@const sessionPinned = pinnedSessions.includes(s.id)}
-                <div class="mini-item" class:pinned={sessionPinned} class:current={s.id === currentSession}>
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div
+                  class="mini-item"
+                  class:pinned={sessionPinned}
+                  class:current={s.id === currentSession}
+                  class:menu-open={menuFor(`side:${s.id}`)}
+                  oncontextmenu={(e) => sessionContext(e, s)}
+                >
                   <a
                     class="mini"
                     href="/session?id={s.id}"
@@ -224,11 +256,14 @@
   .mini-item.current {
     --row-bg: var(--surface);
   }
-  /* The whole row lights up while the pointer or keyboard is on it, buttons included. */
+  /* The whole row lights up while the pointer or keyboard is on it, buttons included, and while
+     its right-click menu is open. */
   .mini-item:hover .mini,
   .mini-item:focus-within .mini,
+  .mini-item.menu-open .mini,
   .folder-row:hover .folder-head,
-  .folder-row:focus-within .folder-head {
+  .folder-row:focus-within .folder-head,
+  .folder-row.menu-open .folder-head {
     background: var(--surface-2);
   }
   .mini-item .mini[aria-current="page"] {

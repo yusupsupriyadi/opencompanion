@@ -91,12 +91,12 @@ svg { flex: none; }
    saturates it, and swaps the fills inside for translucent ones, so buttons, inputs and rows turn to glass as well.
    Each tint is the thinnest at which ink-2 keeps 4.5:1 over the blurred painting: surface 82%, surface-2 90%, bg 85% in Day. */
 .app > .sidebar, .tb-controls, .page-head, .section-head, .hint, .planner, .detail-side, .note, .not-found, .toolbar,
-.srow, .needs, .resolved, .state-box, .history, .composer, .rail, .me, .card, .table-wrap, .panel, dialog {
+.srow, .needs, .resolved, .state-box, .history, .composer, .rail, .me, .card, .table-wrap, .panel, dialog, .ctx-menu {
   --surface: var(--glass); --surface-2: var(--glass-2); --bg: var(--glass-bg);
   -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-rim);
 }
 /* Pop-ups float outside the glass that holds them, so nothing blurs behind them: they take the tint that passes unblurred. */
-dialog, .rail.pop, .mention { --surface: var(--glass-pop); }
+dialog, .rail.pop, .mention, .ctx-menu { --surface: var(--glass-pop); }
 .btn.secondary, .input, .select, .textarea, .input-wrap, .seg, .opt { box-shadow: var(--glass-rim); }
 /* Error red needs 89% behind it, so error text keeps a small solid plate inside the glass. */
 .err-text, .field .error { width: fit-content; padding: 2px 6px; border-radius: var(--r-sm); background: var(--solid); }

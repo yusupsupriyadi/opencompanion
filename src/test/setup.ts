@@ -4,6 +4,7 @@ import { vi } from "vitest";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => undefined) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(async () => String.raw`C:\Users\me\Project\picked`) }));
+vi.mock("@tauri-apps/plugin-opener", () => ({ revealItemInDir: vi.fn(async () => undefined) }));
 // One shared window object, so a test can read the title bar's calls through `getCurrentWindow()`.
 vi.mock("@tauri-apps/api/window", () => {
   const win = {

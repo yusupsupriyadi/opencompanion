@@ -2,6 +2,7 @@
   import Trash from "phosphor-svelte/lib/Trash";
   import type { SessionView } from "./api";
   import CliMark from "./CliMark.svelte";
+  import { menu, openMenu, sessionMenu } from "./context-menu.svelte";
   import Horizon from "./Horizon.svelte";
   import StatusChip from "./StatusChip.svelte";
   import { CLI_LABEL, isLive, shortPath, trackLine } from "./format";
@@ -10,9 +11,16 @@
 
   let { s }: { s: SessionView } = $props();
   const live = $derived(s.status === "running" || s.status === "starting");
+  const menuKey = $derived(`row:${s.id}`);
 </script>
 
-<div class="srow-item">
+<!-- The link and button inside take the keys: Shift+F10 or the Menu key on them bubbles up here. -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  class="srow-item"
+  class:menu-open={menu.open && menu.key === menuKey}
+  oncontextmenu={(e) => openMenu(e, menuKey, t("shell.menu.sessionLabel", { title: s.title }), sessionMenu(s))}
+>
   <a class="srow" href="/session?id={s.id}">
     <CliMark kind={s.cli} />
     <span style="min-width:0">
@@ -41,6 +49,9 @@
   }
   .srow-item {
     position: relative;
+  }
+  .menu-open .srow {
+    background: var(--surface-2);
   }
   /* Live rows keep the button's space too, so horizons stay aligned between rows. */
   .srow {

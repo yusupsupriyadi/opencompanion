@@ -25,6 +25,21 @@ export const en = {
   "shell.sidebar.unpinSession": "Unpin session",
   "shell.sidebar.pinSessionNamed": "Pin session: {title}",
 
+  // Right-click menus on session and folder rows
+  "shell.menu.sessionLabel": "Session: {title}",
+  "shell.menu.folderLabel": "Folder: {folder}",
+  "shell.menu.open": "Open session",
+  "shell.menu.expand": "Expand folder",
+  "shell.menu.collapse": "Collapse folder",
+  "shell.menu.copyPath": "Copy folder path",
+  "shell.menu.copied": "Copied {path}",
+  "shell.menu.copyFailed": "Could not copy the folder path.",
+  "shell.menu.revealWindows": "Show in File Explorer",
+  "shell.menu.revealMac": "Show in Finder",
+  "shell.menu.revealLinux": "Show in file manager",
+  "shell.menu.revealFailed": "Could not open {folder}: {error}",
+  "shell.menu.stopFirst": "Stop it first",
+
   // Title bar
   "shell.titlebar.minimize": "Minimize",
   "shell.titlebar.maximize": "Maximize",
@@ -157,6 +172,20 @@ export const id: Record<keyof typeof en, string> = {
   "shell.sidebar.pinSession": "Sematkan sesi",
   "shell.sidebar.unpinSession": "Lepas sematan sesi",
   "shell.sidebar.pinSessionNamed": "Sematkan sesi: {title}",
+
+  "shell.menu.sessionLabel": "Sesi: {title}",
+  "shell.menu.folderLabel": "Folder: {folder}",
+  "shell.menu.open": "Buka sesi",
+  "shell.menu.expand": "Perluas folder",
+  "shell.menu.collapse": "Ciutkan folder",
+  "shell.menu.copyPath": "Salin path folder",
+  "shell.menu.copied": "{path} disalin",
+  "shell.menu.copyFailed": "Path folder tidak bisa disalin.",
+  "shell.menu.revealWindows": "Tampilkan di File Explorer",
+  "shell.menu.revealMac": "Tampilkan di Finder",
+  "shell.menu.revealLinux": "Tampilkan di pengelola file",
+  "shell.menu.revealFailed": "{folder} tidak bisa dibuka: {error}",
+  "shell.menu.stopFirst": "Hentikan dulu",
 
   // Windows' own Indonesian names for the window buttons.
   "shell.titlebar.minimize": "Minimalkan",

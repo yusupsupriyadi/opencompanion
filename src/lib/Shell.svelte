@@ -4,6 +4,7 @@
   import { listen } from "@tauri-apps/api/event";
   import type { Snippet } from "svelte";
   import { onMount } from "svelte";
+  import ContextMenu from "./ContextMenu.svelte";
   import DeleteSessionDialog from "./DeleteSessionDialog.svelte";
   import NewSessionDialog from "./NewSessionDialog.svelte";
   import SettingsSidebar from "./SettingsSidebar.svelte";
@@ -45,6 +46,7 @@
   </div>
   <DeleteSessionDialog />
   <NewSessionDialog />
+  <ContextMenu />
 {/if}
 <!-- Last in the DOM so Tab reaches the page first; CSS pins it to the top of the window. -->
 <TitleBar />
