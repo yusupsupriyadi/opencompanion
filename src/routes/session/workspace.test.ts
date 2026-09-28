@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/svelte";
-import { beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test } from "vitest";
 import type { FolderEntry, GitChange, GitStatus } from "$lib/api";
 import { app } from "$lib/store.svelte";
 import { setUrl } from "../../test/app-state.svelte";
@@ -42,12 +42,24 @@ function folder(extra: Record<string, (args: Record<string, unknown> | undefined
   });
 }
 
+const wideMedia = window.matchMedia;
+
+/** Makes the window read as narrower than 720 for the MediaQuery the page builds on render. */
+function narrowWindow() {
+  window.matchMedia = ((media: string) => ({ ...wideMedia(media), matches: media.includes("max-width: 720px") })) as typeof window.matchMedia;
+}
+
 beforeEach(() => {
   localStorage.removeItem("oc-session-side-tab");
+  localStorage.removeItem("oc-session-side-hidden");
   app.clis = CLIS;
   app.sessions = [];
   app.now = Date.now();
   setUrl("/session?id=s1");
+});
+
+afterEach(() => {
+  window.matchMedia = wideMedia;
 });
 
 test("Files lists folders first, marks ignored and changed entries, and opens a file above the output", async () => {
@@ -196,4 +208,58 @@ test("searching by name and by contents, and a text hit opens the file at its li
 
   await fireEvent.keyDown(find, { key: "Escape" });
   expect(await screen.findByRole("tree")).toBeInTheDocument();
+});
+
+test("the panel stays beside the terminal, hides and shows from the header, and stays hidden next time", async () => {
+  folder();
+  const { unmount } = render(SessionPage);
+  const toggle = await screen.findByRole("button", { name: "Files and details" });
+  const side = document.getElementById("session-side")!;
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  expect(toggle).toHaveAttribute("title", "Hide files and details");
+  expect(side).toBeVisible();
+
+  await fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(toggle).toHaveAttribute("title", "Show files and details");
+  expect(side).not.toBeVisible();
+  expect(side.closest(".detail-body")).toHaveClass("solo");
+  expect(localStorage.getItem("oc-session-side-hidden")).toBe("1");
+  unmount();
+
+  // Hidden, the panel's git status is not read until it shows again.
+  const again = folder();
+  render(SessionPage);
+  const hidden = await screen.findByRole("button", { name: "Files and details" });
+  expect(hidden).toHaveAttribute("aria-expanded", "false");
+  expect(again.calls("git_status")).toEqual([]);
+  await fireEvent.click(hidden);
+  expect(document.getElementById("session-side")).toBeVisible();
+  expect(localStorage.getItem("oc-session-side-hidden")).toBeNull();
+  expect(again.calls("git_status")).toEqual([{ id: "s1" }]);
+});
+
+test("below 720 the panel opens over the terminal and closes with Escape or an opened file", async () => {
+  localStorage.setItem("oc-session-side-hidden", "1");
+  narrowWindow();
+  folder({ folder_read: () => ({ text: "const a = 1;\n", size: 13, binary: false, tooLarge: false }) });
+  render(SessionPage);
+  const toggle = await screen.findByRole("button", { name: "Files and details" });
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+  await fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  // Opening it here is for this moment only; the wide window's choice stays as it was.
+  expect(localStorage.getItem("oc-session-side-hidden")).toBe("1");
+  const files = screen.getByRole("tab", { name: "Files" });
+  files.focus();
+  await fireEvent.keyDown(files, { key: "Escape" });
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(document.activeElement).toBe(toggle);
+
+  await fireEvent.click(toggle);
+  const tree = await screen.findByRole("tree");
+  await fireEvent.click(within(tree).getByRole("treeitem", { name: /README\.md/ }));
+  expect(await screen.findByText("const a = 1;")).toBeInTheDocument();
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
 });

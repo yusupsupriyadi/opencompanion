@@ -8,10 +8,11 @@
   import Info from "phosphor-svelte/lib/Info";
   import Play from "phosphor-svelte/lib/Play";
   import Plus from "phosphor-svelte/lib/Plus";
+  import SidebarSimple from "phosphor-svelte/lib/SidebarSimple";
   import Stop from "phosphor-svelte/lib/Stop";
   import X from "phosphor-svelte/lib/X";
   import { onMount, tick } from "svelte";
-  import { SvelteSet } from "svelte/reactivity";
+  import { MediaQuery, SvelteSet } from "svelte/reactivity";
   import { api, errorText, type EventRow, type GitChange, type SessionDetail, type SessionInfo, type TerminalInfo, type Usage } from "$lib/api";
   import BranchPanel from "$lib/BranchPanel.svelte";
   import ChangesPanel from "$lib/ChangesPanel.svelte";
@@ -19,7 +20,6 @@
   import FilesPanel from "$lib/FilesPanel.svelte";
   import FileViewer from "$lib/FileViewer.svelte";
   import { refocus } from "$lib/focus";
-  import Horizon from "$lib/Horizon.svelte";
   import NeedsYou from "$lib/NeedsYou.svelte";
   import Terminal from "$lib/Terminal.svelte";
   import TerminalForm from "$lib/TerminalForm.svelte";
@@ -43,7 +43,52 @@
   let sending = $state(false);
   let resuming = $state(false);
   let termKey = $state(0);
-  let sideOpen = $state(false);
+
+  // The panel is the right column at every width. Hiding it gives the terminal the whole row, and that choice is
+  // remembered on this computer. Below 720 both do not fit, so the panel opens over the terminal's right side instead
+  // and closes again with its button, Escape, or a file opened from it.
+  const HIDDEN_KEY = "oc-session-side-hidden";
+  const narrow = new MediaQuery("max-width: 720px", false);
+  let sideHidden = $state(readHidden());
+  let sidePeek = $state(false);
+  let sideBtn: HTMLButtonElement | undefined = $state();
+  const sideOpen = $derived(narrow.current ? sidePeek : !sideHidden);
+
+  function readHidden() {
+    try {
+      return localStorage.getItem(HIDDEN_KEY) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function toggleSide() {
+    if (narrow.current) {
+      sidePeek = !sidePeek;
+      return;
+    }
+    sideHidden = !sideHidden;
+    try {
+      if (sideHidden) localStorage.setItem(HIDDEN_KEY, "1");
+      else localStorage.removeItem(HIDDEN_KEY);
+    } catch {
+      // Private windows can refuse storage; the change still holds for this visit.
+    }
+  }
+
+  // Escape closes the covering panel from inside it or from its button. The terminal keeps its own Escape, and a
+  // dialog or a search that used Escape first keeps the panel open.
+  function closePeek(e: KeyboardEvent) {
+    if (e.key !== "Escape" || !sidePeek || e.defaultPrevented) return;
+    const at = e.target as Element | null;
+    if (!at || at.closest("dialog") || !(at === sideBtn || at.closest("#session-side"))) return;
+    sidePeek = false;
+    sideBtn?.focus();
+  }
+
+  $effect(() => {
+    if (!narrow.current) sidePeek = false;
+  });
 
   // The side panel's tabs. The one shown last is remembered on this computer; a tab's panel is
   // built the first time it is shown and then kept, so a folder opened in Files stays open.
@@ -136,12 +181,11 @@
     }
   }
 
-  async function show(target: ViewTarget) {
+  function show(target: ViewTarget) {
     viewer = target;
     mainTab = "viewer";
-    await tick();
-    // Below 1280 the panel sits under the terminal, so the viewer may be out of sight.
-    document.getElementById("session-views")?.scrollIntoView?.({ block: "nearest" });
+    // The panel covers the viewer when it opens over the terminal.
+    sidePeek = false;
   }
 
   function closeViewer() {
@@ -151,8 +195,8 @@
   }
 
   const watch = $derived(new GitWatch(id));
-  // Git is read while a tab or the viewer shows what it says, every 5 s while the window is in view.
-  const readsGit = $derived(sideTab !== "details" || viewer !== null);
+  // Git is read while a shown tab or the viewer shows what it says, every 5 s while the window is in view.
+  const readsGit = $derived((sideOpen && sideTab !== "details") || viewer !== null);
 
   async function load(target: string) {
     loadState = "loading";
@@ -204,11 +248,6 @@
   const s: SessionInfo | null = $derived(app.sessions.find((x) => x.id === id) ?? detail?.session ?? null);
   const live = $derived(s ? isLive(s) : false);
   const version = $derived(s ? app.clis.find((c) => c.kind === s.cli)?.version : null);
-  const marks = $derived(
-    events
-      .filter((e) => ["tool_call", "file_changed", "permission_request", "permission_denied", "tool_failed", "error"].includes(e.event.kind))
-      .map((e) => [e.at, e.event.kind] as [number, string]),
-  );
   const files = $derived.by(() => {
     const counts = new Map<string, number>();
     for (const e of events) if (e.event.kind === "file_changed") counts.set(e.event.path, (counts.get(e.event.path) ?? 0) + 1);
@@ -318,6 +357,7 @@
 </script>
 
 <svelte:head><title>{s ? s.title : t("sessions.detail.pageTitle")} · OpenCompanion</title></svelte:head>
+<svelte:window onkeydown={closePeek} />
 
 <main class="main detail" id="session-main">
   {#if loadState === "loading"}
@@ -343,50 +383,56 @@
       <NeedsYou {s} compact showOpen={false} />
     {/if}
 
-    <div class="activity">
-      <span class="pixel">{t("sessions.detail.activity")}</span>
-      <Horizon {marks} start={s.startedAt} end={s.endedAt ?? app.now} live={s.status === "running"} />
-      <span class="legend">{s.lastEvent ? tb(s.lastEvent) : t("sessions.detail.activityEmpty")}</span>
-      <button class="btn secondary sm side-toggle" type="button" aria-expanded={sideOpen} aria-controls="session-side" onclick={() => (sideOpen = !sideOpen)}>
-        {sideOpen ? t("workspace.hide") : t("workspace.show")}
-      </button>
-    </div>
-
-    <div class="detail-body ws">
+    <div class="detail-body ws" class:solo={!sideOpen}>
       <div class="main-pane">
-        <div class="tab-strip" id="session-views" role="group" aria-label={t("workspace.viewer.tabs")}>
-          <div class="tab" class:current={shownTab === "term"}>
-            <button class="tab-pick" type="button" id="view-tab-term" aria-current={shownTab === "term" ? "true" : undefined} aria-controls="session-term" onclick={() => (mainTab = "term")}>
-              <b>{CLI_LABEL[s.cli]}</b>
-              <small>{s.mode === "interactive" ? t("workspace.viewer.terminal") : t("workspace.viewer.output")}</small>
+        <div class="views-bar">
+          <div class="tab-strip" id="session-views" role="group" aria-label={t("workspace.viewer.tabs")}>
+            <div class="tab" class:current={shownTab === "term"}>
+              <button class="tab-pick" type="button" id="view-tab-term" aria-current={shownTab === "term" ? "true" : undefined} aria-controls="session-term" onclick={() => (mainTab = "term")}>
+                <b>{CLI_LABEL[s.cli]}</b>
+                <small>{s.mode === "interactive" ? t("workspace.viewer.terminal") : t("workspace.viewer.output")}</small>
+              </button>
+            </div>
+            {#each shells.list as x (x.id)}
+              {@const name = shells.names.get(x.id) ?? x.shellLabel}
+              <div class="tab" class:current={shownTab === x.id}>
+                <button class="tab-pick" type="button" id="shell-tab-{x.id}" aria-current={shownTab === x.id ? "true" : undefined} aria-controls="shell-panel-{x.id}" onclick={() => (mainTab = x.id)}>
+                  <b>{name}</b>
+                  {#if !x.running}<span class="chip idle">{t("terminal.exited")}</span>{/if}
+                </button>
+                <button class="icon-btn tab-close" type="button" aria-label={t("terminal.closeNamed", { name })} title={t("terminal.closeHint", { shell: x.shellLabel })} onclick={() => closeShell(x)}>
+                  <X size={14} aria-hidden="true" />
+                </button>
+              </div>
+            {/each}
+            {#if viewer}
+              {@const name = splitPath(viewer.path).name}
+              <div class="tab" class:current={shownTab === "viewer"}>
+                <button class="tab-pick" type="button" id="view-tab-file" aria-current={shownTab === "viewer" ? "true" : undefined} aria-controls="session-viewer" title={viewer.path} onclick={() => (mainTab = "viewer")}>
+                  <b class="mono">{name}</b>
+                  <small>{viewer.kind === "diff" ? t("workspace.viewer.kindDiff") : t("workspace.viewer.kindFile")}</small>
+                </button>
+                <button class="icon-btn tab-close" type="button" aria-label={t("workspace.viewer.close", { name })} title={t("workspace.viewer.close", { name })} onclick={closeViewer}>
+                  <X size={14} aria-hidden="true" />
+                </button>
+              </div>
+            {/if}
+            <button class="icon-btn tab-new" type="button" id="btn-new-terminal" aria-label={t("terminal.new")} title={t("terminal.newIn", { folder: folderName(s.cwd) })} onclick={() => (newShellOpen = true)}>
+              <Plus size={16} aria-hidden="true" />
             </button>
           </div>
-          {#each shells.list as x (x.id)}
-            {@const name = shells.names.get(x.id) ?? x.shellLabel}
-            <div class="tab" class:current={shownTab === x.id}>
-              <button class="tab-pick" type="button" id="shell-tab-{x.id}" aria-current={shownTab === x.id ? "true" : undefined} aria-controls="shell-panel-{x.id}" onclick={() => (mainTab = x.id)}>
-                <b>{name}</b>
-                {#if !x.running}<span class="chip idle">{t("terminal.exited")}</span>{/if}
-              </button>
-              <button class="icon-btn tab-close" type="button" aria-label={t("terminal.closeNamed", { name })} title={t("terminal.closeHint", { shell: x.shellLabel })} onclick={() => closeShell(x)}>
-                <X size={14} aria-hidden="true" />
-              </button>
-            </div>
-          {/each}
-          {#if viewer}
-            {@const name = splitPath(viewer.path).name}
-            <div class="tab" class:current={shownTab === "viewer"}>
-              <button class="tab-pick" type="button" id="view-tab-file" aria-current={shownTab === "viewer" ? "true" : undefined} aria-controls="session-viewer" title={viewer.path} onclick={() => (mainTab = "viewer")}>
-                <b class="mono">{name}</b>
-                <small>{viewer.kind === "diff" ? t("workspace.viewer.kindDiff") : t("workspace.viewer.kindFile")}</small>
-              </button>
-              <button class="icon-btn tab-close" type="button" aria-label={t("workspace.viewer.close", { name })} title={t("workspace.viewer.close", { name })} onclick={closeViewer}>
-                <X size={14} aria-hidden="true" />
-              </button>
-            </div>
-          {/if}
-          <button class="icon-btn tab-new" type="button" id="btn-new-terminal" aria-label={t("terminal.new")} title={t("terminal.newIn", { folder: folderName(s.cwd) })} onclick={() => (newShellOpen = true)}>
-            <Plus size={16} aria-hidden="true" />
+          <button
+            class="icon-btn ws-toggle"
+            type="button"
+            id="btn-side-panel"
+            bind:this={sideBtn}
+            aria-expanded={sideOpen}
+            aria-controls="session-side"
+            aria-label={t("workspace.toggle")}
+            title={sideOpen ? t("workspace.hide") : t("workspace.show")}
+            onclick={toggleSide}
+          >
+            <SidebarSimple size={20} weight={sideOpen ? "fill" : "regular"} mirrored aria-hidden="true" />
           </button>
         </div>
         {#if shells.state === "error"}
@@ -460,7 +506,7 @@
         {/if}
       </div>
 
-      <aside class="detail-side tabbed" id="session-side" class:open={sideOpen}>
+      <aside class="detail-side tabbed" id="session-side" hidden={!sideOpen}>
         <div class="side-tabs" role="tablist" aria-label={t("workspace.panel")} tabindex="-1" onkeydown={tabKeys}>
           {#each SIDE_TABS as tab (tab.id)}
             <button
@@ -583,24 +629,6 @@
 </Dialog>
 
 <style>
-  .activity {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    font-size: 12px;
-    color: var(--ink-2);
-  }
-  .activity .legend {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-width: 0;
-  }
-  @media (max-width: 720px) {
-    .activity .legend {
-      display: none;
-    }
-  }
   .shell-note {
     display: flex;
     align-items: center;
@@ -616,5 +644,32 @@
   }
   .exit-row .btn {
     font-family: var(--font-ui);
+  }
+  /* The tabs scroll sideways on their own; the panel toggle stays at the right end of their row. */
+  .views-bar {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .views-bar > .tab-strip {
+    flex: 1;
+    min-width: 0;
+  }
+  /* A control, not a tab, so it keeps its full radius; the glass plate keeps the icon legible over the painting. */
+  .ws-toggle {
+    align-self: center;
+    --surface-2: var(--glass-2);
+    background: var(--glass);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    box-shadow: var(--glass-rim);
+    color: var(--ink);
+  }
+  @media (max-width: 720px) {
+    .ws-toggle {
+      width: 44px;
+      height: 44px;
+    }
   }
 </style>

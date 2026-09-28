@@ -81,16 +81,16 @@ svg { flex: none; }
 .app::after { content: ""; position: fixed; inset: 0; z-index: -1; background-color: var(--bg); background-image: var(--haze), url(/meadow-day.png); background-position: 0 0, 70% 100%; background-size: 100% 100%, cover; background-repeat: no-repeat; filter: var(--art-filter); }
 .app > .sidebar { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); }
 /* Text over the painting uses ink only, so hierarchy comes from size and weight. */
-.page-head, .section-head, .hint, .planner, .activity, .detail-side, .note, .not-found, .phones figcaption { --ink-2: var(--ink); }
+.page-head, .section-head, .hint, .planner, .detail-side, .note, .not-found, .phones figcaption { --ink-2: var(--ink); }
 /* With no haze in Day, the painting drops to about 1:1 behind ink in the trees and grass, so every block of text over it
    sits on a plate. Headers and panels span their row; single lines and paragraphs hug their text. */
-.page-head, .section-head, .hint, .planner, .activity, .detail-side, .note, .not-found, .toolbar { background: var(--surface); border-radius: var(--r-md); padding: 12px 16px; }
-.section-head, .hint, .activity, .note { padding: 8px 12px; }
+.page-head, .section-head, .hint, .planner, .detail-side, .note, .not-found, .toolbar { background: var(--surface); border-radius: var(--r-md); padding: 12px 16px; }
+.section-head, .hint, .note { padding: 8px 12px; }
 .section-head, .hint, .note, .planner { width: fit-content; }
 /* Liquid glass, the owner's choice over one glass panel: every card, panel and plate over the painting blurs and
    saturates it, and swaps the fills inside for translucent ones, so buttons, inputs and rows turn to glass as well.
    Each tint is the thinnest at which ink-2 keeps 4.5:1 over the blurred painting: surface 82%, surface-2 90%, bg 85% in Day. */
-.app > .sidebar, .tb-controls, .page-head, .section-head, .hint, .planner, .activity, .detail-side, .note, .not-found, .toolbar,
+.app > .sidebar, .tb-controls, .page-head, .section-head, .hint, .planner, .detail-side, .note, .not-found, .toolbar,
 .srow, .needs, .resolved, .state-box, .history, .composer, .rail, .me, .card, .table-wrap, .panel, dialog {
   --surface: var(--glass); --surface-2: var(--glass-2); --bg: var(--glass-bg);
   -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-rim);
@@ -234,7 +234,8 @@ a.srow:hover { background: var(--surface-2); }
 .kv b { font-weight: 700; }
 .kv .mono { font-size: 12px; }
 
-/* Detail pages (a session, a session opened outside): output on the left, a 300 side panel that folds away below 1280. */
+/* Detail pages (a session, a session opened outside): output on the left, a side panel on the right. The outside page's
+   300 panel folds away below 1280; a session's panel stays beside the terminal (see .ws below). */
 .main.detail { gap: 18px; padding: 24px 40px 28px; }
 .head-stack { display: flex; flex-direction: column; gap: 6px; }
 .crumb { font-size: 13px; font-weight: 600; color: var(--ink-2); }
@@ -247,8 +248,10 @@ a.srow:hover { background: var(--surface-2); }
 .not-found { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; max-width: 520px; }
 .side-toggle { display: none; margin-left: auto; }
 /* A session's side panel: Files, Changes, Branch and Details as tabs, 320 wide so the four labels fit. Only the panel
-   under the tabs scrolls. The terminal column can take a second tab, the file viewer, above it. */
+   under the tabs scrolls. The terminal column can take a second tab, the file viewer, above it. The panel stays the
+   right column at every width, and hiding it (.solo) gives the terminal the whole row. */
 .detail-body.ws { grid-template-columns: minmax(0, 1fr) 320px; }
+.detail-body.ws.solo { grid-template-columns: minmax(0, 1fr); }
 .main-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .main-pane > .term { flex: 1; }
 .main-pane > .term.joined { border-top-left-radius: 0; }
@@ -270,15 +273,17 @@ a.srow:hover { background: var(--surface-2); }
 .side-note { margin: 0; font-size: 13px; line-height: 1.45; }
 .side-state { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; font-size: 13px; }
 @media (max-width: 1279px) {
-  .detail-body, .detail-body.ws { grid-template-columns: minmax(0, 1fr); }
-  .detail-side { display: none; }
+  .detail-body:not(.ws) { grid-template-columns: minmax(0, 1fr); }
+  .detail-side:not(.tabbed) { display: none; }
   .detail-side.open { display: flex; }
-  /* Below the terminal, the panel keeps a height of its own so the tree scrolls inside it. */
-  .detail-side.tabbed.open { height: min(560px, 75vh); }
   .side-toggle { display: inline-flex; }
 }
 @media (max-width: 720px) {
   .main.detail { padding: 20px 16px; }
+  /* No room for two columns: the panel opens over the terminal's right edge, on the tint that passes over it. It starts
+     under the tab row (44 tall here, from its toggle) so the toggle that closes it stays in reach. */
+  .detail-body.ws { position: relative; grid-template-columns: minmax(0, 1fr); }
+  .detail-side.tabbed { position: absolute; top: 52px; right: 0; bottom: 0; z-index: 5; width: min(320px, 100%); --surface: var(--glass-pop); box-shadow: var(--glass-rim), var(--shadow-modal); }
 }
 
 /* Forms */

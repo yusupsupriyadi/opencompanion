@@ -121,3 +121,22 @@ test("Details says what the header used to: CLI, mode, permissions, folder and s
   expect(about).toHaveTextContent("Started fromChat");
   expect(within(about as HTMLElement).getByText(/uninote/)).toHaveClass("mono");
 });
+
+test("the page has no activity row, and the panel toggle ends the tab row above the terminal", async () => {
+  const s = session({ status: "running" });
+  app.sessions = [s];
+  backend({ get_session: () => ({ session: s, events: [], output: "", task: null }) });
+  render(SessionPage);
+
+  await screen.findByRole("heading", { name: "Add a dark mode toggle" });
+  expect(screen.queryByText("Activity")).not.toBeInTheDocument();
+  expect(screen.queryByRole("img", { name: /^Activity:/ })).not.toBeInTheDocument();
+  // Whether the panel starts open is the toggle's own business; here it only has to sit beside the tabs and work.
+  const toggle = document.querySelector<HTMLButtonElement>('.views-bar > button[aria-controls="session-side"]');
+  expect(toggle).not.toBeNull();
+  // Outside the tabs' own scroller, so many tabs never push it out of sight.
+  expect(toggle!.closest("#session-views")).toBeNull();
+  const before = toggle!.getAttribute("aria-expanded");
+  await fireEvent.click(toggle!);
+  expect(toggle).toHaveAttribute("aria-expanded", before === "true" ? "false" : "true");
+});
