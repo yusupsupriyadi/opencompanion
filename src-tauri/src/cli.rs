@@ -111,16 +111,22 @@ fn extra_dirs() -> Vec<PathBuf> {
     if let Some(appdata) = std::env::var_os("APPDATA") {
         dirs.push(PathBuf::from(appdata).join("npm"));
     }
+    if cfg!(unix) {
+        dirs.extend(crate::shell_env::fallback_dirs());
+    }
     dirs
 }
 
+/// The CLI on the PATH (the login shell's on macOS and Linux), then in the usual install folders.
 pub fn resolve(kind: CliKind) -> Option<PathBuf> {
-    if let Ok(path) = which::which(kind.bin()) {
-        return Some(unwrap_shim(path));
-    }
-    let dirs = std::env::join_paths(extra_dirs().into_iter().filter(|d| d.is_dir())).ok()?;
+    let mut dirs: Vec<PathBuf> = match crate::shell_env::path() {
+        Some(p) => std::env::split_paths(p).collect(),
+        None => std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default(),
+    };
+    dirs.extend(extra_dirs().into_iter().filter(|d| d.is_dir()));
+    let search = std::env::join_paths(dirs).ok()?;
     let cwd = std::env::current_dir().ok()?;
-    which::which_in(kind.bin(), Some(dirs), cwd)
+    which::which_in(kind.bin(), Some(search), cwd)
         .ok()
         .map(unwrap_shim)
 }

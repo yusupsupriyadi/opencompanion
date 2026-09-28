@@ -29,13 +29,14 @@ pub fn command(program: impl AsRef<Path>) -> Command {
     let (program, lead) = launcher(program.as_ref());
     let mut cmd = hidden(&program);
     cmd.args(lead);
+    cmd.envs(crate::shell_env::vars().iter().map(|(k, v)| (k, v)));
     for var in INHERITED_SESSION_VARS {
         cmd.env_remove(var);
     }
     cmd
 }
 
-fn hidden(program: impl AsRef<OsStr>) -> Command {
+pub(crate) fn hidden(program: impl AsRef<OsStr>) -> Command {
     let mut cmd = Command::new(program);
     #[cfg(windows)]
     {

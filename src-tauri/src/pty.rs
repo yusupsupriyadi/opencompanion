@@ -103,6 +103,15 @@ impl PtySession {
             c
         };
         cmd.cwd(&spec.cwd);
+        for (k, v) in crate::shell_env::vars() {
+            cmd.env(k, v);
+        }
+        // What xterm.js understands; a CLI started from a GUI launch would have no TERM at all.
+        #[cfg(unix)]
+        {
+            cmd.env("TERM", "xterm-256color");
+            cmd.env("COLORTERM", "truecolor");
+        }
         for var in crate::proc::INHERITED_SESSION_VARS {
             cmd.env_remove(var);
         }

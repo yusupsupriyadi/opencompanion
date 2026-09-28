@@ -15,6 +15,7 @@ pub mod proc;
 pub mod projects;
 pub mod pty;
 pub mod session;
+pub mod shell_env;
 pub mod skills;
 pub mod terminal;
 pub mod transcript;
@@ -804,6 +805,8 @@ pub fn run() {
             }
         })
         .setup(|app| {
+            // Read the login shell's PATH now, so CLI detection and the first session find it ready.
+            shell_env::start();
             // Started at sign-in: straight into the tray, without a window in the way.
             if std::env::args().any(|a| a == autostart::HIDDEN_ARG) {
                 if let Some(w) = app.get_webview_window("main") {
