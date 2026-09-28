@@ -1220,7 +1220,12 @@ mod tests {
     #[test]
     fn notifications_follow_the_switch_the_cli_and_every_folder_rule_that_fits() {
         let mut s = Settings::default();
-        let cwd = r"C:\Users\me\Project\uninote\web";
+        // On Windows a rule matches whatever the case or the slashes; elsewhere paths are compared as the OS does.
+        let (cwd, rule, sibling, elsewhere) = if cfg!(windows) {
+            (r"C:\Users\me\Project\uninote\web", "c:/users/me/project/uninote/", r"C:\Users\me\Project\uninote-docs", r"C:\elsewhere")
+        } else {
+            ("/home/me/project/uninote/web", "/home/me/project/uninote/", "/home/me/project/uninote-docs", "/elsewhere")
+        };
         assert!(s.notifies(Notice::Done, CliKind::Codex, cwd));
 
         s.notify_clis.insert("codex".into(), NotifyRule { done: false, ..NotifyRule::default() });
@@ -1228,13 +1233,13 @@ mod tests {
         assert!(s.notifies(Notice::Waiting, CliKind::Codex, cwd));
         assert!(s.notifies(Notice::Done, CliKind::Claude, cwd));
 
-        // A rule for a folder covers the folders inside it, whatever the case or slashes.
-        s.notify_projects.insert("c:/users/me/project/uninote/".into(), NotifyRule { error: false, ..NotifyRule::default() });
+        // A rule for a folder covers the folders inside it.
+        s.notify_projects.insert(rule.into(), NotifyRule { error: false, ..NotifyRule::default() });
         assert!(!s.notifies(Notice::Error, CliKind::Claude, cwd));
-        assert!(s.notifies(Notice::Error, CliKind::Claude, r"C:\Users\me\Project\uninote-docs"));
+        assert!(s.notifies(Notice::Error, CliKind::Claude, sibling));
 
         s.notify_waiting = false;
-        assert!(!s.notifies(Notice::Waiting, CliKind::Claude, r"C:\elsewhere"));
+        assert!(!s.notifies(Notice::Waiting, CliKind::Claude, elsewhere));
 
         // Settings saved before these rules existed load with none, and keep the app in the tray.
         let old: Settings = serde_json::from_str(r#"{"notifyDone":false}"#).unwrap();

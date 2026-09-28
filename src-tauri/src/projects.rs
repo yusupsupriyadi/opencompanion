@@ -73,14 +73,24 @@ fn same_path(a: &Path, b: &Path) -> bool {
     norm(&a.display().to_string()) == norm(&b.display().to_string())
 }
 
-/// Whether `path` is `folder` or inside it, whatever the case or the slashes.
+/// Whether `path` is `folder` or inside it, by the OS's rules for case and separators.
 pub fn contains(folder: &str, path: &str) -> bool {
     let (f, p) = (norm(folder), norm(path));
-    p == f || p.starts_with(&format!("{f}\\"))
+    p == f || p.starts_with(&format!("{f}/"))
 }
 
+/// A path as it compares: no trailing separator, and on Windows `\` and `/` are one separator.
+/// Case is folded where the file system ignores it by default (Windows, macOS) and kept on Linux,
+/// where `Work` and `work` are two folders.
 pub(crate) fn norm(p: &str) -> String {
-    p.trim_end_matches(['\\', '/']).replace('/', "\\").to_lowercase()
+    let trimmed = p.trim_end_matches(['\\', '/']);
+    if cfg!(windows) {
+        trimmed.replace('\\', "/").to_lowercase()
+    } else if cfg!(target_os = "macos") {
+        trimmed.to_lowercase()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 /// Claude Code names a project folder by replacing every non-alphanumeric character with `-`.
@@ -91,11 +101,15 @@ pub(crate) fn claude_encode(name: &str) -> String {
 /// Walks the real filesystem to undo `claude_encode`, which is lossy: `ai-remote` and
 /// `ai\remote` encode the same. The longest existing child that fits wins at each level.
 pub fn decode_claude_dir(encoded: &str, cache: &mut HashMap<PathBuf, Vec<String>>) -> Option<PathBuf> {
-    let mut chars = encoded.chars();
-    let drive = chars.next().filter(char::is_ascii_alphabetic)?;
-    let rest = encoded.get(1..)?.strip_prefix("--")?;
-    let mut dir = PathBuf::from(format!("{drive}:\\"));
-    let mut remaining = rest.to_string();
+    let (mut dir, mut remaining) = match encoded.strip_prefix('-') {
+        // `/home/u/proj` is stored as `-home-u-proj`.
+        Some(rest) if cfg!(unix) => (PathBuf::from("/"), rest.to_string()),
+        _ => {
+            let drive = encoded.chars().next().filter(char::is_ascii_alphabetic)?;
+            let rest = encoded.get(1..)?.strip_prefix("--")?;
+            (PathBuf::from(format!("{drive}:\\")), rest.to_string())
+        }
+    };
     while !remaining.is_empty() {
         let children = cache
             .entry(dir.clone())
@@ -111,17 +125,19 @@ pub fn decode_claude_dir(encoded: &str, cache: &mut HashMap<PathBuf, Vec<String>
             })
             .clone();
         let lower = remaining.to_lowercase();
+        // A dot folder encodes as `-name`, and the dashes before it were consumed with the
+        // separator, so each child is compared without its leading dashes.
         let best = children
             .iter()
             .filter(|c| {
                 let enc = claude_encode(c).to_lowercase();
-                lower == enc || lower.starts_with(&format!("{enc}-"))
+                let enc = enc.trim_start_matches('-');
+                !enc.is_empty() && (lower == enc || lower.starts_with(&format!("{enc}-")))
             })
             .max_by_key(|c| c.len())?;
         dir = dir.join(best);
-        let used = claude_encode(best).len();
+        let used = claude_encode(best).trim_start_matches('-').len();
         remaining = remaining.get(used..).unwrap_or("").trim_start_matches('-').to_string();
-        // A dot-folder encodes as `--name`; the extra dash was consumed above.
     }
     Some(dir)
 }
@@ -139,7 +155,7 @@ fn markers(path: &Path) -> Vec<&'static str> {
 fn skip(path: &Path) -> bool {
     let s = norm(&path.display().to_string());
     let temp = norm(&std::env::temp_dir().display().to_string());
-    s.starts_with(&temp) || s.contains("\\appdata\\") || s.contains("\\node_modules") || s.contains("\\.git")
+    s.starts_with(&temp) || s.contains("/appdata/") || s.contains("/node_modules") || s.contains("/.git")
 }
 
 fn claude_history(cache: &mut HashMap<PathBuf, Vec<String>>) -> Vec<PathBuf> {
@@ -286,17 +302,30 @@ mod tests {
     fn claude_names_decode_to_real_folders_even_with_dashes_and_dots() {
         let base = tree("decode");
         let mut cache = HashMap::new();
-        let enc = |p: &Path| {
-            let s = p.display().to_string();
-            let drive = &s[..1];
-            format!("{drive}--{}", claude_encode(&s[3..]))
-        };
+        // Claude Code turns every character that is not a letter or digit into `-`, on every OS:
+        // `C:\p\app` becomes `C--p-app` and `/home/u/app` becomes `-home-u-app`.
+        let enc = |p: &Path| claude_encode(&p.display().to_string());
         let target = base.join("Work").join("ai-remote");
         assert_eq!(decode_claude_dir(&enc(&target), &mut cache), Some(target.clone()));
         let dotted = base.join("Work").join("my.app").join("sub");
         assert_eq!(decode_claude_dir(&enc(&dotted), &mut cache), Some(dotted));
+        let hidden = base.join("Work").join(".hidden");
+        assert_eq!(decode_claude_dir(&enc(&hidden), &mut cache), Some(hidden));
         assert_eq!(decode_claude_dir("C--definitely-not-here-xyz", &mut cache), None);
+        assert_eq!(decode_claude_dir("-definitely-not-here-xyz", &mut cache), None);
         let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn folder_rules_follow_the_file_system_case_rules() {
+        let sep = std::path::MAIN_SEPARATOR;
+        let work = format!("{sep}x{sep}Work");
+        assert!(contains(&work, &format!("{work}{sep}app")));
+        assert!(contains(&work, &format!("{work}{sep}")));
+        assert!(!contains(&work, &format!("{work}-other")));
+        // Windows and macOS ignore case by default; on Linux `Work` and `work` are two folders.
+        let lower = format!("{sep}x{sep}work{sep}app");
+        assert_eq!(contains(&work, &lower), cfg!(any(windows, target_os = "macos")));
     }
 
     #[test]

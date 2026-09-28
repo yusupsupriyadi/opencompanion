@@ -378,7 +378,9 @@ fn cards_for_an_auto_run_folder_start_by_themselves_without_bypass() {
     std::fs::create_dir_all(&other).unwrap();
     let mut settings = r.db.settings().unwrap();
     settings.permission_mode = "bypass".into();
-    settings.auto_run_folders = vec![r.work.display().to_string().to_uppercase()];
+    // Windows and macOS ignore case in folder rules; on Linux the case must match.
+    let rule = r.work.display().to_string();
+    settings.auto_run_folders = vec![if cfg!(any(windows, target_os = "macos")) { rule.to_uppercase() } else { rule }];
     r.db.save_settings(&settings).unwrap();
 
     let mut broken = card("broken", &r.work.display().to_string());

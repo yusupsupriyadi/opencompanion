@@ -529,10 +529,16 @@ mod tests {
         let day = home.join(".codex").join("sessions").join("2026").join("09").join("25");
         fs::create_dir_all(&day).unwrap();
         let meta = |cwd: &str| format!(r#"{{"timestamp":"2026-09-25T13:00:00Z","type":"session_meta","payload":{{"cwd":{}}}}}"#, serde_json::to_string(cwd).unwrap());
-        let other = [meta(r"C:\elsewhere"), r#"{"type":"event_msg","payload":{"type":"user_message","message":"not this one"}}"#.into()];
+        // Codex on Windows records the folder with forward slashes and a trailing one.
+        let (recorded, asked, elsewhere) = if cfg!(windows) {
+            ("C:/Users/me/Project/uninote/", r"C:\Users\me\Project\uninote", r"C:\elsewhere")
+        } else {
+            ("/home/me/project/uninote/", "/home/me/project/uninote", "/elsewhere")
+        };
+        let other = [meta(elsewhere), r#"{"type":"event_msg","payload":{"type":"user_message","message":"not this one"}}"#.into()];
         fs::write(day.join("rollout-b.jsonl"), other.join("\n")).unwrap();
         let mine = [
-            meta("C:/Users/me/Project/uninote/"),
+            meta(recorded),
             r#"{"timestamp":"2026-09-25T13:00:01Z","type":"response_item","payload":{"type":"message","role":"developer","content":[]}}"#.into(),
             r#"{"timestamp":"2026-09-25T13:00:02Z","type":"event_msg","payload":{"type":"user_message","message":"Write the API docs"}}"#.into(),
             r#"{"timestamp":"2026-09-25T13:00:03Z","type":"response_item","payload":{"type":"function_call","name":"shell_command","arguments":"{\"command\":\"ls docs\"}"}}"#.into(),
@@ -541,7 +547,7 @@ mod tests {
         ];
         fs::write(day.join("rollout-a.jsonl"), mine.join("\n")).unwrap();
 
-        let t = read_in(&home, CliKind::Codex, Some(Path::new(r"C:\Users\me\Project\uninote")), now_secs());
+        let t = read_in(&home, CliKind::Codex, Some(Path::new(asked)), now_secs());
         let got: Vec<&str> = t.lines.iter().map(|l| l.text.as_str()).collect();
         assert_eq!(got, ["Write the API docs", "shell_command ls docs", "apply_patch Update File: docs/api.md", "Docs are written."]);
         assert!(t.source.unwrap().ends_with("rollout-a.jsonl"));
@@ -555,6 +561,9 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         let db = dir.join("opencode.db");
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as i64;
+        // OpenCode on Windows stores the folder with forward slashes.
+        let (stored, asked) = if cfg!(windows) { ("C:/w/app", r"C:\w\app") } else { ("/w/app", "/w/app") };
+        let written = format!("{stored}/README.md");
         {
             let c = Connection::open(&db).unwrap();
             c.execute_batch(
@@ -563,8 +572,8 @@ mod tests {
                  CREATE TABLE part (id TEXT PRIMARY KEY, message_id TEXT NOT NULL, session_id TEXT NOT NULL, time_created INTEGER NOT NULL, data TEXT NOT NULL);",
             )
             .unwrap();
-            c.execute("INSERT INTO session VALUES ('s1', NULL, 'C:/w/app', ?1)", [now]).unwrap();
-            c.execute("INSERT INTO session VALUES ('child', 's1', 'C:/w/app', ?1)", [now + 5]).unwrap();
+            c.execute("INSERT INTO session VALUES ('s1', NULL, ?1, ?2)", params![stored, now]).unwrap();
+            c.execute("INSERT INTO session VALUES ('child', 's1', ?1, ?2)", params![stored, now + 5]).unwrap();
             c.execute(r#"INSERT INTO message VALUES ('m1', 's1', '{"role":"user"}')"#, []).unwrap();
             c.execute(r#"INSERT INTO message VALUES ('m2', 's1', '{"role":"assistant"}')"#, []).unwrap();
             let part = |id: &str, m: &str, at: i64, data: &str| {
@@ -573,12 +582,14 @@ mod tests {
             part("p1", "m1", now, r#"{"type":"text","text":"Add a README"}"#);
             part("p2", "m1", now + 1, r#"{"type":"text","text":"context","synthetic":true}"#);
             part("p3", "m2", now + 2, r#"{"type":"step-start"}"#);
-            part("p4", "m2", now + 3, r#"{"type":"tool","tool":"write","state":{"input":{"filePath":"C:/w/app/README.md"}}}"#);
+            let tool = serde_json::json!({ "type": "tool", "tool": "write", "state": { "input": { "filePath": written } } });
+            part("p4", "m2", now + 3, &tool.to_string());
             part("p5", "m2", now + 4, r#"{"type":"text","text":"Added it."}"#);
         }
-        let t = read_in(&home, CliKind::Opencode, Some(Path::new(r"C:\w\app")), now_secs());
+        let t = read_in(&home, CliKind::Opencode, Some(Path::new(asked)), now_secs());
         let got: Vec<(Speaker, &str)> = t.lines.iter().map(|l| (l.speaker, l.text.as_str())).collect();
-        assert_eq!(got, [(Speaker::You, "Add a README"), (Speaker::Tool, "write C:/w/app/README.md"), (Speaker::Cli, "Added it.")]);
+        let tool_line = format!("write {written}");
+        assert_eq!(got, [(Speaker::You, "Add a README"), (Speaker::Tool, tool_line.as_str()), (Speaker::Cli, "Added it.")]);
         let _ = fs::remove_dir_all(&home);
     }
 
