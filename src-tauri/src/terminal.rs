@@ -266,6 +266,7 @@ impl Terminals {
                     ("COLORTERM".into(), "truecolor".into()),
                 ],
                 powershell: None,
+                stay: None,
             },
             Box::new(move |bytes| {
                 if sink_term.generation.load(Ordering::SeqCst) != generation {

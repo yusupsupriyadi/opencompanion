@@ -18,7 +18,7 @@ use crate::cli::{self, CliKind};
 use crate::db::{self, Db, EventRow, Mode, Notice, SessionInfo, Status, Waiting};
 use crate::events::{self, SessionEvent};
 use crate::headless::{self, HeadlessRun, PermMode, Stream, TurnOptions};
-use crate::pty::{PtySession, PtySpec};
+use crate::pty::{PtySession, PtySpec, Stay};
 use crate::waiting;
 
 /// Everything the manager tells the outside world. The Tauri app forwards these to the
@@ -336,6 +336,11 @@ impl Manager {
         self.data_dir.join("hooks").join(format!("{id}.settings.json"))
     }
 
+    /// Bash's start-up file for a terminal session's shell on Linux and macOS.
+    fn shell_rc_path(&self, id: &str) -> PathBuf {
+        self.data_dir.join("hooks").join(format!("{id}.bashrc"))
+    }
+
     // Lifecycle
 
     pub fn start(self: &Arc<Self>, req: StartRequest) -> Result<SessionInfo, String> {
@@ -549,6 +554,10 @@ impl Manager {
         }
         let mode = PermMode::parse(info.permission_mode.as_deref().unwrap_or("ask"));
         let (cli_args, env) = headless::interactive_args(info.cli, prompt, resume, mode, extra);
+        // Typed again in the session's shell: the same flags and hooks, without the first
+        // prompt or the resume, like starting the CLI in a terminal of your own.
+        let mut again = args.clone();
+        again.extend(headless::interactive_args(info.cli, "", None, mode, extra).0);
         args.extend(cli_args);
 
         let sink_live = Arc::clone(live);
@@ -564,6 +573,11 @@ impl Manager {
                 rows: rows.unwrap_or(32),
                 env,
                 powershell: crate::terminal::powershell(),
+                stay: Some(Stay {
+                    name: info.cli.bin().to_string(),
+                    again,
+                    rc: self.shell_rc_path(&info.id),
+                }),
             },
             Box::new(move |bytes| {
                 let text = {
@@ -623,18 +637,24 @@ impl Manager {
             }
             let exit = match live.runner.lock() {
                 Ok(mut r) => match &mut *r {
-                    Runner::Pty(p) => p.exit_code(),
+                    Runner::Pty(p) => p.exit_code().map(|code| (code, p.stays())),
                     _ => return,
                 },
                 Err(_) => return,
             };
-            if let Some(code) = exit {
+            if let Some((code, in_shell)) = exit {
                 let asked = asked_end(&live);
-                let status = asked.unwrap_or(if code == 0 { Status::Done } else { Status::Error });
-                let note = match asked {
-                    Some(Status::Done) => "Marked done by you".to_string(),
-                    Some(_) => "Stopped by you".to_string(),
-                    None => format!("Exited with code {code}"),
+                let (status, note) = match asked {
+                    Some(Status::Done) => (Status::Done, "Marked done by you".to_string()),
+                    Some(s) => (s, "Stopped by you".to_string()),
+                    // The shell outlives its CLI, so it ends only when you close it, with `exit`:
+                    // done, and nothing to notify you about.
+                    None if in_shell => {
+                        live.stop_requested.store(true, Ordering::SeqCst);
+                        (Status::Done, "Terminal closed".to_string())
+                    }
+                    None if code == 0 => (Status::Done, format!("Exited with code {code}")),
+                    None => (Status::Error, format!("Exited with code {code}")),
                 };
                 self.finish(&live, status, Some(code as i32), Some(note));
                 return;
@@ -1196,7 +1216,7 @@ impl Manager {
         }
         drop(map);
         self.db.delete_session(id)?;
-        for path in [self.log_path(id), self.hook_path(id), self.hook_settings_path(id)] {
+        for path in [self.log_path(id), self.hook_path(id), self.hook_settings_path(id), self.shell_rc_path(id)] {
             match fs::remove_file(&path) {
                 Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
                     return Err(format!("The session is gone, but {} could not be removed: {e}", path.display()));

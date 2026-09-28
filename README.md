@@ -19,7 +19,7 @@ The UI is available in English and Indonesian (Settings › Language). The curre
 
 ## Features
 
-- Start Claude Code, Codex CLI or OpenCode in a project folder, in a real terminal (ConPTY on Windows) or headless, where the CLI's JSON output becomes a list of events. Stop a session, resume it, or send it a follow-up message. When a terminal session is idle, Mark done closes the CLI and counts the session as Done.
+- Start Claude Code, Codex CLI or OpenCode in a project folder, in a real terminal (ConPTY on Windows) or headless, where the CLI's JSON output becomes a list of events. A terminal session runs in a shell (PowerShell on Windows, bash on Linux and macOS), like a terminal of your own: when the CLI exits, typing its name starts it again with the session's flags and hooks, `exit` closes the terminal, and Open terminal brings a closed one back with the CLI's own history. Stop a headless session or send it a follow-up message.
 - Type into a session's terminal as you would in your own. Shift+Enter adds a line, and Ctrl+V pastes text or an image; an image is saved and pasted as its file path, which Claude Code and Codex CLI attach as the image.
 - See every session on one line in the Overview: status, latest event and an activity track. The sidebar lists every session under its project folder, with pinned folders and sessions first. All sessions adds search and filters, and each session shows its CPU and memory use.
 - Beside a session's terminal, browse its folder (ignored files in italics, a search by name or by text), read a file, see the uncommitted changes with their diff, and see or switch the branch. It is all read-only except the switch, which waits until the session has stopped and the tracked files are committed. Desktop only.

@@ -284,8 +284,15 @@ fn the_phone_starts_sessions_sends_messages_and_runs_chat_cards() {
     assert_eq!((code, json(&body)["error"].as_str()), (409, Some("Unknown key.")));
     let (code, body) = http(port, "POST", &format!("/api/sessions/{pty}/input"), t, Some(r#"{"text":"hello"}"#));
     assert_eq!(code, 200, "{body}");
+    while !manager.output(&pty).contains("got: hello") {
+        assert!(Instant::now() < deadline, "the fake terminal never answered");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    // The CLI exited into its shell, which `exit` closes, from the phone too.
+    std::thread::sleep(Duration::from_millis(1500));
+    let (code, body) = http(port, "POST", &format!("/api/sessions/{pty}/input"), t, Some(r#"{"text":"exit"}"#));
+    assert_eq!(code, 200, "{body}");
     wait_for(&db, &pty, "terminal exit", |s| !s.status.is_live());
-    assert!(manager.output(&pty).contains("got: hello"));
 
     // Chat: a new thread needs words, a missing thread is gone, and cards run or go away.
     let (code, body) = http(port, "GET", "/api/chat", t, None);

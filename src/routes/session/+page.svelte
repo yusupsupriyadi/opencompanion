@@ -2,7 +2,6 @@
   import { page } from "$app/state";
   import { listen } from "@tauri-apps/api/event";
   import ArrowClockwise from "phosphor-svelte/lib/ArrowClockwise";
-  import Check from "phosphor-svelte/lib/Check";
   import Files from "phosphor-svelte/lib/Files";
   import GitBranch from "phosphor-svelte/lib/GitBranch";
   import GitDiff from "phosphor-svelte/lib/GitDiff";
@@ -16,14 +15,12 @@
   import { api, errorText, type EventRow, type GitChange, type SessionDetail, type SessionInfo, type TerminalInfo, type Usage } from "$lib/api";
   import BranchPanel from "$lib/BranchPanel.svelte";
   import ChangesPanel from "$lib/ChangesPanel.svelte";
-  import CliMark from "$lib/CliMark.svelte";
   import Dialog from "$lib/Dialog.svelte";
   import FilesPanel from "$lib/FilesPanel.svelte";
   import FileViewer from "$lib/FileViewer.svelte";
   import { refocus } from "$lib/focus";
   import Horizon from "$lib/Horizon.svelte";
   import NeedsYou from "$lib/NeedsYou.svelte";
-  import StatusChip from "$lib/StatusChip.svelte";
   import Terminal from "$lib/Terminal.svelte";
   import TerminalForm from "$lib/TerminalForm.svelte";
   import Timeline from "$lib/Timeline.svelte";
@@ -45,7 +42,6 @@
   let sendError = $state("");
   let sending = $state(false);
   let resuming = $state(false);
-  let markingDone = $state(false);
   let termKey = $state(0);
   let sideOpen = $state(false);
 
@@ -207,9 +203,6 @@
   // The store receives every status change; fall back to the loaded copy.
   const s: SessionInfo | null = $derived(app.sessions.find((x) => x.id === id) ?? detail?.session ?? null);
   const live = $derived(s ? isLive(s) : false);
-  // A terminal that sits idle after its last turn stays open until someone closes it; Done closes
-  // it and says the work is finished, where Stop would say it was cut short.
-  const canMarkDone = $derived(Boolean(s && s.mode === "interactive" && s.status === "idle"));
   const version = $derived(s ? app.clis.find((c) => c.kind === s.cli)?.version : null);
   const marks = $derived(
     events
@@ -307,19 +300,8 @@
     }
   }
 
-  async function markDone() {
-    if (!s) return;
-    markingDone = true;
-    try {
-      await api.markSessionDone(s.id);
-      showToast(t("sessions.detail.markedDone", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) }));
-    } catch (err) {
-      showToast(tb(errorText(err)));
-    } finally {
-      markingDone = false;
-    }
-  }
-
+  // A terminal session's shell outlives its CLI, so it closes only with `exit`; this opens it again,
+  // with the CLI's own history when it has one.
   async function resume() {
     if (!s) return;
     resuming = true;
@@ -327,7 +309,6 @@
       await api.resumeSession(s.id, 120, 32);
       termKey += 1;
       detail = await api.getSession(s.id);
-      showToast(t("sessions.detail.resumed", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) }));
     } catch (err) {
       showToast(tb(errorText(err)));
     } finally {
@@ -355,28 +336,8 @@
       <button class="btn secondary" type="button" onclick={() => load(id)}>{t("sessions.tryAgain")}</button>
     </div>
   {:else}
-    <header class="page-head">
-      <div class="grow head-stack">
-        <nav class="crumb" aria-label={t("sessions.breadcrumb")}><a href="/">{t("sessions.overview.title")}</a> / {folderName(s.cwd)}</nav>
-        <div class="row title-row">
-          <CliMark kind={s.cli} />
-          <h1>{s.title}</h1>
-          <StatusChip status={s.status} />
-        </div>
-        <div class="meta">
-          {CLI_LABEL[s.cli]}{version ? ` ${version}` : ""} · {t(`sessions.mode.${s.mode}`)} · {t("sessions.detail.permMode", { mode: modeLabel(s.permissionMode) })} · <span class="mono" title={s.cwd}>{shortPath(s.cwd)}</span> · {t("sessions.startedAt", { time: clock(s.startedAt) })}
-          {#if s.source === "chat"} · {t("sessions.detail.fromChat")}{/if}
-        </div>
-      </div>
-      {#if live}
-        {#if canMarkDone}
-          <button class="btn primary" type="button" id="btn-mark-done" disabled={markingDone} title={t("sessions.detail.markDoneHint", { cli: CLI_LABEL[s.cli] })} onclick={markDone}><Check size={16} aria-hidden="true" />{t("sessions.detail.markDone")}</button>
-        {/if}
-        <button class="btn danger" type="button" onclick={() => (stopOpen = true)}><Stop size={16} aria-hidden="true" />{t("sessions.detail.stop")}</button>
-      {:else if s.mode === "interactive"}
-        <button class="btn primary" type="button" disabled={resuming} onclick={resume}><Play size={16} aria-hidden="true" />{resuming ? t("sessions.detail.resuming") : t("sessions.detail.resume")}</button>
-      {/if}
-    </header>
+    <!-- The sidebar names the session and its status; the rest is under Details. -->
+    <h1 class="sr-only">{s.title}</h1>
 
     {#if s.status === "waiting"}
       <NeedsYou {s} compact showOpen={false} />
@@ -440,15 +401,25 @@
             {#key `${id}-${termKey}`}
               <Terminal id={s.id} {live} label={t("sessions.detail.terminalLabel", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) })} />
             {/key}
-            <div class="term-note">
-              {live ? t("sessions.detail.terminalLive", { paste: pasteKey() }) : t("sessions.detail.terminalClosed")}
-            </div>
+            {#if live}
+              <div class="term-note">{t("sessions.detail.terminalLive", { paste: pasteKey(), cli: CLI_LABEL[s.cli], command: s.cli })}</div>
+            {:else}
+              <div class="term-note exit-row">
+                <span class="grow">{t("sessions.detail.terminalClosed")}</span>
+                <button class="btn primary sm" type="button" id="btn-open-terminal-again" disabled={resuming} onclick={resume}>
+                  <Play size={14} aria-hidden="true" />{resuming ? t("sessions.detail.opening") : t("sessions.detail.openAgain")}
+                </button>
+              </div>
+            {/if}
           {:else}
             <Timeline {events} />
             <form class="term-in" onsubmit={sendFollowUp}>
               <label for="term-input">›</label>
               <input id="term-input" bind:value={followUp} placeholder={followUpHint} disabled={!canFollowUp || sending} autocomplete="off" spellcheck="false" />
               <small>{canFollowUp ? t("sessions.detail.enterToSend") : ""}</small>
+              {#if live}
+                <button class="btn danger sm" type="button" onclick={() => (stopOpen = true)}><Stop size={14} aria-hidden="true" />{t("sessions.detail.stop")}</button>
+              {/if}
             </form>
             {#if sendError}<div class="term-note" role="alert">{tb(sendError)}</div>{/if}
           {/if}
@@ -546,6 +517,15 @@
                 <div class="kv"><span class="mono" title={path}>{folderName(path)}</span><b class="mono">{n}×</b></div>
               {/each}
             {/if}
+          </div>
+          <div class="side-group">
+            <h3>{t("sessions.detail.about")}</h3>
+            <div class="kv"><span>{t("sessions.detail.cli")}</span><b>{CLI_LABEL[s.cli]}{version ? ` ${version}` : ""}</b></div>
+            <div class="kv"><span>{t("sessions.detail.mode")}</span><b>{t(`sessions.mode.${s.mode}`)}</b></div>
+            <div class="kv"><span>{t("sessions.detail.permissions")}</span><b>{modeLabel(s.permissionMode)}</b></div>
+            <div class="kv"><span>{t("sessions.detail.folder")}</span><b class="mono" title={s.cwd}>{shortPath(s.cwd)}</b></div>
+            <div class="kv"><span>{t("sessions.detail.started")}</span><b>{clock(s.startedAt)}</b></div>
+            {#if s.source === "chat"}<div class="kv"><span>{t("sessions.detail.startedFrom")}</span><b>{t("sessions.detail.chat")}</b></div>{/if}
           </div>
           <div class="side-group">
             <h3>{t("sessions.process")}</h3>

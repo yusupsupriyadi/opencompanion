@@ -17,6 +17,20 @@ pub struct PtySpec {
     /// Starts the program from this PowerShell, as if typed at its prompt, so the user's
     /// profile (PATH, environment) applies to it.
     pub powershell: Option<PathBuf>,
+    /// Keeps a shell open around the program, as in a terminal of your own: when the program
+    /// exits the prompt comes back, and typing `Stay::name` starts it again. PowerShell on
+    /// Windows (with `powershell` set), bash elsewhere.
+    pub stay: Option<Stay>,
+}
+
+/// How a session's shell starts its CLI again.
+pub struct Stay {
+    /// The command to type, such as `claude`.
+    pub name: String,
+    /// Arguments that go before whatever is typed after `name`: the session's own flags.
+    pub again: Vec<String>,
+    /// Where bash's start-up file for this shell is written (Linux and macOS).
+    pub rc: PathBuf,
 }
 
 /// Runs the program with the environment the profile left and exits with its code. The program and
@@ -32,6 +46,55 @@ const POWERSHELL_HOST: &str = "$ErrorActionPreference = 'Stop'; \
     $cli.WaitForExit(); \
     exit $cli.ExitCode";
 
+/// `POWERSHELL_HOST` for a shell that stays: PowerShell runs with `-NoExit`, and a function named
+/// `OPENCOMPANION_NAME` starts the program again with `OPENCOMPANION_AGAIN` (a JSON array) before
+/// the arguments typed after it. The function comes first, since a Ctrl+C while the program runs
+/// can cut the rest of the script. No double quotes: Windows PowerShell mangles them on its
+/// command line. `foreach` unwraps the array, which Windows PowerShell's `ConvertFrom-Json`
+/// returns as one object that a splat would pass as a single argument.
+const POWERSHELL_STAY: &str = "& { \
+    $again = $env:OPENCOMPANION_AGAIN | ConvertFrom-Json; \
+    $oc = @{ Program = $env:OPENCOMPANION_PROGRAM; Again = @(foreach ($a in $again) { $a }) }; \
+    $name = $env:OPENCOMPANION_NAME; $first = $env:OPENCOMPANION_ARGS; $cwd = $env:OPENCOMPANION_CWD; \
+    foreach ($n in 'OPENCOMPANION_PROGRAM', 'OPENCOMPANION_ARGS', 'OPENCOMPANION_CWD', 'OPENCOMPANION_NAME', 'OPENCOMPANION_AGAIN') { [Environment]::SetEnvironmentVariable($n, $null) }; \
+    Set-Item -Path ('function:global:' + $name) -Value ({ & $oc.Program @($oc.Again) @args }.GetNewClosure()); \
+    $start = New-Object System.Diagnostics.ProcessStartInfo; \
+    $start.FileName = $oc.Program; \
+    $start.Arguments = $first; \
+    $start.WorkingDirectory = $cwd; \
+    $start.UseShellExecute = $false; \
+    [System.Diagnostics.Process]::Start($start).WaitForExit() \
+}";
+
+/// Bash's start-up file for a shell that stays: the user's own `.bashrc`, the function that starts
+/// the program again, then the program itself. Every word is single-quoted, so nothing in a
+/// prompt is read as shell syntax.
+fn bash_rc(program: &std::path::Path, first: &[String], name: &str, again: &[String]) -> String {
+    let quote = |s: &str| format!("'{}'", s.replace('\'', r"'\''"));
+    let line = |args: &[String]| {
+        std::iter::once(quote(&program.display().to_string()))
+            .chain(args.iter().map(|a| quote(a)))
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    format!(
+        "[ -f \"$HOME/.bashrc\" ] && . \"$HOME/.bashrc\"\n{name}() {{ {} \"$@\"; }}\n{}\n",
+        line(again),
+        line(first)
+    )
+}
+
+/// The bash a session's shell runs on Linux and macOS.
+#[cfg(unix)]
+fn bash() -> Option<PathBuf> {
+    which::which("bash").ok().or_else(|| Some(PathBuf::from("/bin/bash")).filter(|p| p.is_file()))
+}
+
+#[cfg(not(unix))]
+fn bash() -> Option<PathBuf> {
+    None
+}
+
 pub type OutputSink = Box<dyn FnMut(&[u8]) + Send>;
 
 type SharedWriter = Arc<Mutex<Box<dyn Write + Send>>>;
@@ -43,6 +106,8 @@ pub struct PtySession {
     child: Box<dyn Child + Send + Sync>,
     screen: Arc<Mutex<vt100::Parser>>,
     eof: Arc<AtomicBool>,
+    /// A shell stays around the program, so its exit is the shell's, not the program's.
+    stays: bool,
 }
 
 const CURSOR_QUERY: &[u8] = b"\x1b[6n";
@@ -81,13 +146,37 @@ impl PtySession {
                 program.display()
             ));
         }
+        let first: Vec<String> = lead.iter().cloned().chain(spec.args.iter().cloned()).collect();
+        let again = |stay: &Stay| -> Vec<String> { lead.iter().cloned().chain(stay.again.iter().cloned()).collect() };
+        let bash = spec.stay.as_ref().and_then(|_| bash());
+        let stays = spec.stay.is_some() && (spec.powershell.is_some() || bash.is_some());
         let mut cmd = if let Some(powershell) = &spec.powershell {
             let mut c = CommandBuilder::new(powershell);
-            c.args(["-NoLogo", "-Command", POWERSHELL_HOST]);
-            let args: Vec<String> = lead.into_iter().chain(spec.args.iter().cloned()).collect();
+            match &spec.stay {
+                Some(stay) => {
+                    c.args(["-NoLogo", "-NoExit", "-Command", POWERSHELL_STAY]);
+                    c.env("OPENCOMPANION_NAME", &stay.name);
+                    c.env("OPENCOMPANION_AGAIN", serde_json::to_string(&again(stay)).map_err(|e| e.to_string())?);
+                }
+                None => {
+                    c.args(["-NoLogo", "-Command", POWERSHELL_HOST]);
+                }
+            }
             c.env("OPENCOMPANION_PROGRAM", &program);
-            c.env("OPENCOMPANION_ARGS", crate::proc::command_line(&args));
+            c.env("OPENCOMPANION_ARGS", crate::proc::command_line(&first));
             c.env("OPENCOMPANION_CWD", &spec.cwd);
+            c
+        } else if let (Some(stay), Some(bash)) = (&spec.stay, &bash) {
+            if let Some(dir) = stay.rc.parent() {
+                std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+            }
+            std::fs::write(&stay.rc, bash_rc(&program, &first, &stay.name, &again(stay))).map_err(|e| e.to_string())?;
+            let mut c = CommandBuilder::new(bash);
+            c.arg("--rcfile");
+            c.arg(&stay.rc);
+            c.arg("-i");
+            // macOS's bash otherwise opens with a note that zsh is the default shell.
+            c.env("BASH_SILENCE_DEPRECATION_WARNING", "1");
             c
         } else {
             let mut c = if batch {
@@ -180,7 +269,12 @@ impl PtySession {
             child,
             screen,
             eof,
+            stays,
         })
+    }
+
+    pub fn stays(&self) -> bool {
+        self.stays
     }
 
     pub fn pid(&self) -> Option<u32> {
@@ -293,6 +387,7 @@ mod tests {
                 rows: 24,
                 env: vec![],
                 powershell: None,
+                stay: None,
             },
             Box::new(|_| {}),
         )
@@ -332,6 +427,7 @@ mod tests {
                 rows: 30,
                 env: vec![("OC_TEST".into(), "reached".into())],
                 powershell: Some(crate::terminal::powershell().expect("PowerShell is installed")),
+                stay: None,
             },
             Box::new(move |bytes| sink.lock().unwrap().push_str(&String::from_utf8_lossy(bytes))),
         )
@@ -358,6 +454,65 @@ mod tests {
         assert!(screen.contains("$HOME 'x' reached"), "{screen}");
         assert!(screen.contains(&dir.display().to_string()), "{screen}");
         assert!(!text.lock().unwrap().contains("OPENCOMPANION_"), "{screen}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A program that prints its arguments, the way a CLI would start.
+    #[cfg(windows)]
+    fn echo_program() -> (PathBuf, Vec<String>) {
+        let root = std::env::var_os("SystemRoot").map(PathBuf::from).expect("SystemRoot");
+        (root.join(r"System32\cmd.exe"), vec!["/d".into(), "/c".into(), "echo".into()])
+    }
+
+    #[cfg(unix)]
+    fn echo_program() -> (PathBuf, Vec<String>) {
+        (PathBuf::from("/bin/echo"), vec![])
+    }
+
+    #[test]
+    fn a_shell_that_stays_starts_the_program_again_by_name_and_ends_on_exit() {
+        let dir = std::env::temp_dir().join(format!("oc stay {}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (program, lead) = echo_program();
+        let mut first = lead.clone();
+        first.extend(["first".to_string(), "$HOME".to_string(), "'x'".to_string()]);
+        let mut again = lead;
+        again.push("again".into());
+        let mut pty = PtySession::spawn(
+            PtySpec {
+                program,
+                args: first,
+                cwd: dir.clone(),
+                cols: 160,
+                rows: 30,
+                env: vec![],
+                powershell: crate::terminal::powershell(),
+                stay: Some(Stay { name: "occli".into(), again, rc: dir.join("shell.bashrc") }),
+            },
+            Box::new(|_| {}),
+        )
+        .expect("the shell starts");
+        assert!(pty.stays());
+
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let wait = |pty: &PtySession, what: &str| {
+            while !pty.screen_text().contains(what) {
+                assert!(Instant::now() < deadline, "never saw {what}: {}", pty.screen_text());
+                thread::sleep(Duration::from_millis(50));
+            }
+        };
+        wait(&pty, "first $HOME 'x'");
+        // The program is done; the shell is still there to type into.
+        thread::sleep(Duration::from_millis(500));
+        assert!(pty.exit_code().is_none(), "the shell left with the program: {}", pty.screen_text());
+
+        pty.write(b"occli typed\r").unwrap();
+        wait(&pty, "again typed");
+        pty.write(b"exit\r").unwrap();
+        while pty.exit_code().is_none() {
+            assert!(Instant::now() < deadline, "exit did not close the shell: {}", pty.screen_text());
+            thread::sleep(Duration::from_millis(50));
+        }
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

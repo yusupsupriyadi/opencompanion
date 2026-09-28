@@ -118,6 +118,7 @@ fn cmd_pty(opts: &Opts) {
         rows: 36,
         env: vec![],
         powershell: None,
+        stay: None,
     };
     let started = Instant::now();
     let mut session = PtySession::spawn(spec, Box::new(move |b| {

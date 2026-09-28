@@ -202,9 +202,23 @@ fn interactive_session_streams_output_and_takes_input() {
     assert_eq!(seq, *seqs.last().unwrap());
 
     r.manager.send_input(&s.id, "hello\r").unwrap();
-    let done = wait_until(&r, &s.id, "exit", |s| !s.status.is_live());
+    wait_until(&r, &s.id, "the CLI's reply", |_| r.manager.output(&s.id).contains("got: hello"));
+
+    // The CLI exited, but its shell stays, as in a terminal of your own: typing the CLI's name
+    // starts it again, and `exit` closes the terminal.
+    thread::sleep(Duration::from_millis(1500));
+    assert!(r.db.session(&s.id).unwrap().unwrap().status.is_live(), "the session ended with its CLI");
+    r.manager.send_input(&s.id, "opencode\r").unwrap();
+    wait_until(&r, &s.id, "the CLI again", |_| r.manager.output(&s.id).matches("fake ready").count() == 2);
+    r.manager.send_input(&s.id, "bye\r").unwrap();
+    wait_until(&r, &s.id, "the second reply", |_| r.manager.output(&s.id).contains("got: bye"));
+    thread::sleep(Duration::from_millis(1500));
+    r.manager.send_input(&s.id, "exit\r").unwrap();
+    let done = wait_until(&r, &s.id, "the terminal closed", |s| !s.status.is_live());
     assert_eq!(done.status, Status::Done, "last: {:?}", done.last_event);
-    assert!(r.manager.output(&s.id).contains("got: hello"));
+    assert_eq!(done.last_event.as_deref(), Some("Terminal closed"));
+    // You closed it yourself, so no "finished" notification says so.
+    assert!(r.rec.notes.lock().unwrap().is_empty(), "{:?}", r.rec.notes.lock().unwrap());
 }
 
 #[test]
@@ -223,6 +237,8 @@ fn an_empty_claude_session_is_named_by_its_first_message_then_by_claude() {
     // fake-cli names the task in its terminal title the way Claude Code does.
     r.manager.send_input(&s.id, "Login bug fix\r").unwrap();
     wait_until(&r, &s.id, "title from the terminal", |s| s.title == "Login bug fix");
+    // The shell outlives the CLI; end it with the test.
+    r.manager.stop(&s.id).unwrap();
 }
 
 #[test]
@@ -245,9 +261,11 @@ fn a_card_name_outlives_the_cli_title() {
     assert_eq!(s.title, "Export API docs");
     wait_until(&r, &s.id, "prompt on screen", |_| r.rec.output.lock().unwrap().contains("fake ready"));
     r.manager.send_input(&s.id, "Something else\r").unwrap();
-    let done = wait_until(&r, &s.id, "exit", |s| !s.status.is_live());
-    assert!(r.manager.output(&s.id).contains("Something else"));
-    assert_eq!(done.title, "Export API docs");
+    let named = wait_until(&r, &s.id, "the CLI's reply", |_| r.manager.output(&s.id).contains("got: Something else"));
+    // The terminal title arrives with the reply, so give it a moment to be read.
+    thread::sleep(Duration::from_millis(500));
+    assert_eq!(r.db.session(&named.id).unwrap().unwrap().title, "Export API docs");
+    r.manager.stop(&s.id).unwrap();
 }
 
 #[test]
