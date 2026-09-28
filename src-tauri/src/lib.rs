@@ -143,6 +143,30 @@ fn tray_menu<R: tauri::Runtime, M: tauri::Manager<R>>(app: &M, lang: &str) -> ta
 /// Whether the tray icon was created. A Linux desktop without an AppIndicator library has none.
 static HAS_TRAY: AtomicBool = AtomicBool::new(false);
 
+/// Whether a tray icon can be made here. On Linux the tray loads an AppIndicator library the
+/// first time it is used and aborts the app when none is installed, so that is checked first,
+/// with the names it tries.
+#[cfg(target_os = "linux")]
+fn tray_possible() -> bool {
+    ["libayatana-appindicator3.so.1", "libappindicator3.so.1", "libayatana-appindicator3.so", "libappindicator3.so"]
+        .iter()
+        .any(|name| {
+            let Ok(name) = std::ffi::CString::new(*name) else { return false };
+            // SAFETY: dlopen only maps the library, and the handle is closed right away.
+            let handle = unsafe { libc::dlopen(name.as_ptr(), libc::RTLD_LAZY) };
+            if handle.is_null() {
+                return false;
+            }
+            unsafe { libc::dlclose(handle) };
+            true
+        })
+}
+
+#[cfg(not(target_os = "linux"))]
+fn tray_possible() -> bool {
+    true
+}
+
 /// The tray icon (PRD FR-18): a click opens the window; its menu opens it or quits, and quitting
 /// is what stops the sessions.
 fn tray(app: &tauri::App, lang: &str) -> tauri::Result<()> {
@@ -833,9 +857,13 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir)?;
             let db = Arc::new(Db::open(&data_dir.join("opencompanion.db"))?);
             db.close_orphans()?;
-            match tray(app, &db.settings()?.language) {
-                Ok(()) => HAS_TRAY.store(true, Ordering::SeqCst),
-                Err(e) => eprintln!("OpenCompanion runs without a tray icon: {e}"),
+            if !tray_possible() {
+                eprintln!("OpenCompanion runs without a tray icon: no AppIndicator library is installed");
+            } else {
+                match tray(app, &db.settings()?.language) {
+                    Ok(()) => HAS_TRAY.store(true, Ordering::SeqCst),
+                    Err(e) => eprintln!("OpenCompanion runs without a tray icon: {e}"),
+                }
             }
             let emit = Arc::new(TauriEmit {
                 app: app.handle().clone(),

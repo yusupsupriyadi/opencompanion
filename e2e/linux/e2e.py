@@ -442,6 +442,26 @@ def main():
 
     app2.quit()
 
+    # Last, because it removes a library: a desktop without AppIndicator support must still get a
+    # working app, and closing its window must quit instead of hiding it with no tray to return by.
+    @step("tray: without an AppIndicator library the app starts, and closing it quits", None)
+    def _():
+        subprocess.run(["dpkg", "-r", "--force-depends", "libayatana-appindicator3-1"], check=True, capture_output=True, timeout=60)
+        app3 = App()
+        try:
+            app3.wait(lambda: app3.find_all("#overview-main"), 30, "app shell")
+            running = lambda: subprocess.run(["pgrep", "-x", "opencompanion"], capture_output=True).returncode == 0
+            assert running(), "the app is not running"
+            try:
+                app3.click_css("#btn-window-close")
+            except RuntimeError as e:
+                # The app quits while the click is still being answered.
+                assert "terminated" in str(e), e
+            app3.wait(lambda: not running(), 15, "the app quit after its window closed")
+        finally:
+            app3.quit()
+        return "started without the library; closing the window quit the app"
+
 
 if __name__ == "__main__":
     try:
