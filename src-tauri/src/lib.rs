@@ -23,12 +23,13 @@ pub mod waiting;
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager as _, RunEvent, State};
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
 use tauri_plugin_notification::NotificationExt;
 
 use crate::actions::{detect_with_settings, ChatTurn, RunTaskInput};
@@ -118,6 +119,7 @@ fn show_main(app: &AppHandle) {
 }
 
 /// Brings the window forward on the session a notification was about.
+#[cfg(not(target_os = "macos"))]
 fn open_session(app: &AppHandle, id: &str) {
     show_main(app);
     if !id.is_empty() {
@@ -137,6 +139,9 @@ fn tray_menu<R: tauri::Runtime, M: tauri::Manager<R>>(app: &M, lang: &str) -> ta
     let quit = MenuItem::with_id(app, "quit", quit, true, None::<&str>)?;
     Menu::with_items(app, &[&open, &PredefinedMenuItem::separator(app)?, &quit])
 }
+
+/// Whether the tray icon was created. A Linux desktop without an AppIndicator library has none.
+static HAS_TRAY: AtomicBool = AtomicBool::new(false);
 
 /// The tray icon (PRD FR-18): a click opens the window; its menu opens it or quits, and quitting
 /// is what stops the sessions.
@@ -175,7 +180,8 @@ fn on_close(window: &tauri::Window, api: &tauri::CloseRequestApi) {
     let app = window.app_handle();
     let Some(state) = app.try_state::<AppState>() else { return };
     let Ok(mut settings) = state.db.settings() else { return };
-    if window.label() != "main" || !settings.close_to_tray {
+    // Without a tray icon a hidden window could not be opened again, so closing quits.
+    if window.label() != "main" || !settings.close_to_tray || !HAS_TRAY.load(Ordering::SeqCst) {
         return;
     }
     api.prevent_close();
@@ -192,22 +198,32 @@ fn on_close(window: &tauri::Window, api: &tauri::CloseRequestApi) {
     }
 }
 
-/// An OS notification whose click opens its session (PRD FR-40). A Windows toast reports the
-/// click while it is on screen, so it comes straight from notify-rust; the notification plugin
-/// has no click on desktop and shows the others.
-#[cfg(windows)]
+/// An OS notification whose click opens its session (PRD FR-40). A Windows toast and a Linux
+/// notification (D-Bus) report the click while they are on screen, so they come straight from
+/// notify-rust. On macOS the notification plugin shows them, without a click.
+#[cfg(not(target_os = "macos"))]
 fn show_notification(app: &AppHandle, title: &str, body: &str, session_id: &str) {
     use notify_rust::{Notification, NotificationResponse};
     let mut toast = Notification::new();
     toast.summary(title).body(body).auto_icon();
-    // As the plugin does: only the installed app's id is registered with Windows. A build run
-    // from `target` shows its toasts under PowerShell's id instead.
-    let from_build = std::env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().map(|d| d.to_path_buf()))
-        .is_some_and(|dir| dir.ends_with("target/debug") || dir.ends_with("target/release"));
-    if !from_build {
-        toast.app_id(&app.config().identifier);
+    #[cfg(windows)]
+    {
+        // As the plugin does: only the installed app's id is registered with Windows. A build run
+        // from `target` shows its toasts under PowerShell's id instead.
+        let from_build = std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(|d| d.to_path_buf()))
+            .is_some_and(|dir| dir.ends_with("target/debug") || dir.ends_with("target/release"));
+        if !from_build {
+            toast.app_id(&app.config().identifier);
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        // A notification server reports a click on the body only as the "default" action.
+        let lang = app.try_state::<AppState>().and_then(|s| s.db.settings().ok()).map(|s| s.language);
+        let open = if lang.as_deref() == Some("id") { "Buka" } else { "Open" };
+        toast.appname("OpenCompanion").icon("opencompanion").action("default", open);
     }
     let (app, id) = (app.clone(), session_id.to_string());
     std::thread::spawn(move || {
@@ -222,7 +238,7 @@ fn show_notification(app: &AppHandle, title: &str, body: &str, session_id: &str)
     });
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
 fn show_notification(app: &AppHandle, title: &str, body: &str, _session_id: &str) {
     let _ = app.notification().builder().title(title).body(body).show();
 }
@@ -817,7 +833,10 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir)?;
             let db = Arc::new(Db::open(&data_dir.join("opencompanion.db"))?);
             db.close_orphans()?;
-            tray(app, &db.settings()?.language)?;
+            match tray(app, &db.settings()?.language) {
+                Ok(()) => HAS_TRAY.store(true, Ordering::SeqCst),
+                Err(e) => eprintln!("OpenCompanion runs without a tray icon: {e}"),
+            }
             let emit = Arc::new(TauriEmit {
                 app: app.handle().clone(),
                 companion: OnceLock::new(),
@@ -918,6 +937,11 @@ pub fn run() {
         .expect("error while building tauri application");
 
     app.run(|handle, event| {
+        // Clicking the Dock icon brings a window hidden in the menu bar back.
+        #[cfg(target_os = "macos")]
+        if let RunEvent::Reopen { .. } = event {
+            show_main(handle);
+        }
         if let RunEvent::Exit = event {
             if let Some(state) = handle.try_state::<AppState>() {
                 state.manager.kill_all();
