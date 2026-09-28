@@ -276,16 +276,20 @@ impl Manager {
     /// it to new processes, which would then be hidden from the outside list.
     pub fn own_pids(&self) -> Vec<u32> {
         let mut pids = vec![std::process::id()];
-        if let Ok(map) = self.live.lock() {
-            for live in map.values() {
-                if let Ok(info) = live.info.lock() {
-                    if info.status.is_live() {
-                        pids.extend(info.pid);
-                    }
-                }
-            }
-        }
+        pids.extend(self.live_pids().into_iter().map(|(_, pid)| pid));
         pids
+    }
+
+    /// Each live session's own process: the shell its terminal runs in, or its headless CLI.
+    pub fn live_pids(&self) -> Vec<(String, u32)> {
+        let Ok(map) = self.live.lock() else { return Vec::new() };
+        map.values()
+            .filter_map(|live| {
+                let info = live.info.lock().ok()?;
+                let pid = info.pid.filter(|_| info.status.is_live())?;
+                Some((info.id.clone(), pid))
+            })
+            .collect()
     }
 
     /// Claims `id` for a spawn; `None` while another Resume or follow-up is starting it.

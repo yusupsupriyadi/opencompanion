@@ -3,6 +3,7 @@ import {
   api,
   errorText,
   type CliInstall,
+  type CliKind,
   type CompanionStatus,
   type EventRow,
   type ExternalSession,
@@ -31,6 +32,8 @@ export const app = $state({
   outsideState: "loading" as LoadState,
   outsideError: "",
   scanning: false,
+  /** The AI CLIs running in each session's terminals, by session id. */
+  sessionClis: {} as Record<string, CliKind[]>,
   settings: null as Settings | null,
   companion: null as CompanionStatus | null,
   now: Date.now(),
@@ -72,6 +75,22 @@ export async function refreshOutside() {
     app.outsideError = errorText(e);
   } finally {
     app.scanning = false;
+  }
+}
+
+let readingClis = false;
+
+/** Counts the CLIs in sessions' terminals, typed there or started with the session. */
+export async function refreshSessionClis() {
+  if (readingClis || document.visibilityState === "hidden") return;
+  readingClis = true;
+  try {
+    app.sessionClis = await api.sessionClis();
+  } catch {
+    // No count rather than an old one; the next read tries again.
+    app.sessionClis = {};
+  } finally {
+    readingClis = false;
   }
 }
 
@@ -173,6 +192,8 @@ export async function startDesktop() {
     // Settings fall back to defaults in the screens that need them.
   }
   restartScanTimer();
+  refreshSessionClis();
+  setInterval(refreshSessionClis, 3000);
   setInterval(() => (app.now = Date.now()), 30_000);
 }
 

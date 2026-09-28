@@ -466,6 +466,8 @@ export const api = {
   sessionOutput: (id: string) => invoke<{ data: string; seq: number }>("session_output", { id }),
   /** Null when the session is not running. */
   sessionUsage: (id: string) => invoke<Usage | null>("session_usage", { id }),
+  /** The AI CLIs running in each session's terminals, its own and its shell tabs. Sessions with none are left out. */
+  sessionClis: () => invoke<Record<string, CliKind[]>>("session_clis"),
   startSession: (req: StartRequest) => invoke<SessionInfo>("start_session", { req }),
   sendInput: (id: string, text: string) => invoke<SessionInfo>("send_input", { id, text }),
   resizeSession: (id: string, cols: number, rows: number) => invoke<void>("resize_session", { id, cols, rows }),

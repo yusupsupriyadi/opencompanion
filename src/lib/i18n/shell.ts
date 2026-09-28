@@ -22,6 +22,7 @@ export const en = {
   "shell.sidebar.pinSession": "Pin session",
   "shell.sidebar.unpinSession": "Unpin session",
   "shell.sidebar.pinned": "Pinned",
+  "shell.sidebar.clisRunning": "{list} running",
 
   // Right-click menus on session and folder rows
   "shell.menu.sessionLabel": "Session: {title}",
@@ -168,6 +169,7 @@ export const id: Record<keyof typeof en, string> = {
   "shell.sidebar.pinSession": "Sematkan sesi",
   "shell.sidebar.unpinSession": "Lepas sematan sesi",
   "shell.sidebar.pinned": "Disematkan",
+  "shell.sidebar.clisRunning": "{list} berjalan",
 
   "shell.menu.sessionLabel": "Sesi: {title}",
   "shell.menu.folderLabel": "Folder: {folder}",

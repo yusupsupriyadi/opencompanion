@@ -4,15 +4,16 @@ import { tick } from "svelte";
 import { beforeEach, expect, test } from "vitest";
 import { i18n } from "$lib/i18n.svelte";
 import { setUrl } from "../test/app-state.svelte";
-import { session } from "../test/fixtures";
+import { backend, session } from "../test/fixtures";
 import ContextMenu from "./ContextMenu.svelte";
 import { closeMenu } from "./context-menu.svelte";
 import Sidebar from "./Sidebar.svelte";
-import { app, pendingNew } from "./store.svelte";
+import { app, pendingNew, refreshSessionClis } from "./store.svelte";
 
 beforeEach(() => {
   closeMenu(false);
   app.sessions = [];
+  app.sessionClis = {};
   app.companion = null;
   pendingNew.open = false;
   localStorage.removeItem("air-collapsed-folders");
@@ -65,6 +66,40 @@ test("a session row shows only its provider mark and title; the running one shim
   expect(row).toHaveAttribute("title", "Fix the login bug · Codex CLI · Running");
   const shimmering = [...document.querySelectorAll(".mini b.shimmer")].map((b) => b.textContent);
   expect(shimmering).toEqual(["Fix the login bug"]);
+});
+
+test("a session row counts the CLIs running in its terminals", () => {
+  app.sessions = [
+    session({ id: "a", title: "Fix the login bug", status: "running" }),
+    session({ id: "b", title: "Add week view", status: "running", cli: "codex" }),
+    session({ id: "c", title: "Write API docs", status: "running" }),
+  ];
+  app.sessionClis = { a: ["claude", "codex", "claude"], b: ["codex"] };
+  render(Sidebar);
+  const a = screen.getByRole("link", { name: /Fix the login bug/ });
+  expect(a.querySelector(".clis")).toHaveTextContent("×3");
+  expect(a).toHaveAccessibleName("Fix the login bug Claude Code, Running, Claude Code × 2, Codex CLI running");
+  expect(a).toHaveAttribute("title", "Fix the login bug · Claude Code · Running · Claude Code × 2, Codex CLI running");
+  expect(screen.getByRole("link", { name: /Add week view/ }).querySelector(".clis")).toHaveTextContent("×1");
+  // A terminal whose CLI has exited back to the shell shows no count.
+  const c = screen.getByRole("link", { name: /Write API docs/ });
+  expect(c.querySelector(".clis")).toBeNull();
+  expect(c).toHaveAttribute("title", "Write API docs · Claude Code · Running");
+});
+
+test("the CLI counts follow the backend, and a failed read shows none rather than old ones", async () => {
+  app.sessions = [session({ id: "a", title: "Fix the login bug", status: "running" })];
+  let reply: unknown = { a: ["claude", "claude"] };
+  backend({ session_clis: () => reply });
+  render(Sidebar);
+  await refreshSessionClis();
+  await tick();
+  const row = screen.getByRole("link", { name: /Fix the login bug/ });
+  expect(row.querySelector(".clis")).toHaveTextContent("×2");
+  reply = new Error("boom");
+  await refreshSessionClis();
+  await tick();
+  expect(row.querySelector(".clis")).toBeNull();
 });
 
 test("sessions are grouped under their folder, the folder with the most urgent session first", () => {

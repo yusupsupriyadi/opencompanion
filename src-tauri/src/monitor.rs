@@ -216,6 +216,65 @@ impl Monitor {
     }
 }
 
+impl Monitor {
+    /// The AI CLIs running under each root, keyed by what the root belongs to: a session's own
+    /// terminal and the shells in its tabs share the session's key. Keys with none are left out.
+    pub fn clis_under(&mut self, roots: &[(String, u32)]) -> HashMap<String, Vec<CliKind>> {
+        if roots.is_empty() {
+            return HashMap::new();
+        }
+        self.sys.refresh_processes_specifics(
+            ProcessesToUpdate::All,
+            true,
+            ProcessRefreshKind::nothing().with_cmd(UpdateKind::OnlyIfNotSet),
+        );
+        let procs = self.sys.processes();
+        let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
+        for p in procs.values() {
+            let Some(parent) = p.parent().and_then(|pid| procs.get(&pid)) else { continue };
+            // Windows reuses PIDs: a process older than its "parent" was started by an earlier
+            // process with the same PID.
+            if p.start_time() >= parent.start_time() {
+                children.entry(parent.pid().as_u32()).or_default().push(p.pid().as_u32());
+            }
+        }
+        let kind_of = |pid: u32| {
+            let p = procs.get(&Pid::from_u32(pid))?;
+            classify(&p.name().to_string_lossy(), &arg_strings(p))
+        };
+        let mut out: HashMap<String, Vec<CliKind>> = HashMap::new();
+        for (key, pid) in roots {
+            if !procs.contains_key(&Pid::from_u32(*pid)) {
+                continue;
+            }
+            let found = outer_clis(&children, kind_of, *pid);
+            if !found.is_empty() {
+                out.entry(key.clone()).or_default().extend(found);
+            }
+        }
+        out
+    }
+}
+
+/// The CLIs at or below `root`. A CLI started by another one (OpenCode's wrapper exe, CCS starting
+/// Claude Code, a CLI running another as a tool) is part of the outer one and is not counted again.
+fn outer_clis(children: &HashMap<u32, Vec<u32>>, kind_of: impl Fn(u32) -> Option<CliKind>, root: u32) -> Vec<CliKind> {
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    let mut queue = vec![root];
+    while let Some(next) = queue.pop() {
+        // A reused PID can point a process at its own child; stop instead of looping.
+        if !seen.insert(next) || seen.len() > 4096 {
+            continue;
+        }
+        match kind_of(next) {
+            Some(kind) => out.push(kind),
+            None => queue.extend(children.get(&next).into_iter().flatten()),
+        }
+    }
+    out
+}
+
 fn cpu_count() -> f32 {
     std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1) as f32
 }
@@ -351,6 +410,7 @@ mod tests {
         let with_self = monitor.scan(&HashSet::from([std::process::id()]));
         let found = find(child.id());
         let usage = monitor.usage(std::process::id());
+        let under_self = monitor.clis_under(&[("s1".into(), std::process::id()), ("s2".into(), child.id())]);
         let _ = child.kill();
         let _ = child.wait();
         let _ = std::fs::remove_dir_all(&dir);
@@ -362,6 +422,9 @@ mod tests {
         // The helper runs under this test process, so it counts toward its usage.
         let usage = usage.unwrap();
         assert!(usage.children >= 1 && usage.memory_bytes > 0);
+        // Found under the test process, and under its own PID as the root.
+        assert!(under_self["s1"].contains(&CliKind::Opencode));
+        assert_eq!(under_self["s2"], [CliKind::Opencode]);
         assert!(find(pid).is_none());
     }
 
@@ -371,6 +434,38 @@ mod tests {
         if std::env::var_os("AIR_SLEEP_HELPER").is_some() {
             std::thread::sleep(std::time::Duration::from_secs(10));
         }
+    }
+
+    #[test]
+    fn counts_each_cli_once_under_a_root_however_deep() {
+        // 1 is the session's shell: Claude Code in it, and CCS under a nested shell starting its
+        // own Claude Code. 2 is a tab's shell running Codex, which runs Claude Code as a tool.
+        let tree = [(1, 10), (1, 11), (11, 12), (12, 13), (1, 14), (2, 20), (20, 21), (9, 90)];
+        let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
+        for (parent, child) in tree {
+            children.entry(parent).or_default().push(child);
+        }
+        let kind_of = |pid: u32| match pid {
+            10 | 13 | 21 | 90 => Some(CliKind::Claude),
+            12 => Some(CliKind::Ccs),
+            20 => Some(CliKind::Codex),
+            _ => None,
+        };
+        let mut found = outer_clis(&children, kind_of, 1);
+        found.sort_by_key(|k| k.bin());
+        assert_eq!(found, [CliKind::Ccs, CliKind::Claude]);
+        assert_eq!(outer_clis(&children, kind_of, 2), [CliKind::Codex]);
+        // A headless session's root is the CLI itself.
+        assert_eq!(outer_clis(&children, kind_of, 90), [CliKind::Claude]);
+        assert_eq!(outer_clis(&children, kind_of, 11), [CliKind::Ccs]);
+        assert!(outer_clis(&children, kind_of, 3).is_empty());
+    }
+
+    #[test]
+    fn a_pid_loop_ends_the_walk() {
+        let children = HashMap::from([(1, vec![2]), (2, vec![1, 3])]);
+        let found = outer_clis(&children, |pid| (pid == 3).then_some(CliKind::Claude), 1);
+        assert_eq!(found, [CliKind::Claude]);
     }
 
     #[test]

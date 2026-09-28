@@ -10,7 +10,7 @@
   import Plus from "phosphor-svelte/lib/Plus";
   import PushPin from "phosphor-svelte/lib/PushPin";
   import PushPinSlash from "phosphor-svelte/lib/PushPinSlash";
-  import type { SessionView } from "./api";
+  import type { CliKind, SessionView } from "./api";
   import AppLogo from "./AppLogo.svelte";
   import CliMark from "./CliMark.svelte";
   import { folderEntries, menu, openMenu, sessionMenu } from "./context-menu.svelte";
@@ -94,6 +94,16 @@
     ]);
   }
 
+  // "Claude Code × 2, Codex CLI": the CLIs in a session's terminals, the most numerous first.
+  function cliList(kinds: CliKind[]): string {
+    const counts = new Map<CliKind, number>();
+    for (const k of kinds) counts.set(k, (counts.get(k) ?? 0) + 1);
+    return [...counts]
+      .sort(([a, x], [b, y]) => y - x || CLI_LABEL[a].localeCompare(CLI_LABEL[b]))
+      .map(([k, n]) => (n > 1 ? `${CLI_LABEL[k]} × ${n}` : CLI_LABEL[k]))
+      .join(", ");
+  }
+
   // Every session is shown, most urgent first: live (waiting on top), then finished, newest first.
   // Pinned folders lead, even empty; the rest follow their most urgent session. Inside a folder,
   // pinned sessions come first.
@@ -172,6 +182,8 @@
               {/if}
               {#each g.sessions as s (s.id)}
                 {@const sessionPinned = pinnedSessions.includes(s.id)}
+                {@const clis = app.sessionClis[s.id] ?? []}
+                {@const running = clis.length ? t("shell.sidebar.clisRunning", { list: cliList(clis) }) : ""}
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div
                   class="mini-item"
@@ -183,12 +195,13 @@
                     class="mini"
                     href="/session?id={s.id}"
                     aria-current={s.id === currentSession ? "page" : undefined}
-                    title="{s.title} · {CLI_LABEL[s.cli]} · {STATUS[s.status].label}"
+                    title="{s.title} · {CLI_LABEL[s.cli]} · {STATUS[s.status].label}{running && ` · ${running}`}"
                   >
                     <CliMark kind={s.cli} bare />
                     <b class="ellipsis" class:shimmer={s.status === "running"}>{s.title}</b>
+                    {#if clis.length}<span class="clis" aria-hidden="true">×{clis.length}</span>{/if}
                     {#if sessionPinned}<span class="pin-mark"><PushPin size={14} weight="fill" aria-hidden="true" /></span>{/if}
-                    <span class="sr-only">{CLI_LABEL[s.cli]}, {STATUS[s.status].label}{#if sessionPinned}, {t("shell.sidebar.pinned")}{/if}</span>
+                    <span class="sr-only">{CLI_LABEL[s.cli]}, {STATUS[s.status].label}{#if running}, {running}{/if}{#if sessionPinned}, {t("shell.sidebar.pinned")}{/if}</span>
                   </a>
                 </div>
               {/each}
@@ -227,6 +240,19 @@
   }
   .mini .pin-mark {
     margin-left: auto;
+  }
+  /* The CLIs running in the session's terminals: "×2" beside the CLI's mark reads as that CLI,
+     twice. It sits before the pin, so the pin keeps its place when the count comes and goes. */
+  .clis {
+    flex: none;
+    margin-left: auto;
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
+  }
+  .mini .clis + .pin-mark {
+    margin-left: 0;
   }
   /* Lines up with the session titles: rows indent 12, then logo 16 and gap 6. */
   .folder-empty {

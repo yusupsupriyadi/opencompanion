@@ -390,6 +390,16 @@ async fn session_usage(state: State<'_, AppState>, id: String) -> Res<Option<mon
     blocking(move || Ok(monitor.lock().map_err(|e| e.to_string())?.usage(pid))).await
 }
 
+/// The AI CLIs running in each session's terminals: its own and the shells in its tabs. Sessions
+/// with none are left out.
+#[tauri::command]
+async fn session_clis(state: State<'_, AppState>) -> Res<HashMap<String, Vec<CliKind>>> {
+    let mut roots = state.manager.live_pids();
+    roots.extend(state.terminals.list().into_iter().filter_map(|t| Some((t.session_id, t.pid?))));
+    let monitor = Arc::clone(&state.monitor);
+    blocking(move || Ok(monitor.lock().map_err(|e| e.to_string())?.clis_under(&roots))).await
+}
+
 #[tauri::command]
 async fn start_session(state: State<'_, AppState>, req: StartRequest) -> Res<SessionInfo> {
     let manager = Arc::clone(&state.manager);
@@ -898,6 +908,7 @@ pub fn run() {
             get_session,
             session_output,
             session_usage,
+            session_clis,
             start_session,
             send_input,
             resize_session,
