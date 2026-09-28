@@ -41,6 +41,10 @@ ureq = "3"
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"
 
+# Signals a CLI's whole process group when a session stops (`proc::kill_tree`).
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 # Windows toasts report a click, which opens the session (PRD FR-40). Already in the tree
 # through tauri-plugin-notification.
 [target.'cfg(windows)'.dependencies]

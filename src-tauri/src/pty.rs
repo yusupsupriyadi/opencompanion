@@ -280,6 +280,39 @@ mod tests {
         assert_eq!(count_cursor_queries(&mut carry, b"\x1b[6m"), 0);
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn killing_a_session_ends_what_its_cli_started() {
+        let mut pty = PtySession::spawn(
+            PtySpec {
+                program: PathBuf::from("/bin/sh"),
+                // A child that ignores the terminal's hangup, as `nohup` and many dev servers do.
+                args: vec!["-c".into(), "trap '' HUP; sleep 30 & echo \"child $!\"; wait".into()],
+                cwd: std::env::temp_dir(),
+                cols: 80,
+                rows: 24,
+                env: vec![],
+                powershell: None,
+            },
+            Box::new(|_| {}),
+        )
+        .expect("sh starts");
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let child: u32 = loop {
+            let screen = pty.screen_text();
+            if let Some(pid) = screen.lines().find_map(|l| l.strip_prefix("child ")).and_then(|p| p.trim().parse().ok()) {
+                break pid;
+            }
+            assert!(Instant::now() < deadline, "no child pid: {screen}");
+            thread::sleep(Duration::from_millis(50));
+        };
+        pty.kill();
+        while !crate::proc::tests::gone(child) {
+            assert!(Instant::now() < deadline, "the CLI's child outlived the session");
+            thread::sleep(Duration::from_millis(50));
+        }
+    }
+
     #[cfg(windows)]
     #[test]
     fn a_program_started_from_powershell_keeps_its_arguments_folder_environment_and_exit_code() {

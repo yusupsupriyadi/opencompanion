@@ -44,6 +44,12 @@ pub(crate) fn hidden(program: impl AsRef<OsStr>) -> Command {
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
+    // Its own process group, so `kill_tree` ends the CLI together with what it started.
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
     cmd
 }
 
@@ -143,9 +149,29 @@ pub fn kill_tree(pid: u32) {
             .stderr(Stdio::null())
             .status();
     }
-    #[cfg(not(windows))]
+    // Every CLI starts in its own process group (`hidden`, and a PTY child leads its own
+    // session), so its pid is the group id: SIGTERM first, SIGKILL for what is left after 2 s.
+    #[cfg(unix)]
     {
-        let _ = pid;
+        // 0 is our own group and 1 would signal every process: never a CLI we started.
+        let Ok(pid) = i32::try_from(pid) else { return };
+        if pid <= 1 {
+            return;
+        }
+        let group = -pid;
+        // SAFETY: kill(2) only sends a signal; a negative pid names a process group.
+        unsafe { libc::kill(group, libc::SIGTERM) };
+        thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(2);
+            while Instant::now() < deadline {
+                // Signal 0 only asks whether the group still has a member.
+                if unsafe { libc::kill(group, 0) } != 0 {
+                    return;
+                }
+                thread::sleep(Duration::from_millis(50));
+            }
+            unsafe { libc::kill(group, libc::SIGKILL) };
+        });
     }
 }
 
@@ -214,7 +240,7 @@ pub fn run_with_input(mut cmd: Command, input: Option<&str>, timeout: Duration) 
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     // The shim npm writes for `@openai/codex`.
@@ -282,6 +308,50 @@ endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\node_
         let plain = dir.join("node.exe");
         assert_eq!(launcher(&plain), (plain.clone(), vec![]));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Whether `pid` has ended. A killed orphan stays a zombie where no init reaps it (a
+    /// container whose first process is not an init), and that counts as ended.
+    #[cfg(unix)]
+    pub(crate) fn gone(pid: u32) -> bool {
+        use sysinfo::{ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, System};
+        let mut sys = System::new();
+        let p = sysinfo::Pid::from_u32(pid);
+        sys.refresh_processes_specifics(ProcessesToUpdate::Some(&[p]), true, ProcessRefreshKind::nothing());
+        sys.process(p).is_none_or(|p| p.status() == ProcessStatus::Zombie)
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn kill_tree_ends_the_children_too_on_unix() {
+        use std::io::BufRead;
+        let mut parent = command("/bin/sh")
+            .args(["-c", "sleep 30 & echo $!; wait"])
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let mut line = String::new();
+        std::io::BufReader::new(parent.stdout.take().unwrap()).read_line(&mut line).unwrap();
+        let grandchild: u32 = line.trim().parse().unwrap();
+        assert!(!gone(grandchild));
+        // As `HeadlessRun::kill` stops a CLI.
+        kill_tree(parent.id());
+        let _ = parent.kill();
+        let _ = parent.wait();
+        let deadline = Instant::now() + Duration::from_secs(4);
+        while !gone(grandchild) {
+            assert!(Instant::now() < deadline, "the grandchild outlived Stop");
+            thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    /// 0 is the caller's own group and 1 would signal every process: neither is a CLI we started.
+    #[cfg(unix)]
+    #[test]
+    fn kill_tree_never_signals_our_own_group_or_everyone() {
+        kill_tree(0);
+        kill_tree(1);
+        thread::sleep(Duration::from_millis(100));
     }
 
     #[cfg(windows)]

@@ -2784,6 +2784,7 @@ name = "opencompanion"
 version = "0.1.1"
 dependencies = [
  "axum",
+ "libc",
  "local-ip-address",
  "notify-rust",
  "portable-pty",
