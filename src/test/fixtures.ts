@@ -29,7 +29,6 @@ export function session(over: Partial<SessionView> = {}): SessionView {
     lastEvent: "Write a.txt",
     waiting: null,
     source: "manual",
-    taskId: null,
     permissionMode: null,
     updatedAt: Date.now(),
     marks: [],

@@ -8,18 +8,16 @@
   import SpinnerGap from "phosphor-svelte/lib/SpinnerGap";
   import TerminalWindow from "phosphor-svelte/lib/TerminalWindow";
   import { onMount, tick } from "svelte";
-  import type { CliKind, Mode, PermMode, SessionInfo, Task } from "$lib/api";
+  import type { CliKind, Mode, PermMode, SessionInfo } from "$lib/api";
   import CliMark from "$lib/CliMark.svelte";
   import { CLI_LABEL, MODES, folderName, shortPath } from "$lib/format";
   import { t, tb } from "$lib/i18n.svelte";
   import { call, type PhoneOptions } from "$lib/phone.svelte";
 
-  // `?task=` runs a Board card; `?cwd=` starts in that folder.
-  const taskId = page.url.searchParams.get("task");
+  // `?cwd=` starts in that folder.
   const OTHER = "__other";
 
   let options = $state<PhoneOptions | null>(null);
-  let task = $state<Task | null>(null);
   let loadState = $state<"loading" | "ready" | "error">("loading");
   let loadError = $state("");
 
@@ -41,33 +39,23 @@
   const modeInfo = $derived(MODES.find((m) => m.id === permissionMode) ?? MODES[0]);
   const label = $derived.by(() => {
     const where = cwd ? folderName(cwd) : "…";
-    return task ? t("phone.runIn", { folder: where }) : t("phone.new.start", { cli: CLI_LABEL[cli], folder: where });
+    return t("phone.new.start", { cli: CLI_LABEL[cli], folder: where });
   });
 
   async function load() {
     loadState = "loading";
     try {
-      const [o, found] = await Promise.all([
-        call<PhoneOptions>("/api/options"),
-        taskId ? call<{ tasks: Task[] }>("/api/tasks").then((r) => r.tasks.find((x) => x.id === taskId) ?? null) : null,
-      ]);
-      if (taskId && !found) {
-        loadState = "error";
-        loadError = t("phone.new.cardGone");
-        return;
-      }
+      const o = await call<PhoneOptions>("/api/options");
       options = o;
-      task = found;
       const usable = o.clis.filter((c) => c.path);
-      cli = usable.find((c) => c.kind === found?.cli)?.kind ?? usable.find((c) => c.kind !== "gemini")?.kind ?? usable[0]?.kind ?? "claude";
-      const start = found?.project || page.url.searchParams.get("cwd") || "";
+      cli = usable.find((c) => c.kind !== "gemini")?.kind ?? usable[0]?.kind ?? "claude";
+      const start = page.url.searchParams.get("cwd") || "";
       if (start && !o.folders.some((f) => f.path === start)) {
         folder = OTHER;
         typed = start;
       } else {
         folder = start || o.folders[0]?.path || OTHER;
       }
-      prompt = found ? found.notes || found.title : "";
       permissionMode = o.permissionMode;
       loadState = "ready";
     } catch (e) {
@@ -103,8 +91,7 @@
     busy = true;
     try {
       const body = JSON.stringify({ cli, cwd, mode, prompt: prompt.trim(), permissionMode });
-      const path = task ? `/api/tasks/${task.id}/run` : "/api/sessions";
-      const r = await call<{ session: SessionInfo }>(path, { method: "POST", body });
+      const r = await call<{ session: SessionInfo }>("/api/sessions", { method: "POST", body });
       await goto(`/m/session?id=${r.session.id}`, { replaceState: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -120,13 +107,13 @@
   }
 </script>
 
-<svelte:head><title>{task ? t("phone.new.runCard") : t("phone.newSession")} · OpenCompanion</title></svelte:head>
+<svelte:head><title>{t("phone.newSession")} · OpenCompanion</title></svelte:head>
 
 <header class="bar m-bar-tight">
-  <a class="m-icon-btn m-back" href={taskId ? "/m/board" : "/m"} aria-label={taskId ? t("phone.new.backToBoard") : t("phone.session.back")} title={taskId ? t("phone.new.backToBoard") : t("phone.session.back")}>
+  <a class="m-icon-btn m-back" href="/m" aria-label={t("phone.session.back")} title={t("phone.session.back")}>
     <CaretLeft size={20} aria-hidden="true" />
   </a>
-  <h1 class="m-bar-title">{task ? task.title : t("phone.newSession")}</h1>
+  <h1 class="m-bar-title">{t("phone.newSession")}</h1>
 </header>
 <main class="content dense" id="phone-new-session">
   {#if loadState === "loading"}
@@ -136,7 +123,7 @@
     <button class="btn secondary block" type="button" onclick={load}>{t("phone.tryAgain")}</button>
   {:else if options}
     <p class="m-lead">
-      {task ? t("phone.new.leadCard") : t("phone.new.lead")}
+      {t("phone.new.lead")}
     </p>
     <form class="m-form" novalidate onsubmit={submit}>
       <fieldset>

@@ -26,7 +26,7 @@ function folder(extra: Record<string, (args: Record<string, unknown> | undefined
   const s = session({ status: "done", endedAt: Date.now() });
   app.sessions = [s];
   return backend({
-    get_session: () => ({ session: s, events: [], task: null }),
+    get_session: () => ({ session: s, events: [] }),
     terminal_list: () => [],
     folder_list: (a) => ({ entries: LISTING[String(a?.dir)] ?? [], truncated: false }),
     git_status: () => status,

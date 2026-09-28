@@ -365,7 +365,7 @@
         </div>
         <div class="meta">
           {CLI_LABEL[s.cli]}{version ? ` ${version}` : ""} · {t(`sessions.mode.${s.mode}`)} · {t("sessions.detail.permMode", { mode: modeLabel(s.permissionMode) })} · <span class="mono" title={s.cwd}>{shortPath(s.cwd)}</span> · {t("sessions.startedAt", { time: clock(s.startedAt) })}
-          {#if s.source !== "manual"} · {s.source === "chat" ? t("sessions.detail.fromChat") : t("sessions.detail.fromBoard")}{/if}
+          {#if s.source === "chat"} · {t("sessions.detail.fromChat")}{/if}
         </div>
       </div>
       {#if live}
@@ -574,12 +574,6 @@
               {:else}{SIGNAL_TEXT.screen}{/if}
             </p>
           </div>
-          {#if detail?.task}
-            <div class="side-group">
-              <h3>{t("sessions.detail.boardCard")}</h3>
-              <p><a class="link" href="/board">{detail.task.title}</a></p>
-            </div>
-          {/if}
         </div>
       </aside>
     </div>

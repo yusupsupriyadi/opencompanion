@@ -9,7 +9,6 @@ export const en = {
   // Sidebar
   "shell.nav.label": "Main",
   "shell.nav.overview": "Overview",
-  "shell.nav.board": "Board",
   "shell.nav.chat": "Chat",
   "shell.nav.settings": "Settings",
   "shell.sidebar.brand": "OpenCompanion, Overview",
@@ -143,7 +142,6 @@ export const id: Record<keyof typeof en, string> = {
 
   "shell.nav.label": "Utama",
   "shell.nav.overview": "Ringkasan",
-  "shell.nav.board": "Board",
   "shell.nav.chat": "Chat",
   "shell.nav.settings": "Pengaturan",
   "shell.sidebar.brand": "OpenCompanion, Ringkasan",

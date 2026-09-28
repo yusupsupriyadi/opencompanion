@@ -6,7 +6,6 @@
   import GearSix from "phosphor-svelte/lib/GearSix";
   import HandPalm from "phosphor-svelte/lib/HandPalm";
   import House from "phosphor-svelte/lib/House";
-  import Kanban from "phosphor-svelte/lib/Kanban";
   import Plus from "phosphor-svelte/lib/Plus";
   import PushPin from "phosphor-svelte/lib/PushPin";
   import Trash from "phosphor-svelte/lib/Trash";
@@ -20,7 +19,6 @@
   // CLIs, Skills, Phone access and the theme live under Settings.
   const NAV = [
     { href: "/", key: "shell.nav.overview", icon: House },
-    { href: "/board", key: "shell.nav.board", icon: Kanban },
     { href: "/chat", key: "shell.nav.chat", icon: ChatsCircle },
     { href: "/settings", key: "shell.nav.settings", icon: GearSix },
   ] as const;

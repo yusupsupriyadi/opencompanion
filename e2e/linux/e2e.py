@@ -295,17 +295,6 @@ def main():
         app.wait(lambda: "ping-e2e" in main() and "hello from linux e2e" not in main(), 10, "search keeps only ping-e2e")
         return "all three sessions listed; search 'ping' leaves only ping-e2e"
 
-    @step("board: add a card to the board", app)
-    def _():
-        app.nav("/board")
-        app.wait_css("#board-main")
-        app.click_css("#btn-new-card")
-        app.type(app.wait_css("#cd-title"), "Linux e2e card")
-        app.click(app.xfind("//input[@id='cd-title']/ancestor::form//button[@type='submit']"))
-        app.wait(lambda: not app.find_all("#cd-title"), 10, "card dialog closed")
-        app.wait_text("Linux e2e card")
-        return "card visible on the board"
-
     @step("settings: switch language to Indonesian and back", app)
     def _():
         app.nav("/settings")
@@ -414,7 +403,7 @@ def main():
         app.click_button("Start OpenCode in e2e-project")
         app.wait_text("done: notify me", 30)
         target = app.js("return location.search")
-        app.nav("/board")
+        app.nav("/history")
         app.wait(lambda: dunst("count", "displayed") not in ("", "0"), 15, "notification on screen")
         dunst("action", "0")
         app.wait(lambda: app.js("return location.pathname + location.search") == "/session" + target, 15, "session opened from the notification")
@@ -428,21 +417,19 @@ def main():
 
     app.quit()
 
-    # Second launch against the same data folder: finished sessions, the card and the paired
-    # device must survive a restart.
+    # Second launch against the same data folder: finished sessions and the paired device must
+    # survive a restart.
     app2 = App()
 
-    @step("restart: data survives (onboarding skipped, sessions, card, device)", app2)
+    @step("restart: data survives (onboarding skipped, sessions, device)", app2)
     def _():
         app2.wait(lambda: app2.find_all("#overview-main, #onboarding"), 30, "shell")
         assert not app2.find_all("#onboarding"), "onboarding shown again after restart"
         app2.nav("/history")
         app2.wait_text("e2e-project", 15)
-        app2.nav("/board")
-        app2.wait_text("Linux e2e card", 15)
         app2.nav("/settings")
         app2.wait_text("e2e phone", 15)
-        return "history, board card and paired device all present"
+        return "history and paired device both present"
 
     app2.quit()
 

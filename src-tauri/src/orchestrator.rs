@@ -303,7 +303,6 @@ fn follow_ups_from(v: &Value, clis: &[CliInstall], sessions: &[SessionInfo]) -> 
                 problem: None,
                 state: "proposed".into(),
                 session_id: None,
-                task_id: None,
                 target: Some(s.id.clone()),
                 auto: false,
             };
@@ -333,7 +332,6 @@ fn cards_from(v: &Value, clis: &[CliInstall], known: &[ProjectFolder]) -> Vec<Di
                 problem: None,
                 state: "proposed".into(),
                 session_id: None,
-                task_id: None,
                 target: None,
                 auto: false,
             };
@@ -681,7 +679,6 @@ mod tests {
             last_event: None,
             waiting: None,
             source: "manual".into(),
-            task_id: None,
             permission_mode: None,
             updated_at: 1,
         }
@@ -795,7 +792,6 @@ mod tests {
             problem: None,
             state: "proposed".into(),
             session_id: None,
-            task_id: None,
             target: None,
             auto: false,
         };

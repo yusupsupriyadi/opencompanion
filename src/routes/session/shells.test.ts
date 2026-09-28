@@ -33,7 +33,7 @@ function backend(handlers: Parameters<typeof mockBackend>[0]) {
   const s = session({ status: "done", endedAt: Date.now() });
   app.sessions = [s];
   return mockBackend({
-    get_session: () => ({ session: s, events: [], task: null }),
+    get_session: () => ({ session: s, events: [] }),
     terminal_output: () => ({ data: "", seq: 0 }),
     ...handlers,
   });

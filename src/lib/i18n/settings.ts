@@ -44,7 +44,7 @@ export const en = {
 
   "settings.perm.title": "Permission mode",
   "settings.perm.desc":
-    "How much the CLIs may do on their own in sessions OpenCompanion starts. New session and Board runs can pick another mode for a single session. Chat's planner is not affected: it stays read-only.",
+    "How much the CLIs may do on their own in sessions OpenCompanion starts. New session can pick another mode for a single session. Chat's planner is not affected: it stays read-only.",
   "settings.perm.legend": "Default permission mode",
   "settings.perm.bypassAsk": "Turn on Bypass for every new session?",
   "settings.perm.bypassWhat":
@@ -234,7 +234,7 @@ export const id: Record<keyof typeof en, string> = {
 
   "settings.perm.title": "Mode izin",
   "settings.perm.desc":
-    "Seberapa jauh CLI boleh bertindak sendiri di sesi yang dimulai OpenCompanion. Sesi baru dan Board bisa memakai mode lain untuk satu sesi. Planner di Chat tidak terpengaruh: tetap hanya baca.",
+    "Seberapa jauh CLI boleh bertindak sendiri di sesi yang dimulai OpenCompanion. Sesi baru bisa memakai mode lain untuk satu sesi. Planner di Chat tidak terpengaruh: tetap hanya baca.",
   "settings.perm.legend": "Mode izin bawaan",
   "settings.perm.bypassAsk": "Aktifkan Bypass untuk setiap sesi baru?",
   "settings.perm.bypassWhat":

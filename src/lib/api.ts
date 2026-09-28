@@ -115,7 +115,6 @@ export interface SessionInfo {
   lastEvent: string | null;
   waiting: Waiting | null;
   source: string;
-  taskId: string | null;
   permissionMode: string | null;
   updatedAt: number;
 }
@@ -157,25 +156,9 @@ export interface EventRow {
   event: SessionEvent;
 }
 
-export interface Task {
-  id: string;
-  title: string;
-  notes: string;
-  project: string;
-  cli: CliKind | null;
-  column: Column;
-  position: number;
-  sessionId: string | null;
-  createdAt: number;
-  updatedAt: number;
-}
-
-export type Column = "pending" | "todo" | "progress" | "done";
-
 export interface SessionDetail {
   session: SessionInfo;
   events: EventRow[];
-  task: Task | null;
 }
 
 /** Mirrors `files::Entry`. Paths are relative to the session folder, with `/` between parts. */
@@ -284,8 +267,6 @@ export interface DispatchCard {
   problem: string | null;
   state: "proposed" | "started" | "discarded";
   sessionId: string | null;
-  /** The Board card made from this card, if any. */
-  taskId?: string | null;
   /** A follow-up for this existing session: Send gives it the prompt instead of starting one. */
   target?: string | null;
   /** Started without Run, because its folder runs cards without asking. */
@@ -435,7 +416,6 @@ export interface StartRequest {
   prompt: string;
   permissionMode?: string | null;
   source?: string;
-  taskId?: string | null;
   cols?: number;
   rows?: number;
 }
@@ -490,7 +470,7 @@ export const api = {
   sendInput: (id: string, text: string) => invoke<SessionInfo>("send_input", { id, text }),
   resizeSession: (id: string, cols: number, rows: number) => invoke<void>("resize_session", { id, cols, rows }),
   stopSession: (id: string) => invoke<void>("stop_session", { id }),
-  /** Closes the CLI like Stop, but the session ends Done and its Board card moves to Done. */
+  /** Closes the CLI like Stop, but the session ends Done. */
   markSessionDone: (id: string) => invoke<void>("mark_session_done", { id }),
   answerSession: (id: string, allow: boolean) => invoke<SessionInfo>("answer_session", { id, allow }),
   resumeSession: (id: string, cols?: number, rows?: number) => invoke<SessionInfo>("resume_session", { id, cols, rows }),
@@ -542,18 +522,8 @@ export const api = {
   chatDiscardCard: (messageId: string, cardId: string, undo = false) =>
     invoke<ChatMessage>("chat_discard_card", { messageId, cardId, undo }),
   chatRunCard: (messageId: string, cardId: string) => invoke<ChatMessage>("chat_run_card", { messageId, cardId }),
-  /** Returns the message, whose card then names the Board card it became. */
-  chatCardToBoard: (messageId: string, cardId: string) => invoke<ChatMessage>("chat_card_to_board", { messageId, cardId }),
   chatModels: (cli: CliKind) => invoke<ModelList>("chat_models", { cli }),
   chatSetModel: (cli: CliKind, model: string, effort: string) => invoke<Settings>("chat_set_model", { cli, model, effort }),
-
-  listTasks: () => invoke<Task[]>("list_tasks"),
-  saveTask: (task: { id?: string | null; title: string; notes: string; project: string; cli: CliKind | null; column: Column }) =>
-    invoke<Task>("save_task", { task }),
-  moveTask: (id: string, column: Column, before?: string | null) => invoke<Task>("move_task", { id, column, before }),
-  deleteTask: (id: string) => invoke<void>("delete_task", { id }),
-  runTask: (input: { id: string; cli: CliKind; cwd: string; mode: Mode; prompt: string; permissionMode: PermMode }) =>
-    invoke<SessionInfo>("run_task", { input }),
 
   getSettings: () => invoke<Settings>("get_settings"),
   saveSettings: (settings: Settings) => invoke<Settings>("save_settings", { settings }),

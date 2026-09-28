@@ -22,7 +22,7 @@ test("every nav item points at a screen that exists", () => {
   render(Sidebar);
   const nav = within(screen.getByRole("navigation", { name: "Main" }));
   const hrefs = nav.getAllByRole("link").map((a) => a.getAttribute("href"));
-  expect(hrefs).toEqual(["/", "/board", "/chat", "/settings"]);
+  expect(hrefs).toEqual(["/", "/chat", "/settings"]);
   expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
 });
 

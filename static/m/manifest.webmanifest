@@ -2,7 +2,7 @@
   "id": "/m",
   "name": "OpenCompanion",
   "short_name": "OpenCompanion",
-  "description": "Answer prompts, start sessions and move Board cards on the computer running OpenCompanion, over your own network.",
+  "description": "Answer prompts, start sessions and plan them in Chat on the computer running OpenCompanion, over your own network.",
   "start_url": "/m",
   "scope": "/m",
   "display": "standalone",

@@ -69,27 +69,17 @@ test("Edit saves the new title and prompt through validation", async () => {
   expect(api.calls("chat_update_card")[0]).toMatchObject({ messageId: "m1", card: { id: "c1", title: "README only", prompt: "Only touch README.md" } });
 });
 
-test("Discard and Add to board call the backend", async () => {
-  const onBoard = msg(card({ taskId: "t7" }));
-  const api = backend({ chat_discard_card: () => msg(card({ state: "discarded" })), chat_card_to_board: () => onBoard });
+test("Discard calls the backend", async () => {
+  const discarded = msg(card({ state: "discarded" }));
+  const api = backend({ chat_discard_card: () => discarded });
   const onchange = vi.fn();
-  const user = userEvent.setup();
   render(DispatchCard, { card: card(), messageId: "m1", onchange });
-  await user.click(screen.getByRole("button", { name: "Add to board" }));
-  expect(onchange).toHaveBeenCalledWith(onBoard);
-  await user.click(screen.getByRole("button", { name: "Discard" }));
-  expect(api.calls("chat_card_to_board")).toEqual([{ messageId: "m1", cardId: "c1" }]);
+  await userEvent.setup().click(screen.getByRole("button", { name: "Discard" }));
   expect(api.calls("chat_discard_card")).toEqual([{ messageId: "m1", cardId: "c1", undo: false }]);
+  expect(onchange).toHaveBeenCalledWith(discarded);
 });
 
-test("a card already on the Board links there instead of adding a second one", () => {
-  backend({});
-  render(DispatchCard, { card: card({ taskId: "t7" }), messageId: "m1", onchange: vi.fn() });
-  expect(screen.getByRole("link", { name: "On the Board" })).toHaveAttribute("href", "/board");
-  expect(screen.queryByRole("button", { name: "Add to board" })).toBeNull();
-});
-
-test("a follow-up card sends its message to the session and never becomes a Board card", async () => {
+test("a follow-up card sends its message to the session", async () => {
   const follow = card({ target: "s1", title: "Add a dark mode toggle", prompt: "Also add a test for the toggle." });
   const sent = { ...follow, state: "started" as const, sessionId: "s1" };
   const api = backend({ chat_run_card: () => msg(sent), chat_update_card: () => msg(follow) });
@@ -98,7 +88,6 @@ test("a follow-up card sends its message to the session and never becomes a Boar
   render(DispatchCard, { card: follow, messageId: "m1", onchange });
   expect(screen.getByRole("article", { name: "Follow-up for Add a dark mode toggle" })).toBeInTheDocument();
   expect(screen.getByText("Follow-up")).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Add to board" })).toBeNull();
 
   await user.click(screen.getByRole("button", { name: "Edit" }));
   expect(screen.getByLabelText("Message for the session")).toHaveValue("Also add a test for the toggle.");
@@ -147,7 +136,7 @@ test("the card switches to Indonesian when the UI language changes", async () =>
     i18n.lang = "id";
     await tick();
     expect(screen.getByRole("button", { name: "Jalankan di comic-translate" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Tambah ke Board" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Buang" })).toBeInTheDocument();
     expect(screen.getByText("Siap")).toBeInTheDocument();
   } finally {
     i18n.lang = "en";

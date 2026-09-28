@@ -32,7 +32,6 @@ body:
       options:
         - Sessions
         - Chat planner
-        - Board
         - Phone companion
         - CLIs and CLI support
         - Skills screen

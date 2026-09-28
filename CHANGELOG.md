@@ -13,12 +13,11 @@ Planned as 0.1.0, the first public release. Windows 11 is tested by hand, Linux 
 - Approve/Deny for Claude Code permission prompts: headless through its stdio control protocol, interactive through hooks passed with `--settings`.
 - Permission modes Ask me, Plan, Auto and Bypass, turned into each CLI's own flags.
 - Overview and All sessions with search and filters. Sessions opened in your own terminal are listed read-only, with transcripts from each CLI's history.
-- Chat planner that turns a request into one dispatch card per session. It runs a CLI headless with read-only access to your project folders, or calls an OpenAI-compatible endpoint. Model and thinking level, `@` folder mentions, follow-ups to a running session, Add to board.
-- Board with Pending, Todo, In progress and Done. Cards start a CLI on Run and follow their session to Done; in folders you pick they may start without Run, never with Bypass.
+- Chat planner that turns a request into one dispatch card per session. It runs a CLI headless with read-only access to your project folders, or calls an OpenAI-compatible endpoint. Model and thinking level, `@` folder mentions, follow-ups to a running session. In folders you pick, cards may start without Run, never with Bypass.
 - Skills screen that compares the skill folders of each CLI by content and offers copy commands. Read-only.
 - OS notifications with choices per CLI and per project folder. On Windows and Linux a click opens the session.
 - Tray icon that keeps sessions running after the window closes, and start in the tray at sign-in.
-- Phone companion over HTTP and WebSocket on the local network, off by default: one-time pairing codes, SHA-256 hashed device tokens, a device list, and an offline screen. From the phone: sessions, Approve/Deny, new sessions, messages, Chat and the Board. The phone page can be added to the home screen.
+- Phone companion over HTTP and WebSocket on the local network, off by default: one-time pairing codes, SHA-256 hashed device tokens, a device list, and an offline screen. From the phone: sessions, Approve/Deny, new sessions, messages and Chat. The phone page can be added to the home screen.
 - English and Indonesian UI, including backend messages, OS notifications and the tray menu.
 - CCS (`@kaitranntt/ccs`) as a CLI. It runs Claude Code with Claude Code's flags, output, hooks and transcripts. Its extra arguments in Settings go right after `ccs`, so the profile comes first.
 - Pi (`@earendil-works/pi-coding-agent`) as a CLI: interactive and headless sessions (`pi --mode json`), follow-ups and Resume, the Chat planner with its models and thinking levels, outside sessions with transcripts, and its skill folder. Plan mode limits Pi to read-only tools.
@@ -28,6 +27,10 @@ Planned as 0.1.0, the first public release. Windows 11 is tested by hand, Linux 
 - `scripts/ci/checks.sh`, a Linux end-to-end test in Docker (`e2e/linux`), and CircleCI jobs for Linux, Windows and macOS that run only when triggered.
 - Scroll-driven landing page in `landing/`.
 - README, CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, the MIT LICENSE, and GitHub issue and pull request templates.
+
+### Removed
+
+- The Board (Pending, Todo, In progress and Done), on the desktop and the phone, with Add to board in Chat and the Board card on the Session screen. A finished session no longer moves a card. Databases that already have Board cards keep them untouched.
 
 ### Known limits
 

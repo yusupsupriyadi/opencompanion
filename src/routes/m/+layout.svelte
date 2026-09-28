@@ -4,7 +4,6 @@
   import ArrowClockwise from "phosphor-svelte/lib/ArrowClockwise";
   import ChatsCircle from "phosphor-svelte/lib/ChatsCircle";
   import House from "phosphor-svelte/lib/House";
-  import Kanban from "phosphor-svelte/lib/Kanban";
   import { onMount } from "svelte";
   import "$lib/phone.css";
   import AppLogo from "$lib/AppLogo.svelte";
@@ -14,12 +13,11 @@
   let { children } = $props();
   const onPair = $derived(page.url.pathname.startsWith("/m/pair"));
 
-  // The three top-level screens get the tab bar; detail screens and forms own the bottom edge instead.
+  // The two top-level screens get the tab bar; detail screens and forms own the bottom edge instead.
   // The labels are getters, so they follow the UI language.
   const TABS = [
     { href: "/m", get label() { return t("phone.nav.sessions"); }, icon: House },
     { href: "/m/chat", get label() { return t("phone.nav.chat"); }, icon: ChatsCircle },
-    { href: "/m/board", get label() { return t("phone.nav.board"); }, icon: Kanban },
   ];
   const path = $derived(page.url.pathname.replace(/\/$/, "") || "/m");
   const tabbed = $derived(TABS.some((tab) => tab.href === path));

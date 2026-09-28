@@ -26,12 +26,11 @@ The UI is available in English and Indonesian (Settings › Language). The curre
 - Sessions you opened in your own terminal show up too, read-only, with a transcript read from the CLI's own history.
 - Know when a session is waiting for you. Claude Code permission prompts get Approve and Deny buttons. A CLI's opening dialogs, such as a folder trust question or an update offer, show as Waiting for you and are never answered for you.
 - Get OS notifications, with choices per CLI and per project folder. On Windows, clicking one opens its session.
-- Describe work in Chat, in plain words. A planner turns it into one card per session; you read each prompt, then press Run. The planner is a CLI running headless with read-only access to your project folders, or any OpenAI-compatible endpoint such as Ollama, LM Studio or OpenRouter. Type `@` to name a folder, and pick the planner's model and thinking level.
-- Line up work on the Board: Pending, Todo, In progress and Done. A card starts its CLI when you press Run and follows the session to Done. In folders you choose, cards may start without Run, but never in Bypass mode.
+- Describe work in Chat, in plain words. A planner turns it into one card per session; you read each prompt, then press Run. The planner is a CLI running headless with read-only access to your project folders, or any OpenAI-compatible endpoint such as Ollama, LM Studio or OpenRouter. Type `@` to name a folder, and pick the planner's model and thinking level. In folders you choose, cards may start without Run, but never in Bypass mode.
 - Run the project itself from its session: New terminal (the `+` after the session's tabs) opens a plain shell such as PowerShell, Command Prompt, Git Bash or bash in the session's folder, one tab each, for a dev server, tests or git. Shells keep no history, end when you close their tab or delete the session, and are reachable from the desktop only, never from the phone.
 - Compare the skill folders of each CLI in Settings › Skills: which skill is missing from a CLI's folder or has different content there, with a command to copy and run yourself.
 - Keep sessions running from the tray after the window closes, and start in the tray when you sign in to Windows.
-- Answer from your phone on the same network: watch sessions, Approve or Deny, start new sessions, mark them done, send messages, plan in Chat and work the Board. The phone page can go on the home screen.
+- Answer from your phone on the same network: watch sessions, Approve or Deny, start new sessions, mark them done, send messages and plan in Chat. The phone page can go on the home screen.
 - Pick a [permission mode](#permission-modes) per session: Ask me, Plan, Auto or Bypass.
 - Settings also covers the Day or Dusk theme, text size, retention of finished sessions, custom CLI paths and the UI language.
 
@@ -126,7 +125,7 @@ Good to know:
   - Windows: `%APPDATA%\dev.opencompanion.app`
   - macOS: `~/Library/Application Support/dev.opencompanion.app`
   - Linux: `~/.local/share/dev.opencompanion.app`
-- That folder holds `opencompanion.db` (SQLite: sessions, events, Chat, Board, settings and paired devices), terminal logs under `sessions/`, the hook files for Claude Code sessions under `hooks/`, and the planner's working folder `planner/`.
+- That folder holds `opencompanion.db` (SQLite: sessions, events, Chat, settings and paired devices), terminal logs under `sessions/`, the hook files for Claude Code sessions under `hooks/`, and the planner's working folder `planner/`.
 - Images you paste into a terminal are saved in the system temp folder, under `opencompanion-paste` (`%TEMP%\opencompanion-paste` on Windows). OpenCompanion does not delete them; they stay until you or the system clear the temp folder.
 - The Files, Changes and Branch tabs of a session read its folder and run your own `git` there (status, diff, branch list and log, with `GIT_OPTIONAL_LOCKS=0` so they never lock the index). Only Switch branch changes anything, and file contents never reach the phone.
 - Shell tabs are not saved: their output lives in memory while the tab is open and is gone when you close it, delete its session or quit. Retention skips a session while a shell is open in it.
@@ -146,7 +145,7 @@ Each session starts in one of four modes. OpenCompanion turns the mode into each
 | Auto | The CLI approves routine actions itself | `--permission-mode auto` | `--approve-for-me` | `--auto` | Runs every tool without asking | `--approval-mode write` |
 | Bypass | No permission checks at all | `--dangerously-skip-permissions` | `--dangerously-bypass-approvals-and-sandbox` | `--auto` with `OPENCODE_PERMISSION={"*":"allow"}` | Runs every tool without asking | `--approval-mode yolo` |
 
-The flags were checked against each CLI's `--help` on 2026-09-25. A resumed headless Codex run keeps the sandbox it started with. Gemini CLI gets no mode flags. CCS gets Claude Code's flags. Pi was checked against 0.87.1, and omp against 18.3.5 on 2026-09-28. Board cards that start without Run never use Bypass.
+The flags were checked against each CLI's `--help` on 2026-09-25. A resumed headless Codex run keeps the sandbox it started with. Gemini CLI gets no mode flags. CCS gets Claude Code's flags. Pi was checked against 0.87.1, and omp against 18.3.5 on 2026-09-28. Chat cards that start without Run never use Bypass.
 
 ## Development
 
@@ -169,13 +168,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, code style and pull requests.
 
 | Path | What it holds |
 |---|---|
-| `src-tauri/src/session.rs` | Session manager: PTY and headless runs, status, waiting detection, Approve/Deny, stop, resume, Board card moves, notifications |
+| `src-tauri/src/session.rs` | Session manager: PTY and headless runs, status, waiting detection, Approve/Deny, stop, resume, notifications |
 | `src-tauri/src/pty.rs`, `headless.rs` | ConPTY sessions and headless runners with per-CLI arguments and permission mode flags |
 | `src-tauri/src/events.rs`, `waiting.rs` | Event parsers per CLI, and the screen-text fallback for prompts |
 | `src-tauri/src/orchestrator.rs` | Chat planner: runs a CLI headless with read-only access to project folders, or calls an OpenAI-compatible endpoint, and validates dispatch cards |
 | `src-tauri/src/models.rs` | Planner models and thinking levels per CLI (Claude Code's own model catalog cache, `codex debug models`, `opencode models --verbose`, `pi --list-models`, `omp models --json`) and the flags that pass them |
 | `src-tauri/src/companion.rs` | Phone companion: HTTP + WebSocket on the LAN, pairing codes, hashed device tokens |
-| `src-tauri/src/actions.rs` | Chat, dispatch card and Board work shared by the desktop commands and the phone API |
+| `src-tauri/src/actions.rs` | Chat and dispatch card work shared by the desktop commands and the phone API |
 | `src-tauri/src/monitor.rs`, `cli.rs`, `db.rs`, `projects.rs` | Outside-session scan and CPU/memory per session, CLI detection, SQLite store, project folder discovery |
 | `src-tauri/src/ccs.rs` | CCS profiles: which profile the extra arguments name, and the Claude Code config folders CCS uses |
 | `src-tauri/src/pi.rs` | Pi and omp: their JSON events, stderr errors, model lists, planner answer and session files |
@@ -186,7 +185,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, code style and pull requests.
 | `src-tauri/src/autostart.rs`, `proc.rs`, `shell_env.rs` | Start at sign-in on each OS, process launch and tree kill, and the login shell's environment for CLIs on macOS and Linux |
 | `src-tauri/src/bin/` | `fake-cli` for the integration tests, `air-spike` for spikes against the real CLIs |
 | `src-tauri/tests/` | Integration tests for the session manager and the phone companion |
-| `src/routes` | Desktop screens (Overview, Session, All sessions, Chat, Board, Settings with its General, CLIs and Skills tabs, Onboarding) and the phone app under `/m` |
+| `src/routes` | Desktop screens (Overview, Session, All sessions, Chat, Settings with its General, CLIs and Skills tabs, Onboarding) and the phone app under `/m` |
 | `src/lib` | Shared components, the store, and the English and Indonesian strings in `src/lib/i18n` |
 | `src/service-worker.ts`, `static/m/` | The phone page's service worker, web app manifest and icons |
 | `landing/` | The scroll-driven landing page: one `index.html` that opens by double-click, plus the meadow painting split into sky, clouds and ground |
@@ -195,7 +194,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, code style and pull requests.
 
 ## Status
 
-Built: the P0 requirements of PRD sections A to G, most P1 ones (install commands, custom CLI paths, resume, waiting detection, Approve/Deny, planner context, activity track, device list, offline screen, permission modes Ask me / Plan / Auto / Bypass, text size, planner model and thinking level, `@` folder mentions in Chat, CPU and memory per session, transcripts of sessions opened outside OpenCompanion, retention of finished sessions, notification choices per CLI and per project folder, Chat follow-ups sent to a running session, the tray icon that keeps sessions running after the window closes, starting in the tray at sign-in, All sessions with search and filters, cards that start without Run in folders the owner picks, never with Bypass, an English or Indonesian UI), and the Board (section H, including Add to board from Chat). Outside the PRD: Settings › Skills, which shows which skill is missing from a CLI's folder or has different content there, with a copy command to run yourself; the installable phone page; shell tabs in a session's folder; the Files, Changes and Branch tabs beside a session's terminal; Mark done for an idle terminal session; and image paste and Shift+Enter in terminals.
+Built: the P0 requirements of PRD sections A to G, most P1 ones (install commands, custom CLI paths, resume, waiting detection, Approve/Deny, planner context, activity track, device list, offline screen, permission modes Ask me / Plan / Auto / Bypass, text size, planner model and thinking level, `@` folder mentions in Chat, CPU and memory per session, transcripts of sessions opened outside OpenCompanion, retention of finished sessions, notification choices per CLI and per project folder, Chat follow-ups sent to a running session, the tray icon that keeps sessions running after the window closes, starting in the tray at sign-in, All sessions with search and filters, cards that start without Run in folders the owner picks, never with Bypass, an English or Indonesian UI). Section H (the Board) was removed on 2026-09-28. Outside the PRD: Settings › Skills, which shows which skill is missing from a CLI's folder or has different content there, with a copy command to run yourself; the installable phone page; shell tabs in a session's folder; the Files, Changes and Branch tabs beside a session's terminal; Mark done for an idle terminal session; and image paste and Shift+Enter in terminals.
 
 ### Known limits
 

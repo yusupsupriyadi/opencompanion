@@ -36,7 +36,7 @@ How it works:
 - Without a token, the server answers only the phone page's static files, `/api/hello` (the app name and its UI language) and `/api/pair`. Everything else returns 401.
 - Removing a device in Settings › Phone access closes its connection and makes its token useless. Turning phone access off stops the server and closes every connection.
 
-What a paired phone can do: everything the desktop can do with sessions. It can start any supported CLI in any folder on the computer, in any permission mode including Bypass, type into a running terminal, answer permission prompts, stop and resume sessions, and use Chat and the Board. Treat a paired phone like your keyboard.
+What a paired phone can do: everything the desktop can do with sessions. It can start any supported CLI in any folder on the computer, in any permission mode including Bypass, type into a running terminal, answer permission prompts, stop and resume sessions, and use Chat. Treat a paired phone like your keyboard.
 
 What it protects against:
 
@@ -60,5 +60,5 @@ What it does not protect against:
 - Getting a device token without the pairing code, or getting around the attempt limit.
 - A removed device still getting in.
 - OpenCompanion writing to a CLI's own folders, installing something, or answering a CLI dialog without the user.
-- A session starting in a more permissive mode than the one chosen, or a Board card starting in Bypass mode on its own.
+- A session starting in a more permissive mode than the one chosen, or a Chat card starting in Bypass mode on its own.
 - Script injection in the desktop window or the phone page from CLI output, file names or transcripts.

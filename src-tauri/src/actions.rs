@@ -1,14 +1,14 @@
-//! Work the desktop window and the phone companion both do: planning in Chat, dispatch cards,
-//! and moving or running Board cards. Each caller tells its own listeners what changed.
+//! Work the desktop window and the phone companion both do: planning in Chat and dispatch
+//! cards. Each caller tells its own listeners what changed.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::cli::{self, CliInstall, CliKind};
-use crate::db::{self, ChatMessage, ChatModel, ChatThread, Db, DispatchCard, Mode, PlannerSource, SessionInfo, Settings, Task};
+use crate::db::{self, ChatMessage, ChatModel, ChatThread, Db, DispatchCard, PlannerSource, Settings};
 use crate::headless::PermMode;
 use crate::monitor;
 use crate::models;
@@ -16,8 +16,6 @@ use crate::orchestrator;
 use crate::session::{Manager, StartRequest};
 
 type Res<T> = Result<T, String>;
-
-pub const COLUMNS: [&str; 4] = ["pending", "todo", "progress", "done"];
 
 /// Installed CLIs, with the custom paths from Settings taking the place of PATH lookups.
 pub fn detect_with_settings(db: &Db) -> Vec<CliInstall> {
@@ -194,7 +192,6 @@ pub fn auto_run(manager: &Arc<Manager>, settings: &Settings, cards: &mut [Dispat
             title: Some(card.title.clone()),
             permission_mode: Some(mode.as_str().to_string()),
             source: Some("chat".into()),
-            task_id: None,
             cols: None,
             rows: None,
         });
@@ -364,7 +361,6 @@ pub fn run_card(db: &Db, manager: &Arc<Manager>, message_id: &str, card_id: &str
         title: Some(card.title.clone()),
         permission_mode: None,
         source: Some("chat".into()),
-        task_id: None,
         cols: None,
         rows: None,
     })?;
@@ -373,104 +369,6 @@ pub fn run_card(db: &Db, manager: &Arc<Manager>, message_id: &str, card_id: &str
         c.session_id = Some(session.id.clone());
         Ok(())
     })
-}
-
-/// A card from Chat becomes a Todo card on the Board, once: the chat card remembers it.
-/// Returns the Board card and the chat message that now links to it.
-pub fn card_to_board(db: &Db, message_id: &str, card_id: &str) -> Res<(Task, ChatMessage)> {
-    let msg = db.chat_message(message_id)?.ok_or("Message not found.")?;
-    let card = msg.cards.iter().find(|c| c.id == card_id).ok_or("Card not found.")?;
-    if card.target.is_some() {
-        return Err("A follow-up goes to its session; it cannot become a Board card.".into());
-    }
-    if card.task_id.as_deref().is_some_and(|t| db.task(t).ok().flatten().is_some()) {
-        return Err("This card is on the Board already.".into());
-    }
-    let now = db::now_ms();
-    let task = Task {
-        id: db::new_id(),
-        title: Some(card.title.trim())
-            .filter(|t| !t.is_empty())
-            .or_else(|| card.prompt.lines().next())
-            .unwrap_or("Task from chat")
-            .chars()
-            .take(120)
-            .collect(),
-        notes: card.prompt.clone(),
-        project: card.folder.clone(),
-        cli: Some(card.cli),
-        column: "todo".into(),
-        position: db.next_position("todo")?,
-        session_id: None,
-        created_at: now,
-        updated_at: now,
-    };
-    db.save_task(&task)?;
-    let message = with_card(db, message_id, card_id, |c| {
-        c.task_id = Some(task.id.clone());
-        Ok(())
-    })?;
-    Ok((task, message))
-}
-
-/// Moves a card to `column`, before the card `before` when it is in that column, else to the end.
-pub fn move_task(db: &Db, id: &str, column: &str, before: Option<String>) -> Res<Task> {
-    if !COLUMNS.contains(&column) {
-        return Err("Unknown column.".into());
-    }
-    let mut task = db.task(id)?.ok_or("Card not found.")?;
-    task.position = match before.and_then(|b| db.task(&b).ok().flatten()) {
-        Some(b) if b.column == column => {
-            let prev = db
-                .tasks()?
-                .into_iter()
-                .filter(|t| t.column == column && t.position < b.position && t.id != task.id)
-                .map(|t| t.position)
-                .fold(b.position - 1.0, f64::max);
-            (prev + b.position) / 2.0
-        }
-        _ => db.next_position(column)?,
-    };
-    task.column = column.to_string();
-    task.updated_at = db::now_ms();
-    db.save_task(&task)?;
-    Ok(task)
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RunTaskInput {
-    pub id: String,
-    pub cli: CliKind,
-    pub cwd: String,
-    pub mode: Mode,
-    pub prompt: String,
-    pub permission_mode: Option<String>,
-}
-
-/// Runs a Board card: the session starts and the card moves to In progress with it.
-pub fn run_task(db: &Db, manager: &Arc<Manager>, input: RunTaskInput) -> Res<SessionInfo> {
-    let mut task = db.task(&input.id)?.ok_or("Card not found.")?;
-    let session = manager.start(StartRequest {
-        cli: input.cli,
-        cwd: input.cwd.clone(),
-        mode: input.mode,
-        prompt: input.prompt.clone(),
-        title: Some(task.title.clone()),
-        permission_mode: input.permission_mode.clone(),
-        source: Some("board".into()),
-        task_id: Some(task.id.clone()),
-        cols: None,
-        rows: None,
-    })?;
-    task.session_id = Some(session.id.clone());
-    task.cli = Some(input.cli);
-    task.project = input.cwd.trim().to_string();
-    task.column = "progress".into();
-    task.position = db.next_position("progress")?;
-    task.updated_at = db::now_ms();
-    db.save_task(&task)?;
-    Ok(session)
 }
 
 #[cfg(test)]

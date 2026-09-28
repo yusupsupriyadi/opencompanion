@@ -15,8 +15,7 @@ OpenCompanion adalah aplikasi desktop lokal untuk mengelola AI coding CLI sepert
 2. menjalankan sesi CLI di folder project mana pun,
 3. memberi tugas lewat AI chat bawaan yang menyusun rencana lalu mengirim tugas ke CLI yang tepat,
 4. memonitor semua sesi yang sedang berjalan, termasuk yang dibuka di luar aplikasi,
-5. memantau dan menjawab prompt izin dari HP lewat web companion di jaringan lokal,
-6. mengatur tugas di Board kanban (Pending, Todo, In progress, Done) yang bisa langsung dijalankan ke CLI.
+5. memantau dan menjawab prompt izin dari HP lewat web companion di jaringan lokal.
 
 Semua berjalan di komputer Anda. OpenCompanion tidak punya server cloud, akun, atau telemetri. Model AI tetap diproses oleh provider masing-masing CLI, karena CLI itu sendiri yang memanggil API-nya. Satu pengecualian yang Anda pilih sendiri: planner Chat bisa memakai custom provider (FR-29), yang dipanggil langsung oleh OpenCompanion.
 
@@ -115,12 +114,12 @@ Prioritas: **P0** wajib untuk MVP, **P1** penting setelah MVP, **P2** nanti.
 | ID | Prio | Requirement | Acceptance criteria |
 |---|---|---|---|
 | FR-20 | P0 | Chat memakai CLI terpasang sebagai otak. | Settings menyediakan pilihan CLI untuk chat (default: Claude Code bila terpasang). Chat dijalankan dalam mode headless CLI tersebut, tanpa API key tambahan. Sebagai gantinya bisa dipilih custom provider (FR-29). |
-| FR-21 | P0 | Chat menghasilkan rencana dispatch terstruktur. | Untuk permintaan tugas, jawaban chat berisi satu atau lebih kartu dispatch: nama tugas singkat, CLI, folder, prompt, mode (interactive/headless), dan alasan singkat pemilihan CLI. Sesi yang dimulai dari kartu (Chat atau Board) memakai nama tugas itu sebagai judul; sesi Claude Code interaktif tanpa nama kartu memakai nama tugas yang ditulis Claude Code sendiri di judul terminal. |
+| FR-21 | P0 | Chat menghasilkan rencana dispatch terstruktur. | Untuk permintaan tugas, jawaban chat berisi satu atau lebih kartu dispatch: nama tugas singkat, CLI, folder, prompt, mode (interactive/headless), dan alasan singkat pemilihan CLI. Sesi yang dimulai dari kartu Chat memakai nama tugas itu sebagai judul; sesi Claude Code interaktif tanpa nama kartu memakai nama tugas yang ditulis Claude Code sendiri di judul terminal. |
 | FR-22 | P0 | Konfirmasi sebelum dispatch. | Kartu dispatch punya tombol Run, Edit, dan Discard. Tidak ada sesi yang dimulai tanpa Run, kecuali auto-dispatch aktif untuk project itu. |
 | FR-23 | P0 | Validasi rencana. | Output chat divalidasi di Rust (CLI terpasang, folder ada). Jika tidak valid, kartu menampilkan alasannya dan tombol Run nonaktif. Jika output bukan JSON yang valid, jawaban tampil sebagai teks biasa. |
 | FR-24 | P1 | Chat tahu konteks. | Chat menerima daftar CLI terpasang, project yang pernah dipakai, dan sesi aktif sebagai konteks, sehingga bisa menjawab "apa yang sedang dikerjakan Codex?". |
 | FR-24a | P1 | Tunjuk folder dengan `@`. | Mengetik `@` di composer Chat membuka daftar folder project yang dikenal (nama + path), menyempit sesuai huruf yang diketik; panah atas/bawah memilih, Enter atau Tab menulis path lengkapnya (`@C:\path`, dalam tanda kutip bila ada spasi), Esc menutup. Opsi terakhir "Browse for a folder…" membuka dialog folder. Planner memakai folder yang ditunjuk untuk kartunya, dan folder itu ikut bisa dibaca planner (read-only) bila akses baca aktif. `nama@host` tidak membuka daftar. |
-| FR-25 | P1 | Tugas lanjutan ke sesi yang ada. | Chat bisa mengusulkan "kirim ke sesi X" untuk sesi yang masih berjalan, dengan konfirmasi yang sama. Planner melihat id tiap sesi dan apakah sesi itu bisa menerima pesan sekarang (terminal yang berjalan, giliran Claude Code headless yang berjalan, atau sesi headless selesai yang punya id CLI), lalu menjawab dengan kartu follow-up. Kartu itu bernama "Follow-up for {judul sesi}", tombolnya "Send to session", hanya pesannya yang bisa diedit, dan tidak bisa masuk Board. Send mengetik pesan lalu Enter di terminal, atau memulai giliran lanjutan headless; tidak ada sesi baru. Sesi yang tidak bisa menerima pesan membuat kartunya menyebut alasannya dan Send nonaktif. |
+| FR-25 | P1 | Tugas lanjutan ke sesi yang ada. | Chat bisa mengusulkan "kirim ke sesi X" untuk sesi yang masih berjalan, dengan konfirmasi yang sama. Planner melihat id tiap sesi dan apakah sesi itu bisa menerima pesan sekarang (terminal yang berjalan, giliran Claude Code headless yang berjalan, atau sesi headless selesai yang punya id CLI), lalu menjawab dengan kartu follow-up. Kartu itu bernama "Follow-up for {judul sesi}", tombolnya "Send to session", dan hanya pesannya yang bisa diedit. Send mengetik pesan lalu Enter di terminal, atau memulai giliran lanjutan headless; tidak ada sesi baru. Sesi yang tidak bisa menerima pesan membuat kartunya menyebut alasannya dan Send nonaktif. |
 | FR-26 | P2 | Auto-dispatch per project. | Pengguna bisa mengizinkan dispatch tanpa konfirmasi untuk project tertentu; indikator jelas tampil di chat. Settings › Chat planner › "Run cards without asking": folder ditambah lewat daftar folder yang dikenal atau Browse, dengan tekanan kedua "Start them without asking". Kartu sesi baru yang valid untuk folder itu (dan folder di dalamnya) langsung berjalan dengan mode izin default, kecuali Bypass yang turun menjadi Ask me; kartu follow-up dan kartu bermasalah tetap menunggu. Composer Chat di desktop dan HP menyebut foldernya ("Cards for uninote start without asking; the rest wait for Run."), dan kartu yang berjalan sendiri menulis "Started by itself: … runs cards without asking." |
 | FR-27 | P1 | Riwayat chat per percakapan. | Setiap percakapan dengan planner tersimpan sebagai chat sendiri, dinamai dari baris pertama pesan pertamanya. Daftar "Chats" menampilkan semua chat (terbaru di atas) dan membuka riwayatnya lewat `/chat?id=`. "New chat" memulai percakapan kosong. Planner hanya membaca pesan dari chat yang sedang dibuka. Hapus chat butuh tekanan kedua dan tidak menghentikan sesi yang dimulai dari kartunya. Percakapan lama dari sebelum fitur ini menjadi satu chat. |
 | FR-28 | P1 | Model dan tingkat thinking planner. | Composer Chat punya pilihan Model dan Thinking untuk CLI planner, tersimpan per CLI di Settings dan berlaku mulai pesan berikutnya. "CLI default" tidak mengirim flag apa pun. Daftar diambil dari CLI itu sendiri dan menampilkan nama berversi: Claude Code dari katalog `/model` miliknya (`~/.claude/cache/model-catalog`, misalnya "Opus 5.5", "Fable 5.1", model lama di grup "More models", ID lengkap lewat `--model` dan tingkat per model lewat `--effort`; tanpa katalog, alias `fable`, `opus`, `sonnet`, `haiku` sebagai cadangan); Codex `codex debug models` dengan `-c model_reasoning_effort`; OpenCode `opencode models --verbose` dengan `--variant` per model, dikelompokkan per provider. Tingkat yang tidak didukung model baru kembali ke default. Pilihan ini tidak tampil saat planner memakai custom provider. |
@@ -166,26 +165,15 @@ Prioritas: **P0** wajib untuk MVP, **P1** penting setelah MVP, **P2** nanti.
 |---|---|---|---|
 | FR-60 | P0 | Riwayat sesi dan tugas. | Sesi dan dispatch tersimpan di SQLite lokal: prompt, CLI, folder, status akhir, waktu. |
 | FR-61 | P0 | Tema Siang / Senja. | Toggle tema berfungsi penuh di kedua mode; default mengikuti tema OS. |
-| FR-62 | P1 | Retensi data. | Pengguna menentukan berapa lama output sesi disimpan, dan bisa menghapus riwayat. Settings › History: "Keep finished sessions for" Forever (default), 90, 30, 7 atau 1 hari, dicek saat app dibuka dan tiap jam; sesi selesai yang lebih lama dihapus bersama event, log terminal, dan file hook-nya. "Delete finished sessions" menghapus semua sesi selesai dengan file yang sama. Kartu Board dan kartu Chat yang menjalankannya tetap ada tanpa tautan sesi. File yang diubah CLI di project tidak disentuh. |
+| FR-62 | P1 | Retensi data. | Pengguna menentukan berapa lama output sesi disimpan, dan bisa menghapus riwayat. Settings › History: "Keep finished sessions for" Forever (default), 90, 30, 7 atau 1 hari, dicek saat app dibuka dan tiap jam; sesi selesai yang lebih lama dihapus bersama event, log terminal, dan file hook-nya. "Delete finished sessions" menghapus semua sesi selesai dengan file yang sama. Kartu Chat yang menjalankannya tetap ada tanpa tautan sesi. File yang diubah CLI di project tidak disentuh. |
 | FR-63 | P1 | Bahasa UI. | UI bisa diganti Inggris / Indonesia. Settings › Language memilih English atau Bahasa Indonesia; semua layar desktop, halaman HP (yang membaca pilihan desktop lewat `/api/hello`), notifikasi OS, dan menu tray mengikutinya tanpa restart. Pesan OpenCompanion sendiri dari backend ikut diterjemahkan saat ditampilkan; teks yang ditulis CLI (output, jawaban planner, pesan error CLI) tetap seperti aslinya. |
 | FR-64 | P2 | Mulai saat login. | Opsi menjalankan OpenCompanion saat login OS. Windows: Settings › "Window and sign-in" menulis atau menghapus nilai `OpenCompanion` di `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` lewat `reg.exe`; app yang dimulai saat login membawa `--hidden` dan langsung masuk tray. Keadaannya dibaca dari Windows setiap kali Settings dibuka. macOS dan Linux belum. |
-| FR-65 | P1 | Mode izin sesi: Ask me, Plan, Auto, Bypass. | Settings menyimpan mode default untuk sesi baru; New session dan Run dari Board bisa memilih mode lain untuk satu sesi. Tiap mode diteruskan sebagai flag resmi masing-masing CLI, dan tabelnya tampil di Settings. Bypass baru tersimpan setelah konfirmasi kedua, dan form sesi memberi peringatan saat Bypass dipilih. Planner Chat tidak terpengaruh dan tetap read-only. |
+| FR-65 | P1 | Mode izin sesi: Ask me, Plan, Auto, Bypass. | Settings menyimpan mode default untuk sesi baru; New session bisa memilih mode lain untuk satu sesi. Tiap mode diteruskan sebagai flag resmi masing-masing CLI, dan tabelnya tampil di Settings. Bypass baru tersimpan setelah konfirmasi kedua, dan form sesi memberi peringatan saat Bypass dipilih. Planner Chat tidak terpengaruh dan tetap read-only. |
 | FR-66 | P1 | Ukuran teks. | Settings menawarkan 90%, 100% (default), 110%, 125%, 150%. Pilihan langsung berlaku di semua layar desktop sebagai zoom webview, jadi teks, tombol, dan spasi membesar bersama dan layout mengikuti breakpoint yang ada. Tersimpan di Settings dan diterapkan lagi saat aplikasi dibuka. Halaman HP tidak terpengaruh dan mengikuti ukuran teks HP. |
 
-### H. Board (kanban tugas)
+### H. Board (dihapus)
 
-Kolom tetap: **Pending** (belum siap: ide, pertanyaan terbuka, pekerjaan terblokir), **Todo** (siap dikirim ke CLI), **In progress** (sesi CLI sedang mengerjakan), **Done** (selesai).
-
-| ID | Prio | Requirement | Acceptance criteria |
-|---|---|---|---|
-| FR-70 | P1 | Board dengan empat kolom tetap. | Setiap kartu punya judul, catatan, project, dan CLI (opsional). Kartu dan urutannya tersimpan di SQLite lokal dan bertahan setelah app ditutup. |
-| FR-71 | P1 | Tambah, edit, hapus kartu. | Judul wajib diisi. Hapus butuh konfirmasi. Kartu baru masuk ke Pending kecuali pengguna memilih kolom lain. |
-| FR-72 | P1 | Pindah kartu dengan drag dan keyboard. | Kartu bisa di-drag antar kolom. Tanpa mouse, kartu dipindah dengan mengganti kolomnya di dialog kartu; fokus kembali ke kartu yang dipindah dan perpindahan diumumkan ke screen reader. |
-| FR-73 | P1 | Run dari kartu Todo. | Run membuka dialog sesi yang sudah terisi CLI kartu, folder project, dan catatan kartu sebagai prompt. Setelah Start, kartu pindah ke In progress dan terhubung ke sesi itu. |
-| FR-74 | P1 | Kartu mengikuti status sesi. | Kartu In progress menampilkan status sesinya (Running, Waiting for you dengan aksen, Error) dan tautan ke sesi. Sesi yang selesai tanpa error memindahkan kartu ke Done otomatis; sesi error membiarkan kartu di In progress dengan chip Error. |
-| FR-75 | P1 | Filter per project. | Filter menyembunyikan kartu project lain; jumlah kartu di tiap kolom mengikuti filter. |
-| FR-76 | P2 | Kartu dari Chat. | Kartu dispatch di Chat punya aksi "Add to board" yang membuat kartu Todo dengan prompt, CLI, dan folder yang sama. |
-| FR-77 | P2 | Board di HP. | Companion menampilkan board per kolom; kartu bisa dipindah kolom dan dijalankan, dan kartu Waiting for you bisa di-Approve dari sana. Kartu baru dan edit isi kartu tetap di desktop. |
+Dihapus 2026-09-28: Board diambil dari produk, di desktop maupun di HP. FR-70 s/d FR-77 tidak berlaku lagi dan nomornya tidak dipakai ulang.
 
 ## 8. Alur utama
 
@@ -197,7 +185,7 @@ Kolom tetap: **Pending** (belum siap: ide, pertanyaan terbuka, pekerjaan terblok
 
 **F4. Sesi eksternal**: scan proses berkala → CLI yang tidak dikenal app tampil sebagai Read-only → klik → detail menampilkan folder, lama berjalan, dan pesan terakhir dari transcript bila ada.
 
-**F5. Tugas lewat Board**: tulis kartu di Pending → lengkapi catatannya → pindah ke Todo → Run → sesi berjalan, kartu di In progress → CLI minta izin, kartu diberi aksen → Approve → sesi selesai → kartu pindah ke Done.
+**F5. Tugas lewat Board**: dihapus 2026-09-28 bersama Board (bagian H).
 
 ## 9. Layar (peta ke desain)
 
@@ -212,7 +200,7 @@ Kolom tetap: **Pending** (belum siap: ide, pertanyaan terbuka, pekerjaan terblok
 | D7 | Settings: Mobile access | FR-50, FR-51, FR-55 |
 | D8 | State kosong, memuat, error | semua tampilan data |
 | D9 | Tema Senja (Overview, Session detail) | FR-61 |
-| D10 | Board | FR-70 s/d FR-75 |
+| D10 | Board (dihapus 2026-09-28) | tidak ada |
 | M1 | Pair device | FR-51 |
 | M2 | Sessions | FR-52 |
 | M3 | Session detail | FR-53, FR-54 |
@@ -243,7 +231,7 @@ Keputusan teknis:
 - **Frontend**: Svelte 5 dengan SvelteKit `adapter-static` dalam mode SPA (`fallback: 'index.html'`, `ssr = false` di root layout), sesuai panduan resmi Tauri 2 untuk SvelteKit. Web companion adalah build terpisah dari codebase yang sama (route mobile), dilayani oleh `companion_server`.
 - **Plugin Tauri 2 resmi** yang direncanakan: `notification`, `store`, `sql` (SQLite), `single-instance`, `window-state`, `dialog`, `opener`, lalu `autostart` dan `updater` setelah MVP.
 - **Crate kandidat** (belum diuji, diputuskan di M0): `portable-pty` untuk PTY lintas platform (ConPTY di Windows), `sysinfo` untuk scan proses, `notify` untuk memantau file transcript, `axum` untuk HTTP + WebSocket companion.
-- **Model data inti**: `CliInstall`, `Project`, `Session` (cli, folder, mode, status, pid, started_at, ended_at), `SessionEvent` (tipe, ringkasan, payload), `Dispatch` (asal chat, rencana, keputusan), `Device` (nama, token hash, last_seen), `Task` (judul, catatan, project, cli, kolom, urutan, session_id, dibuat, diubah).
+- **Model data inti**: `CliInstall`, `Project`, `Session` (cli, folder, mode, status, pid, started_at, ended_at), `SessionEvent` (tipe, ringkasan, payload), `Dispatch` (asal chat, rencana, keputusan), `Device` (nama, token hash, last_seen). `Task` (kartu Board) dihapus 2026-09-28; database lama menyimpan tabelnya tanpa diubah.
 
 Cara kerja orchestrator chat:
 

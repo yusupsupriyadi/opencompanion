@@ -17,7 +17,7 @@
 .pair-btns .btn { min-height: 44px; }
 .m-sec { display: flex; flex-direction: column; gap: 8px; }
 .m-sec h2 { margin: 0; font-size: 13px; font-weight: 800; color: var(--ink-2); }
-/* Session and Board cards: dense, so a phone screen holds six or seven of them. */
+/* Session cards: dense, so a phone screen holds six or seven of them. */
 .m-card { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); }
 .m-card:active { background: var(--surface-2); }
 .m-card .task { font-size: 14px; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -48,9 +48,9 @@ dialog.sheet .btn { min-height: 48px; }
 /* A long folder name in "Run in {folder}" wraps instead of running off a narrow phone. */
 .phone .btn, dialog.sheet .btn { white-space: normal; text-align: center; overflow-wrap: anywhere; }
 
-/* Bottom tabs: Sessions, Chat and Board are one thumb tap apart. Hidden on detail screens, which own the bottom edge. */
+/* Bottom tabs: Sessions and Chat are one thumb tap apart. Hidden on detail screens, which own the bottom edge. */
 .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; justify-content: center; background: var(--bg); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
-.tabs > div { width: 100%; max-width: 480px; display: grid; grid-template-columns: repeat(3, 1fr); }
+.tabs > div { width: 100%; max-width: 480px; display: grid; grid-template-columns: repeat(2, 1fr); }
 .tabs a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 52px; font-size: 12px; font-weight: 700; color: var(--ink-2); transition: color .12s ease-out; }
 .tabs a[aria-current="page"] { color: var(--ink); }
 .tabs a[aria-current="page"] svg { color: var(--forest); }
@@ -157,18 +157,11 @@ dialog.sheet .btn { min-height: 48px; }
 .m-list a:active { background: var(--surface-2); }
 .m-list b { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
 
-/* Board */
+/* Segmented buttons: the Session screen's views and New session's mode. */
 .m-seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; padding: 3px; border-radius: var(--r-btn); background: var(--surface-2); }
 .m-seg button { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 44px; padding: 4px 2px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink-2); font-weight: 700; font-size: 13px; line-height: 1.15; text-align: center; cursor: pointer; }
 .m-seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); }
 .m-seg small { font-size: 12px; font-weight: 600; }
-.m-card.needs { border: 1.5px solid var(--accent); }
-button.m-card { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
-.m-notes { margin: 0; padding: 10px 12px; border-radius: var(--r-sm); background: var(--bg); font-size: 14px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 40vh; overflow-y: auto; }
-.sheet-acts { display: flex; flex-direction: column; gap: 8px; }
-.sheet-acts .btn { min-height: 48px; }
-.move-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.move-row .btn { min-height: 44px; padding: 0 6px; white-space: normal; line-height: 1.2; }
 
 /* New session */
 .m-form { display: flex; flex-direction: column; gap: 14px; }

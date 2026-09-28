@@ -1,6 +1,6 @@
 //! Phone companion over real HTTP on localhost: pairing, device tokens, the session API,
-//! Chat and Board from the phone, the SPA fallback and the files that install the phone app
-//! (PRD FR-50 to FR-57, FR-77, section 11).
+//! Chat from the phone, the SPA fallback and the files that install the phone app
+//! (PRD FR-50 to FR-57, section 11).
 
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -18,7 +18,6 @@ impl Emit for Quiet {
     fn session(&self, _: &SessionInfo) {}
     fn output(&self, _: &str, _: &str, _: u64) {}
     fn event(&self, _: &EventRow) {}
-    fn tasks_changed(&self) {}
     fn notify(&self, _: &str, _: &str, _: &str) {}
 }
 
@@ -171,9 +170,9 @@ fn wait_for(db: &Db, id: &str, what: &str, pred: impl Fn(&SessionInfo) -> bool) 
     }
 }
 
-/// New session, messages, Chat cards and the Board from the phone (PRD FR-12, FR-57, FR-77).
+/// New session, messages and Chat cards from the phone (PRD FR-12, FR-57).
 #[test]
-fn the_phone_starts_sessions_sends_messages_and_works_the_board() {
+fn the_phone_starts_sessions_sends_messages_and_runs_chat_cards() {
     let fake = env!("CARGO_BIN_EXE_fake-cli").to_string();
     let db = Arc::new(Db::open_in_memory().unwrap());
     let mut settings = Settings::default();
@@ -200,9 +199,6 @@ fn the_phone_starts_sessions_sends_messages_and_works_the_board() {
         ("GET", "/api/chat", None),
         ("POST", "/api/chat", Some(r#"{"message":"hi"}"#)),
         ("POST", "/api/chat/cards/run", Some(r#"{"messageId":"a","cardId":"b"}"#)),
-        ("GET", "/api/tasks", None),
-        ("POST", "/api/tasks/x/move", Some(r#"{"column":"todo"}"#)),
-        ("POST", "/api/tasks/x/run", Some(start)),
     ] {
         assert_eq!(http(port, method, path, None, body).0, 401, "{method} {path}");
     }
@@ -254,7 +250,6 @@ fn the_phone_starts_sessions_sends_messages_and_works_the_board() {
         problem: None,
         state: "proposed".into(),
         session_id: None,
-        task_id: None,
         target: Some(id.clone()),
         auto: false,
     };
@@ -268,8 +263,6 @@ fn the_phone_starts_sessions_sends_messages_and_works_the_board() {
     })
     .unwrap();
     let sessions_before = db.sessions(100).unwrap().len();
-    let (code, body) = http(port, "POST", "/api/chat/cards/board", t, Some(r#"{"messageId":"msg-f","cardId":"card-f"}"#));
-    assert_eq!(code, 409, "{body}");
     let (code, body) = http(port, "POST", "/api/chat/cards/run", t, Some(r#"{"messageId":"msg-f","cardId":"card-f"}"#));
     assert_eq!(code, 200, "{body}");
     assert_eq!(json(&body)["message"]["cards"][0]["sessionId"], id.as_str());
@@ -294,7 +287,7 @@ fn the_phone_starts_sessions_sends_messages_and_works_the_board() {
     wait_for(&db, &pty, "terminal exit", |s| !s.status.is_live());
     assert!(manager.output(&pty).contains("got: hello"));
 
-    // Chat: a new thread needs words, a missing thread is gone, and cards go to the Board or away.
+    // Chat: a new thread needs words, a missing thread is gone, and cards run or go away.
     let (code, body) = http(port, "GET", "/api/chat", t, None);
     assert_eq!(code, 200, "{body}");
     assert_eq!(json(&body)["threads"], Value::Array(vec![]));
@@ -314,7 +307,6 @@ fn the_phone_starts_sessions_sends_messages_and_works_the_board() {
         problem: None,
         state: "proposed".into(),
         session_id: None,
-        task_id: None,
         target: None,
         auto: false,
     };
@@ -340,10 +332,6 @@ fn the_phone_starts_sessions_sends_messages_and_works_the_board() {
     let (code, body) = http(port, "POST", "/api/chat/cards/discard", t, Some(r#"{"messageId":"msg-a","cardId":"card-a","undo":true}"#));
     assert_eq!(code, 200, "{body}");
     assert_eq!(json(&body)["message"]["cards"][0]["state"], "proposed");
-    let (code, body) = http(port, "POST", "/api/chat/cards/board", t, Some(pick));
-    assert_eq!(code, 200, "{body}");
-    let task_id = json(&body)["task"]["id"].as_str().unwrap().to_string();
-    assert_eq!(json(&body)["task"]["column"], "todo");
     let (code, body) = http(port, "POST", "/api/chat/cards/run", t, Some(pick));
     assert_eq!(code, 200, "{body}");
     let started = json(&body);
@@ -352,28 +340,10 @@ fn the_phone_starts_sessions_sends_messages_and_works_the_board() {
     assert_eq!(db.session(&from_card).unwrap().unwrap().source, "chat");
     wait_for(&db, &from_card, "card session", |s| !s.status.is_live());
 
-    // Board: move a card, refuse an unknown column, then run it.
-    let (code, body) = http(port, "GET", "/api/tasks", t, None);
-    assert_eq!(code, 200, "{body}");
-    assert_eq!(json(&body)["tasks"][0]["id"], task_id.as_str());
-    let (code, body) = http(port, "POST", &format!("/api/tasks/{task_id}/move"), t, Some(r#"{"column":"pending"}"#));
-    assert_eq!(code, 200, "{body}");
-    assert_eq!(db.task(&task_id).unwrap().unwrap().column, "pending");
-    let (code, body) = http(port, "POST", &format!("/api/tasks/{task_id}/move"), t, Some(r#"{"column":"later"}"#));
-    assert_eq!((code, json(&body)["error"].as_str()), (409, Some("Unknown column.")));
-    let req = format!(r#"{{"cli":"opencode","cwd":"{cwd}","mode":"headless","prompt":"from the board"}}"#);
-    let (code, body) = http(port, "POST", &format!("/api/tasks/{task_id}/run"), t, Some(&req));
-    assert_eq!(code, 200, "{body}");
-    let run = json(&body)["session"]["id"].as_str().unwrap().to_string();
-    let task = db.task(&task_id).unwrap().unwrap();
-    assert_eq!(task.session_id.as_deref(), Some(run.as_str()));
-    assert!(task.column == "progress" || task.column == "done", "{}", task.column);
-    wait_for(&db, &run, "board session", |s| !s.status.is_live());
     // The phone's Session screen gets what the desktop shows beside the output.
-    let (code, body) = http(port, "GET", &format!("/api/sessions/{run}"), t, None);
+    let (code, body) = http(port, "GET", &format!("/api/sessions/{from_card}"), t, None);
     assert_eq!(code, 200, "{body}");
     let detail = json(&body);
-    assert_eq!(detail["task"]["id"], task_id.as_str());
     assert!(detail["files"].is_array(), "{body}");
     assert!(detail["usage"].is_null(), "a finished session has no CPU or memory: {body}");
 
@@ -449,8 +419,8 @@ fn a_removed_phone_loses_its_live_updates() {
     let mut a = ws_connect(port, &first);
     let mut b = ws_connect(port, &second);
     std::thread::sleep(Duration::from_millis(200));
-    companion.broadcast(serde_json::json!({ "type": "tasks" }));
-    assert_eq!(ws_frame(&mut a), (0x1, br#"{"type":"tasks"}"#.to_vec()));
+    companion.broadcast(serde_json::json!({ "type": "resync" }));
+    assert_eq!(ws_frame(&mut a), (0x1, br#"{"type":"resync"}"#.to_vec()));
     assert_eq!(ws_frame(&mut b).0, 0x1);
 
     let removed = db.devices().unwrap().into_iter().find(|d| d.token_hash == hash_token(&first)).unwrap();
@@ -459,7 +429,7 @@ fn a_removed_phone_loses_its_live_updates() {
     assert_eq!(close_code(&mut a), opencompanion_lib::companion::CLOSE_REMOVED);
 
     // The other phone still hears updates, until phone access is turned off.
-    companion.broadcast(serde_json::json!({ "type": "tasks" }));
+    companion.broadcast(serde_json::json!({ "type": "resync" }));
     assert_eq!(ws_frame(&mut b).0, 0x1);
     companion.stop();
     assert_eq!(close_code(&mut b), opencompanion_lib::companion::CLOSE_OFF);
@@ -475,7 +445,6 @@ impl Emit for Heard {
     fn session(&self, _: &SessionInfo) {}
     fn output(&self, _: &str, _: &str, _: u64) {}
     fn event(&self, _: &EventRow) {}
-    fn tasks_changed(&self) {}
     fn notify(&self, _: &str, _: &str, _: &str) {}
     fn chat_changed(&self, thread_id: &str) {
         self.chats.lock().unwrap().push(thread_id.to_string());
@@ -570,7 +539,6 @@ fn the_phone_chat_matches_the_desktop() {
         problem: None,
         state: "proposed".into(),
         session_id: None,
-        task_id: None,
         target,
         auto: false,
     };

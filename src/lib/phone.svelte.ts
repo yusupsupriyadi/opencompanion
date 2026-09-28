@@ -104,7 +104,7 @@ export interface PhoneOptions {
   permissionMode: PermMode;
 }
 
-/** `tasks` and `chat` say the Board or a chat thread changed; the screen showing it reloads. */
+/** `chat` says a chat thread changed; the screen showing it reloads. */
 export type PhoneMessage = {
   type: string;
   session?: SessionInfo;

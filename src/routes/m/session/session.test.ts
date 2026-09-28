@@ -24,7 +24,6 @@ function session(over: Partial<SessionInfo>): SessionInfo {
     lastEvent: null,
     waiting: null,
     source: "manual",
-    taskId: null,
     permissionMode: "ask",
     updatedAt: Date.now(),
     ...over,
@@ -123,8 +122,8 @@ test("a scrolled-back terminal stays put and offers a jump to the new output", a
   expect(pane.scrollTop).toBe(1000);
 });
 
-test("Details shows what the desktop's side panel does: process, files changed and the Board card", async () => {
-  const s = session({ status: "running", endedAt: null, pid: 4242, source: "board", taskId: "t1" });
+test("Details shows what the desktop's side panel does: process and files changed", async () => {
+  const s = session({ status: "running", endedAt: null, pid: 4242, source: "chat" });
   phoneServer({
     [`GET /api/sessions/${s.id}`]: () => [
       200,
@@ -133,7 +132,6 @@ test("Details shows what the desktop's side panel does: process, files changed a
         events: [{ id: 1, sessionId: "s1", at: Date.now(), event: { kind: "tool_call", tool: "Bash", summary: "npm test" } }],
         tail: "",
         files: [["C:\\Users\\me\\Project\\uninote\\src\\login.ts", 2]],
-        task: { id: "t1", title: "Fix the login bug", notes: "", project: "", cli: "claude", column: "progress", position: 1, sessionId: "s1", createdAt: 1, updatedAt: 1 },
         usage: { cpuPercent: 12.5, memoryBytes: 314572800, children: 3 },
       },
     ],
@@ -152,7 +150,7 @@ test("Details shows what the desktop's side panel does: process, files changed a
   expect(within(details).getByText("300 MB")).toBeInTheDocument();
   expect(within(details).getByText("login.ts")).toBeInTheDocument();
   expect(within(details).getByText("2×")).toBeInTheDocument();
-  expect(within(details).getByRole("link", { name: "Fix the login bug" })).toHaveAttribute("href", "/m/board?col=progress");
+  expect(within(details).getByText(/from Chat/)).toBeInTheDocument();
 });
 
 test("a session that cannot be loaded says why and offers Try again", async () => {

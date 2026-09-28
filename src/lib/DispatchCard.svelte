@@ -1,5 +1,4 @@
 <script lang="ts">
-  import Kanban from "phosphor-svelte/lib/Kanban";
   import PaperPlaneTilt from "phosphor-svelte/lib/PaperPlaneTilt";
   import PencilSimple from "phosphor-svelte/lib/PencilSimple";
   import Play from "phosphor-svelte/lib/Play";
@@ -60,8 +59,6 @@
     });
   const discard = () => act(() => api.chatDiscardCard(messageId, card.id));
   const undo = () => act(() => api.chatDiscardCard(messageId, card.id, true));
-
-  const toBoard = () => act(() => api.chatCardToBoard(messageId, card.id), t("chat.card.addedToBoard"));
 </script>
 
 <div class="slot" bind:this={slot}>
@@ -140,13 +137,6 @@
           {#if follow}<PaperPlaneTilt size={16} weight="fill" aria-hidden="true" />{t("chat.card.sendToSession")}{:else}<Play size={16} aria-hidden="true" />{t("chat.card.runIn", { folder: folderName(card.folder) || "…" })}{/if}
         </button>
         <button class="btn secondary" type="button" disabled={busy} onclick={edit}><PencilSimple size={16} aria-hidden="true" />{t("chat.card.edit")}</button>
-        {#if follow}
-          <!-- A follow-up belongs to its session, so it has no Board card. -->
-        {:else if card.taskId}
-          <a class="btn secondary" href="/board"><Kanban size={16} aria-hidden="true" />{t("chat.card.onBoard")}</a>
-        {:else}
-          <button class="btn secondary" type="button" disabled={busy} onclick={toBoard}><Kanban size={16} aria-hidden="true" />{t("chat.card.addToBoard")}</button>
-        {/if}
         <button class="btn ghost" type="button" disabled={busy} onclick={discard}>{t("chat.card.discard")}</button>
       {/if}
     </div>

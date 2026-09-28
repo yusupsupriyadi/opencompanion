@@ -29,7 +29,6 @@ pub trait Emit: Send + Sync {
     /// can skip what the snapshot already holds.
     fn output(&self, id: &str, data: &str, seq: u64);
     fn event(&self, row: &EventRow);
-    fn tasks_changed(&self);
     fn notify(&self, title: &str, body: &str, session_id: &str);
     /// A chat thread changed from the phone, so an open Chat screen reloads it.
     fn chat_changed(&self, _thread_id: &str) {}
@@ -45,11 +44,10 @@ pub struct StartRequest {
     pub mode: Mode,
     #[serde(default)]
     pub prompt: String,
-    /// The task's name from a Chat or Board card. Without one the title comes from the prompt.
+    /// The task's name from a Chat card. Without one the title comes from the prompt.
     pub title: Option<String>,
     pub permission_mode: Option<String>,
     pub source: Option<String>,
-    pub task_id: Option<String>,
     pub cols: Option<u16>,
     pub rows: Option<u16>,
 }
@@ -139,7 +137,7 @@ fn title_for(kind: CliKind, cwd: &str, prompt: &str) -> String {
 /// True while the title is only the prompt's first line or the folder, so a real task name
 /// may replace it. Names from a card are kept.
 fn title_is_derived(info: &SessionInfo) -> bool {
-    info.task_id.is_none() && info.title == title_for(info.cli, &info.cwd, &info.prompt)
+    info.title == title_for(info.cli, &info.cwd, &info.prompt)
 }
 
 /// Claude Code names the task in the terminal title (OSC 0) behind a spinner glyph, such as
@@ -266,11 +264,6 @@ impl Manager {
         &self.data_dir
     }
 
-    /// The Board changed outside a session (a card was added, moved or run).
-    pub fn tasks_changed(&self) {
-        self.emit.tasks_changed();
-    }
-
     pub fn chat_changed(&self, thread_id: &str) {
         self.emit.chat_changed(thread_id);
     }
@@ -385,7 +378,6 @@ impl Manager {
             last_event: None,
             waiting: None,
             source: req.source.clone().unwrap_or_else(|| "manual".into()),
-            task_id: req.task_id.clone(),
             // The session's own choice, else the default from Settings.
             permission_mode: Some(
                 PermMode::parse(
@@ -494,26 +486,6 @@ impl Manager {
                 self.emit.notify(&title, &format!("{place} · {why}"), &info.id);
             }
             _ => {}
-        }
-        // Board (PRD FR-74): a finished session moves its card to Done; an error leaves it.
-        // The card is found through the session's own task id first, so a CLI that finishes
-        // before the card stored its session id still moves it.
-        let task = match &info.task_id {
-            Some(tid) => self.db.task(tid).ok().flatten(),
-            None => self.db.task_for_session(&info.id).ok().flatten(),
-        };
-        if info.status == Status::Done {
-            if let Some(mut task) = task {
-                if task.column != "done" {
-                    task.column = "done".into();
-                    task.position = self.db.next_position("done").unwrap_or(1.0);
-                    task.updated_at = db::now_ms();
-                    let _ = self.db.save_task(&task);
-                    self.emit.tasks_changed();
-                }
-            }
-        } else if task.is_some() && matches!(info.status, Status::Waiting | Status::Error | Status::Running) {
-            self.emit.tasks_changed();
         }
     }
 
@@ -1164,8 +1136,8 @@ impl Manager {
     }
 
     /// Done: the user says the work is finished, such as a terminal that sits idle after its
-    /// last turn. The CLI closes like Stop, but the session ends Done, so its Board card moves
-    /// to Done. Resume opens the conversation again.
+    /// last turn. The CLI closes like Stop, but the session ends Done. Resume opens the
+    /// conversation again.
     pub fn mark_done(&self, id: &str) -> Result<(), String> {
         self.mark_done_from(id, None)
     }
@@ -1460,7 +1432,6 @@ mod tests {
         fn session(&self, _: &SessionInfo) {}
         fn output(&self, _: &str, _: &str, _: u64) {}
         fn event(&self, _: &EventRow) {}
-        fn tasks_changed(&self) {}
         fn notify(&self, _: &str, _: &str, _: &str) {}
     }
 
@@ -1481,7 +1452,6 @@ mod tests {
             last_event: None,
             waiting: None,
             source: "manual".into(),
-            task_id: None,
             permission_mode: None,
             updated_at: 1,
         }

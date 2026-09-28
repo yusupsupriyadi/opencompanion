@@ -12,7 +12,7 @@ beforeEach(() => {
   app.clisState = "ready";
   pendingNew.open = false;
   vi.mocked(goto).mockClear();
-  setUrl("/board");
+  setUrl("/chat");
 });
 
 test("opened from a folder, the folder is filled in and the session starts there", async () => {

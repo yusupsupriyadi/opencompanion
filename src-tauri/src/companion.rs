@@ -17,7 +17,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tokio::sync::{broadcast, oneshot};
 
-use crate::actions::{self, RunTaskInput};
+use crate::actions;
 use crate::cli::CliKind;
 use crate::db::{self, Db, Device, DispatchCard, Mode, PlannerSource};
 use crate::events::SessionEvent;
@@ -308,10 +308,6 @@ fn router(ctx: Ctx) -> Router {
         .route("/api/chat/cards/run", post(card_run))
         .route("/api/chat/cards/edit", post(card_edit))
         .route("/api/chat/cards/discard", post(card_discard))
-        .route("/api/chat/cards/board", post(card_board))
-        .route("/api/tasks", get(list_tasks))
-        .route("/api/tasks/{id}/move", post(move_task))
-        .route("/api/tasks/{id}/run", post(run_task))
         .route("/api/ws", get(ws))
         .fallback(get(static_file))
         .with_state(ctx)
@@ -384,7 +380,7 @@ async fn list_sessions(State(ctx): State<Ctx>, headers: HeaderMap) -> Response {
 const PHONE_EVENTS: usize = 150;
 
 /// One session for the phone: its newest events, the terminal's screen, and what the desktop
-/// Session screen shows beside them (files changed, the Board card, CPU and memory while it runs).
+/// Session screen shows beside them (files changed, CPU and memory while it runs).
 async fn one_session(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<String>) -> Response {
     if let Err(r) = authed(&ctx, &headers) {
         return r;
@@ -401,7 +397,6 @@ async fn one_session(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): Ur
     } else {
         String::new()
     };
-    let task = ctx.db.task_for_session(&id).ok().flatten();
     let usage = match session.pid.filter(|_| session.status.is_live()) {
         Some(pid) => {
             let companion = Arc::clone(&ctx);
@@ -412,7 +407,7 @@ async fn one_session(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): Ur
         }
         None => None,
     };
-    Json(json!({ "session": session, "events": events, "tail": tail, "files": files, "task": task, "usage": usage })).into_response()
+    Json(json!({ "session": session, "events": events, "tail": tail, "files": files, "usage": usage })).into_response()
 }
 
 /// Each file the session changed, once, with its number of edits, in the order first changed.
@@ -525,7 +520,6 @@ async fn start_session(State(ctx): State<Ctx>, headers: HeaderMap, Json(body): J
             title: None,
             permission_mode: body.permission_mode,
             source: None,
-            task_id: None,
             cols: None,
             rows: None,
         })?;
@@ -678,20 +672,6 @@ async fn card_discard(State(ctx): State<Ctx>, headers: HeaderMap, Json(body): Js
     }
 }
 
-async fn card_board(State(ctx): State<Ctx>, headers: HeaderMap, Json(body): Json<CardBody>) -> Response {
-    if let Err(r) = authed(&ctx, &headers) {
-        return r;
-    }
-    match actions::card_to_board(&ctx.db, &body.message_id, &body.card_id) {
-        Ok((task, message)) => {
-            ctx.manager.tasks_changed();
-            ctx.manager.chat_changed(&message.thread_id);
-            Json(json!({ "task": task, "message": message })).into_response()
-        }
-        Err(e) => fail(StatusCode::CONFLICT, e),
-    }
-}
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct EditBody {
@@ -820,58 +800,6 @@ async fn folders(State(ctx): State<Ctx>, headers: HeaderMap) -> Response {
     off_thread(move || {
         let outside = monitor::Monitor::new().scan(&own);
         Ok(json!({ "folders": orchestrator::gather(&db, &outside)?.folders }))
-    })
-    .await
-}
-
-// Board (PRD FR-77)
-
-async fn list_tasks(State(ctx): State<Ctx>, headers: HeaderMap) -> Response {
-    if let Err(r) = authed(&ctx, &headers) {
-        return r;
-    }
-    match ctx.db.tasks() {
-        Ok(tasks) => Json(json!({ "tasks": tasks })).into_response(),
-        Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e),
-    }
-}
-
-#[derive(Deserialize)]
-struct MoveBody {
-    column: String,
-}
-
-async fn move_task(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<String>, Json(body): Json<MoveBody>) -> Response {
-    if let Err(r) = authed(&ctx, &headers) {
-        return r;
-    }
-    match actions::move_task(&ctx.db, &id, &body.column, None) {
-        Ok(task) => {
-            ctx.manager.tasks_changed();
-            Json(json!({ "task": task })).into_response()
-        }
-        Err(e) => fail(StatusCode::CONFLICT, e),
-    }
-}
-
-async fn run_task(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<String>, Json(body): Json<SessionBody>) -> Response {
-    if let Err(r) = authed(&ctx, &headers) {
-        return r;
-    }
-    let db = Arc::clone(&ctx.db);
-    let manager = Arc::clone(&ctx.manager);
-    off_thread(move || {
-        let input = RunTaskInput {
-            id,
-            cli: body.cli,
-            cwd: body.cwd,
-            mode: body.mode,
-            prompt: body.prompt,
-            permission_mode: body.permission_mode,
-        };
-        let session = actions::run_task(&db, &manager, input)?;
-        manager.tasks_changed();
-        Ok(json!({ "session": session }))
     })
     .await
 }

@@ -64,10 +64,10 @@ svg { flex: none; }
   ::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active { background-color: var(--scroll-thumb-hover); border-width: 2px; }
   /* Scrollers with no panel sit straight on the painting, where no single color holds 3:1 over both sky and grass.
      Like text there they use ink, ringed 1px in bg, which keeps 3:1 over every pixel of the painting in both themes. */
-  .main::-webkit-scrollbar-thumb, .thread::-webkit-scrollbar-thumb, .board::-webkit-scrollbar-thumb, .detail-side::-webkit-scrollbar-thumb { background-color: var(--ink); box-shadow: inset 0 0 0 1px var(--bg); }
+  .main::-webkit-scrollbar-thumb, .thread::-webkit-scrollbar-thumb, .detail-side::-webkit-scrollbar-thumb { background-color: var(--ink); box-shadow: inset 0 0 0 1px var(--bg); }
   @supports not selector(::-webkit-scrollbar) {
     * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
-    :is(.main, .thread, .board, .detail-side) { scrollbar-color: var(--ink) transparent; }
+    :is(.main, .thread, .detail-side) { scrollbar-color: var(--ink) transparent; }
   }
 }
 
@@ -81,17 +81,17 @@ svg { flex: none; }
 .app::after { content: ""; position: fixed; inset: 0; z-index: -1; background-color: var(--bg); background-image: var(--haze), url(/meadow-day.png); background-position: 0 0, 70% 100%; background-size: 100% 100%, cover; background-repeat: no-repeat; filter: var(--art-filter); }
 .app > .sidebar { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); }
 /* Text over the painting uses ink only, so hierarchy comes from size and weight. */
-.page-head, .section-head, .hint, .col-head, .board-main > .meta, .planner, .activity, .detail-side, .note, .not-found, .phones figcaption { --ink-2: var(--ink); }
+.page-head, .section-head, .hint, .planner, .activity, .detail-side, .note, .not-found, .phones figcaption { --ink-2: var(--ink); }
 /* With no haze in Day, the painting drops to about 1:1 behind ink in the trees and grass, so every block of text over it
    sits on a plate. Headers and panels span their row; single lines and paragraphs hug their text. */
-.page-head, .section-head, .hint, .col-head, .planner, .activity, .detail-side, .note, .not-found, .toolbar { background: var(--surface); border-radius: var(--r-md); padding: 12px 16px; }
-.section-head, .hint, .col-head, .activity, .note { padding: 8px 12px; }
+.page-head, .section-head, .hint, .planner, .activity, .detail-side, .note, .not-found, .toolbar { background: var(--surface); border-radius: var(--r-md); padding: 12px 16px; }
+.section-head, .hint, .activity, .note { padding: 8px 12px; }
 .section-head, .hint, .note, .planner { width: fit-content; }
 /* Liquid glass, the owner's choice over one glass panel: every card, panel and plate over the painting blurs and
    saturates it, and swaps the fills inside for translucent ones, so buttons, inputs and rows turn to glass as well.
    Each tint is the thinnest at which ink-2 keeps 4.5:1 over the blurred painting: surface 82%, surface-2 90%, bg 85% in Day. */
-.app > .sidebar, .tb-controls, .page-head, .section-head, .hint, .col-head, .planner, .activity, .detail-side, .note, .not-found, .toolbar,
-.srow, .needs, .resolved, .state-box, .history, .composer, .rail, .me, .col-body, .card, .table-wrap, .panel, dialog {
+.app > .sidebar, .tb-controls, .page-head, .section-head, .hint, .planner, .activity, .detail-side, .note, .not-found, .toolbar,
+.srow, .needs, .resolved, .state-box, .history, .composer, .rail, .me, .card, .table-wrap, .panel, dialog {
   --surface: var(--glass); --surface-2: var(--glass-2); --bg: var(--glass-bg);
   -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-rim);
 }

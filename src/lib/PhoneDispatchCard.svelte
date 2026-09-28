@@ -1,5 +1,4 @@
 <script lang="ts">
-  import Kanban from "phosphor-svelte/lib/Kanban";
   import PaperPlaneTilt from "phosphor-svelte/lib/PaperPlaneTilt";
   import PencilSimple from "phosphor-svelte/lib/PencilSimple";
   import Play from "phosphor-svelte/lib/Play";
@@ -13,8 +12,8 @@
   import { t, tb } from "./i18n.svelte";
   import { call, notify, phone } from "./phone.svelte";
 
-  // The phone version of a Chat card (PRD FR-57): the same Run, Edit, Add to board and Discard as
-  // the desktop. `clis` fills the CLI picker while editing; `now` ticks "Started 3 min ago".
+  // The phone version of a Chat card (PRD FR-57): the same Run, Edit and Discard as the desktop.
+  // `clis` fills the CLI picker while editing; `now` ticks "Started 3 min ago".
   let {
     card,
     messageId,
@@ -68,7 +67,6 @@
   };
   const discard = () => update("/api/chat/cards/discard");
   const undo = () => update("/api/chat/cards/discard", { undo: true });
-  const toBoard = () => update("/api/chat/cards/board", {}, t("phone.card.addedToBoard"));
 
   async function edit() {
     draft = { cli: card.cli, title: card.title, folder: card.folder, prompt: card.prompt, mode: card.mode };
@@ -170,15 +168,7 @@
           {#if follow}<PaperPlaneTilt size={16} weight="fill" aria-hidden="true" />{t("phone.card.sendToSession")}{:else}<Play size={16} aria-hidden="true" />{t("phone.runIn", { folder: folderName(card.folder) || "…" })}{/if}
         </button>
         <button class="btn secondary" type="button" disabled={busy} onclick={edit}><PencilSimple size={16} aria-hidden="true" />{t("chat.card.edit")}</button>
-        {#if follow}
-          <!-- A follow-up belongs to its session, so it has no Board card. -->
-        {:else if card.taskId}
-          <a class="btn secondary" href="/m/board"><Kanban size={16} aria-hidden="true" />{t("phone.card.onBoard")}</a>
-        {:else}
-          <button class="btn secondary" type="button" disabled={busy} onclick={toBoard}><Kanban size={16} aria-hidden="true" />{t("phone.card.addToBoard")}</button>
-        {/if}
-        <!-- Beside Edit on a follow-up; its own row under Edit and Add to board otherwise. -->
-        <button class="btn ghost" class:wide={!follow} type="button" disabled={busy} onclick={discard}>{t("phone.card.discard")}</button>
+        <button class="btn ghost" type="button" disabled={busy} onclick={discard}>{t("phone.card.discard")}</button>
       {/if}
     </div>
   </article>

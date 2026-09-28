@@ -363,7 +363,7 @@ test("a card can be edited before Run: CLI, mode and prompt, checked on the comp
   expect(screen.getByRole("button", { name: "Run in uninote" })).toHaveFocus();
 });
 
-test("a follow-up edits only its message and has no Board card", async () => {
+test("a follow-up edits only its message", async () => {
   setUrl("/m/chat/thread?id=th1");
   const follow: DispatchCard = { ...card, id: "c2", target: "s1", title: "Add a dark mode toggle", prompt: "also add tests" };
   phone.sessions = [session({ id: "s1", status: "idle" })];
@@ -372,7 +372,6 @@ test("a follow-up edits only its message and has no Board card", async () => {
   render(Thread);
   expect(await screen.findByRole("article", { name: "Follow-up for Add a dark mode toggle" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Send to session" })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Add to board" })).not.toBeInTheDocument();
   await u.click(screen.getByRole("button", { name: "Edit" }));
   expect(screen.getByLabelText("Message for the session")).toHaveValue("also add tests");
   expect(screen.queryByLabelText("CLI")).not.toBeInTheDocument();

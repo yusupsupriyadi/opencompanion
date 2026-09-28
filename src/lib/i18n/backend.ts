@@ -65,8 +65,6 @@ const RULES: Rule[] = [
   // Chat and cards
   [/^This card already ran or was discarded\.$/, "Kartu ini sudah dijalankan atau dibuang."],
   [/^This card is starting its session already\.$/, "Kartu ini sedang memulai sesinya."],
-  [/^This card is on the Board already\.$/, "Kartu ini sudah ada di Board."],
-  [/^A follow-up goes to its session; it cannot become a Board card\.$/, "Pesan lanjutan dikirim ke sesinya; tidak bisa menjadi kartu Board."],
   [/^Card not found\.$/, "Kartu tidak ditemukan."],
   [/^Message not found\.$/, "Pesan tidak ditemukan."],
   [/^The card has no prompt\.$/, "Kartu ini belum punya prompt."],
@@ -96,9 +94,6 @@ const RULES: Rule[] = [
   [/^Could not read the provider's answer: (.+)$/, "Jawaban provider tidak bisa dibaca: $1"],
   [/^The provider's answer had no text\.$/, "Jawaban provider tidak berisi teks."],
   [/^The provider answered (\d+): (.+)$/s, "Provider menjawab $1: $2"],
-  // Board
-  [/^Give the card a title\.$/, "Beri kartu ini judul."],
-  [/^Unknown column\.$/, "Kolom tidak dikenal."],
   // Phone access and settings
   [/^That code is not right\.$/, "Kode itu salah."],
   [/^This code has expired\. Show a new code on the desktop\.$/, "Kode ini sudah kedaluwarsa. Tampilkan kode baru di komputer."],

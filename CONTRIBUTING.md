@@ -65,7 +65,7 @@ bash e2e/linux/run.sh e2e      # build and install the .deb, then drive the app
 bash e2e/linux/run.sh all      # both
 ```
 
-The end-to-end run starts the installed app under Xvfb and drives it through `tauri-driver` with `e2e/linux/e2e.py` (standard library only). `claude` and `opencode` are wrappers around `fake-cli` that only the login shell's PATH holds, so the run also proves the app picks up that PATH. It covers onboarding, headless and interactive sessions, Approve, a shell tab in a session with Ctrl+Shift+V paste, All sessions, the Board, language and theme, start at login, phone pairing, a click on a notification (through `dunst`), a restart, and a start with no tray library. Screenshots, `results.json` and logs land in `e2e/linux/out/`.
+The end-to-end run starts the installed app under Xvfb and drives it through `tauri-driver` with `e2e/linux/e2e.py` (standard library only). `claude` and `opencode` are wrappers around `fake-cli` that only the login shell's PATH holds, so the run also proves the app picks up that PATH. It covers onboarding, headless and interactive sessions, Approve, a shell tab in a session with Ctrl+Shift+V paste, All sessions, language and theme, start at login, phone pairing, a click on a notification (through `dunst`), a restart, and a start with no tray library. Screenshots, `results.json` and logs land in `e2e/linux/out/`.
 
 ### CI
 
@@ -106,7 +106,7 @@ A few product rules hold everywhere, and changes that break them will not be mer
 - OpenCompanion never installs a CLI. It shows the command for the user to run.
 - It never writes to a CLI's own folders (settings, history, skills). Claude Code hooks are passed per session with `--settings` from the app data folder.
 - It never answers a CLI's opening dialogs, such as a folder trust question or an update offer, by itself.
-- Board cards that start without Run never use Bypass mode.
+- Chat cards that start without Run never use Bypass mode.
 - The phone companion stays off until the user turns it on.
 
 ## Commits and pull requests

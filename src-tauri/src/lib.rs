@@ -28,16 +28,16 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager as _, RunEvent, State};
 #[cfg(target_os = "macos")]
 use tauri_plugin_notification::NotificationExt;
 
-use crate::actions::{detect_with_settings, ChatTurn, RunTaskInput};
+use crate::actions::{detect_with_settings, ChatTurn};
 use crate::cli::{CliInstall, CliKind};
 use crate::companion::{Companion, CompanionStatus, Pairing};
-use crate::db::{ChatMessage, ChatThread, Db, DispatchCard, EventRow, Project, SessionInfo, Settings, Task};
+use crate::db::{ChatMessage, ChatThread, Db, DispatchCard, EventRow, Project, SessionInfo, Settings};
 use crate::session::{Emit, StartRequest};
 
 struct AppState {
@@ -69,12 +69,6 @@ impl Emit for TauriEmit {
         let _ = self.app.emit("session-event", row);
         if let Some(c) = self.companion.get() {
             c.broadcast(json!({ "type": "event", "event": row }));
-        }
-    }
-    fn tasks_changed(&self) {
-        let _ = self.app.emit("tasks-changed", ());
-        if let Some(c) = self.companion.get() {
-            c.broadcast(json!({ "type": "tasks" }));
         }
     }
     fn chat_changed(&self, thread_id: &str) {
@@ -363,15 +357,13 @@ fn session_folders(state: State<'_, AppState>) -> Res<Vec<String>> {
 struct SessionDetail {
     session: SessionInfo,
     events: Vec<EventRow>,
-    task: Option<Task>,
 }
 
 #[tauri::command]
 fn get_session(state: State<'_, AppState>, id: String) -> Res<SessionDetail> {
     let session = state.db.session(&id)?.ok_or("Session not found.")?;
     let events = state.db.events(&id, 400)?;
-    let task = state.db.task_for_session(&id)?;
-    Ok(SessionDetail { session, events, task })
+    Ok(SessionDetail { session, events })
 }
 
 #[derive(Serialize)]
@@ -437,16 +429,15 @@ async fn resume_session(state: State<'_, AppState>, id: String, cols: Option<u16
     blocking(move || manager.resume(&id, cols, rows)).await
 }
 
-/// Tells every screen and the phone that sessions are gone, and that Board cards lost their link.
+/// Tells every screen and the phone that sessions are gone.
 /// The shells opened from them end too, off this thread: killing a process tree takes a moment.
-fn announce_deleted(app: &AppHandle, manager: &session::Manager, companion: &Companion, ids: &[String]) {
+fn announce_deleted(app: &AppHandle, companion: &Companion, ids: &[String]) {
     if ids.is_empty() {
         return;
     }
     for id in ids {
         let _ = app.emit("session-deleted", id);
     }
-    manager.tasks_changed();
     companion.broadcast(json!({ "type": "resync" }));
     if let Some(state) = app.try_state::<AppState>() {
         let (terminals, ids) = (Arc::clone(&state.terminals), ids.to_vec());
@@ -459,7 +450,7 @@ fn announce_deleted(app: &AppHandle, manager: &session::Manager, companion: &Com
 async fn delete_history(app: AppHandle, state: State<'_, AppState>) -> Res<()> {
     let manager = Arc::clone(&state.manager);
     let (gone, problems) = blocking(move || Ok(manager.delete_finished())).await?;
-    announce_deleted(&app, &state.manager, &state.companion, &gone);
+    announce_deleted(&app, &state.companion, &gone);
     match problems.first() {
         Some(first) => Err(first.clone()),
         None => Ok(()),
@@ -469,7 +460,7 @@ async fn delete_history(app: AppHandle, state: State<'_, AppState>) -> Res<()> {
 #[tauri::command]
 fn delete_session(app: AppHandle, state: State<'_, AppState>, id: String) -> Res<()> {
     state.manager.delete(&id)?;
-    announce_deleted(&app, &state.manager, &state.companion, &[id]);
+    announce_deleted(&app, &state.companion, &[id]);
     Ok(())
 }
 
@@ -479,7 +470,7 @@ fn prune(app: &AppHandle, manager: &session::Manager, companion: &Companion, db:
     // The first run comes before the app state exists, and so before any shell was opened.
     let in_use = app.try_state::<AppState>().map(|s| s.terminals.sessions()).unwrap_or_default();
     let gone = manager.prune(keep, &in_use);
-    announce_deleted(app, manager, companion, &gone);
+    announce_deleted(app, companion, &gone);
 }
 
 #[tauri::command]
@@ -708,96 +699,11 @@ async fn chat_run_card(state: State<'_, AppState>, message_id: String, card_id: 
         .inspect(|m| chat_changed(&state, m))
 }
 
-/// Returns the chat message, whose card now names the Board card it became.
-#[tauri::command]
-fn chat_card_to_board(state: State<'_, AppState>, message_id: String, card_id: String) -> Res<ChatMessage> {
-    let (_, message) = actions::card_to_board(&state.db, &message_id, &card_id)?;
-    state.manager.tasks_changed();
-    chat_changed(&state, &message);
-    Ok(message)
-}
-
 #[tauri::command]
 fn chat_delete_thread(state: State<'_, AppState>, thread_id: String) -> Res<()> {
     actions::delete_thread(&state.db, &thread_id)?;
     state.companion.broadcast(json!({ "type": "chat", "threadId": thread_id }));
     Ok(())
-}
-
-// Board
-
-#[tauri::command]
-fn list_tasks(state: State<'_, AppState>) -> Res<Vec<Task>> {
-    state.db.tasks()
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct TaskInput {
-    id: Option<String>,
-    title: String,
-    notes: String,
-    project: String,
-    cli: Option<CliKind>,
-    column: String,
-}
-
-#[tauri::command]
-fn save_task(state: State<'_, AppState>, task: TaskInput) -> Res<Task> {
-    let title = task.title.trim();
-    if title.is_empty() {
-        return Err("Give the card a title.".into());
-    }
-    if !actions::COLUMNS.contains(&task.column.as_str()) {
-        return Err("Unknown column.".into());
-    }
-    let now = db::now_ms();
-    let existing = match &task.id {
-        Some(id) => state.db.task(id)?,
-        None => None,
-    };
-    let position = match &existing {
-        Some(e) if e.column == task.column => e.position,
-        _ => state.db.next_position(&task.column)?,
-    };
-    let saved = Task {
-        id: existing.as_ref().map(|e| e.id.clone()).unwrap_or_else(db::new_id),
-        title: title.to_string(),
-        notes: task.notes.trim().to_string(),
-        project: task.project.trim().to_string(),
-        cli: task.cli,
-        column: task.column,
-        position,
-        session_id: existing.as_ref().and_then(|e| e.session_id.clone()),
-        created_at: existing.as_ref().map(|e| e.created_at).unwrap_or(now),
-        updated_at: now,
-    };
-    state.db.save_task(&saved)?;
-    state.manager.tasks_changed();
-    Ok(saved)
-}
-
-#[tauri::command]
-fn move_task(state: State<'_, AppState>, id: String, column: String, before: Option<String>) -> Res<Task> {
-    let task = actions::move_task(&state.db, &id, &column, before)?;
-    state.manager.tasks_changed();
-    Ok(task)
-}
-
-#[tauri::command]
-fn delete_task(state: State<'_, AppState>, id: String) -> Res<()> {
-    state.db.delete_task(&id)?;
-    state.manager.tasks_changed();
-    Ok(())
-}
-
-#[tauri::command]
-async fn run_task(state: State<'_, AppState>, input: RunTaskInput) -> Res<SessionInfo> {
-    let db = Arc::clone(&state.db);
-    let manager = Arc::clone(&state.manager);
-    let session = blocking(move || actions::run_task(&db, &manager, input)).await?;
-    state.manager.tasks_changed();
-    Ok(session)
 }
 
 // Settings and phone access
@@ -1028,15 +934,9 @@ pub fn run() {
             chat_update_card,
             chat_discard_card,
             chat_run_card,
-            chat_card_to_board,
             chat_delete_thread,
             chat_models,
             chat_set_model,
-            list_tasks,
-            save_task,
-            move_task,
-            delete_task,
-            run_task,
             get_settings,
             save_settings,
             companion_status,

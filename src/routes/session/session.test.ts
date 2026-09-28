@@ -23,7 +23,7 @@ test("a running session shows the CPU and memory of its CLI and what it started"
   const s = session({ status: "running" });
   app.sessions = [s];
   const calls = backend({
-    get_session: () => ({ session: s, events: [], output: "", task: null }),
+    get_session: () => ({ session: s, events: [], output: "" }),
     session_usage: () => ({ cpuPercent: 12.5, memoryBytes: 1.5 * 1073741824, children: 3 }),
   });
   render(SessionPage);
@@ -37,7 +37,7 @@ test("a running session shows the CPU and memory of its CLI and what it started"
 test("a finished session is not measured", async () => {
   const s = session({ status: "done", endedAt: Date.now() });
   app.sessions = [s];
-  const calls = backend({ get_session: () => ({ session: s, events: [], output: "", task: null }) });
+  const calls = backend({ get_session: () => ({ session: s, events: [], output: "" }) });
   render(SessionPage);
 
   expect(await screen.findByRole("heading", { name: "Add a dark mode toggle" })).toBeInTheDocument();
@@ -61,7 +61,7 @@ test("events that arrive while the page loads are kept, once each", async () => 
 
   await vi.waitFor(() => expect(handlers["session-event"]).toBeTypeOf("function"));
   handlers["session-event"]({ payload: early });
-  finish({ session: s, events: [stored], task: null });
+  finish({ session: s, events: [stored] });
   const out = await screen.findByText(/Edit src\/app\.ts/);
   expect(out.closest("pre")).toHaveTextContent(/Read README\.md[\s\S]*Edit src\/app\.ts/);
   // The same event again, as a late listener would deliver it, is not shown twice.
@@ -74,7 +74,7 @@ test("an idle terminal can be marked done, and a working one only stopped", asyn
   const s = session({ mode: "interactive", status: "idle" });
   app.sessions = [s];
   const calls = backend({
-    get_session: () => ({ session: s, events: [], output: "", task: null }),
+    get_session: () => ({ session: s, events: [], output: "" }),
     session_output: () => ({ data: "", seq: 0 }),
   });
   const { unmount } = render(SessionPage);

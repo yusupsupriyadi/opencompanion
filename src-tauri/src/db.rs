@@ -1,5 +1,5 @@
-//! Local SQLite store (PRD FR-60, FR-70): sessions, their events, chat, board tasks,
-//! recent projects, paired devices and settings. One connection behind a mutex; every
+//! Local SQLite store (PRD FR-60): sessions, their events, chat, recent projects,
+//! paired devices and settings. One connection behind a mutex; every
 //! statement is short, so contention is not a concern at this scale.
 
 use std::collections::HashMap;
@@ -106,9 +106,8 @@ pub struct SessionInfo {
     pub exit_code: Option<i32>,
     pub last_event: Option<String>,
     pub waiting: Option<Waiting>,
-    /// `manual`, `chat`, or `board`.
+    /// `manual` or `chat`. Sessions from before the Board was removed may say `board`.
     pub source: String,
-    pub task_id: Option<String>,
     pub permission_mode: Option<String>,
     pub updated_at: i64,
 }
@@ -154,9 +153,6 @@ pub struct DispatchCard {
     /// `proposed`, `started`, `discarded`.
     pub state: String,
     pub session_id: Option<String>,
-    /// The Board card made from this card, so Add to board makes only one.
-    #[serde(default)]
-    pub task_id: Option<String>,
     /// A follow-up for a session that already exists (PRD FR-25): Run sends `prompt` to it
     /// instead of starting a session. `cli`, `folder` and `mode` are that session's.
     #[serde(default)]
@@ -195,22 +191,6 @@ pub fn thread_title(message: &str) -> String {
         return "Untitled chat".into();
     }
     line.chars().take(80).collect()
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Task {
-    pub id: String,
-    pub title: String,
-    pub notes: String,
-    pub project: String,
-    pub cli: Option<CliKind>,
-    /// `pending`, `todo`, `progress`, `done`.
-    pub column: String,
-    pub position: f64,
-    pub session_id: Option<String>,
-    pub created_at: i64,
-    pub updated_at: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -424,6 +404,8 @@ impl Default for Settings {
     }
 }
 
+// Databases from before the Board was removed still hold its `tasks` table and a
+// `sessions.task_id` column. Nothing reads them, and they are left as they are.
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
@@ -441,7 +423,6 @@ CREATE TABLE IF NOT EXISTS sessions (
   last_event TEXT,
   waiting TEXT,
   source TEXT NOT NULL,
-  task_id TEXT,
   permission_mode TEXT,
   updated_at INTEGER NOT NULL
 );
@@ -464,18 +445,6 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 CREATE TABLE IF NOT EXISTS chat_threads (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS tasks (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  notes TEXT NOT NULL,
-  project TEXT NOT NULL,
-  cli TEXT,
-  col TEXT NOT NULL,
-  position REAL NOT NULL,
-  session_id TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -529,7 +498,6 @@ fn session_from(row: &Row) -> rusqlite::Result<SessionInfo> {
         last_event: row.get("last_event")?,
         waiting: waiting.and_then(|w| serde_json::from_str(&w).ok()),
         source: row.get("source")?,
-        task_id: row.get("task_id")?,
         permission_mode: row.get("permission_mode")?,
         updated_at: row.get("updated_at")?,
     })
@@ -589,22 +557,6 @@ fn migrate_chat(conn: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
-fn task_from(row: &Row) -> rusqlite::Result<Task> {
-    let cli: Option<String> = row.get("cli")?;
-    Ok(Task {
-        id: row.get("id")?,
-        title: row.get("title")?,
-        notes: row.get("notes")?,
-        project: row.get("project")?,
-        cli: cli.as_deref().and_then(CliKind::from_bin),
-        column: row.get("col")?,
-        position: row.get("position")?,
-        session_id: row.get("session_id")?,
-        created_at: row.get("created_at")?,
-        updated_at: row.get("updated_at")?,
-    })
-}
-
 impl Db {
     pub fn open(path: &Path) -> R<Self> {
         let conn = Connection::open(path).map_err(err)?;
@@ -637,13 +589,13 @@ impl Db {
         self.with(|c| {
             c.execute(
                 "INSERT INTO sessions (id, cli, cwd, mode, title, prompt, status, pid, cli_session_id,
-                   started_at, ended_at, exit_code, last_event, waiting, source, task_id, permission_mode, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
+                   started_at, ended_at, exit_code, last_event, waiting, source, permission_mode, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
                  ON CONFLICT(id) DO UPDATE SET
                    status = excluded.status, pid = excluded.pid, cli_session_id = excluded.cli_session_id,
                    ended_at = excluded.ended_at, exit_code = excluded.exit_code, last_event = excluded.last_event,
                    waiting = excluded.waiting, title = excluded.title, prompt = excluded.prompt,
-                   task_id = excluded.task_id, updated_at = excluded.updated_at",
+                   updated_at = excluded.updated_at",
                 params![
                     s.id,
                     s.cli.bin(),
@@ -660,7 +612,6 @@ impl Db {
                     s.last_event,
                     waiting,
                     s.source,
-                    s.task_id,
                     s.permission_mode,
                     s.updated_at,
                 ],
@@ -751,14 +702,13 @@ impl Db {
         })
     }
 
-    /// Removes one session and its events. A board card or chat card that ran it stays, without
-    /// the link, so neither offers to open a session that is gone.
+    /// Removes one session and its events. A chat card that ran it stays, without the link, so
+    /// it does not offer to open a session that is gone.
     pub fn delete_session(&self, id: &str) -> R<()> {
         self.with(|c| {
             let tx = c.unchecked_transaction()?;
             tx.execute("DELETE FROM session_events WHERE session_id = ?1", [id])?;
             tx.execute("DELETE FROM sessions WHERE id = ?1", [id])?;
-            tx.execute("UPDATE tasks SET session_id = NULL WHERE session_id = ?1", [id])?;
             let linked: Vec<(String, String)> = {
                 let mut st = tx.prepare("SELECT id, cards FROM chat_messages WHERE instr(cards, ?1) > 0")?;
                 let rows = st.query_map([id], |r| Ok((r.get(0)?, r.get(1)?)))?;
@@ -908,67 +858,6 @@ impl Db {
             tx.execute("DELETE FROM chat_messages WHERE thread_id = ?1", [id])?;
             tx.execute("DELETE FROM chat_threads WHERE id = ?1", [id])?;
             tx.commit()
-        })
-    }
-
-    // Tasks
-
-    pub fn tasks(&self) -> R<Vec<Task>> {
-        self.with(|c| {
-            let mut st = c.prepare("SELECT * FROM tasks ORDER BY col, position")?;
-            let rows = st.query_map([], task_from)?;
-            rows.collect()
-        })
-    }
-
-    pub fn task(&self, id: &str) -> R<Option<Task>> {
-        self.with(|c| c.query_row("SELECT * FROM tasks WHERE id = ?1", [id], task_from).optional())
-    }
-
-    pub fn task_for_session(&self, session_id: &str) -> R<Option<Task>> {
-        self.with(|c| {
-            c.query_row("SELECT * FROM tasks WHERE session_id = ?1", [session_id], task_from)
-                .optional()
-        })
-    }
-
-    pub fn save_task(&self, t: &Task) -> R<()> {
-        self.with(|c| {
-            c.execute(
-                "INSERT INTO tasks (id, title, notes, project, cli, col, position, session_id, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
-                 ON CONFLICT(id) DO UPDATE SET title = excluded.title, notes = excluded.notes,
-                   project = excluded.project, cli = excluded.cli, col = excluded.col,
-                   position = excluded.position, session_id = excluded.session_id, updated_at = excluded.updated_at",
-                params![
-                    t.id,
-                    t.title,
-                    t.notes,
-                    t.project,
-                    t.cli.map(CliKind::bin),
-                    t.column,
-                    t.position,
-                    t.session_id,
-                    t.created_at,
-                    t.updated_at
-                ],
-            )
-            .map(|_| ())
-        })
-    }
-
-    pub fn delete_task(&self, id: &str) -> R<()> {
-        self.with(|c| c.execute("DELETE FROM tasks WHERE id = ?1", [id]).map(|_| ()))
-    }
-
-    /// Position after the last card of a column, so new and moved cards land at the end.
-    pub fn next_position(&self, column: &str) -> R<f64> {
-        self.with(|c| {
-            c.query_row(
-                "SELECT COALESCE(MAX(position), 0) + 1 FROM tasks WHERE col = ?1",
-                [column],
-                |r| r.get(0),
-            )
         })
     }
 
@@ -1125,6 +1014,27 @@ mod tests {
     }
 
     #[test]
+    fn a_database_from_the_board_days_still_opens_and_saves_sessions() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE sessions (id TEXT PRIMARY KEY, cli TEXT NOT NULL, cwd TEXT NOT NULL, mode TEXT NOT NULL,
+               title TEXT NOT NULL, prompt TEXT NOT NULL, status TEXT NOT NULL, pid INTEGER, cli_session_id TEXT,
+               started_at INTEGER NOT NULL, ended_at INTEGER, exit_code INTEGER, last_event TEXT, waiting TEXT,
+               source TEXT NOT NULL, task_id TEXT, permission_mode TEXT, updated_at INTEGER NOT NULL);
+             INSERT INTO sessions (id, cli, cwd, mode, title, prompt, status, started_at, source, task_id, updated_at)
+               VALUES ('old', 'claude', 'C:/w', 'headless', 'Fix it', 'fix it', 'done', 1, 'board', 't1', 1);
+             CREATE TABLE tasks (id TEXT PRIMARY KEY, title TEXT NOT NULL, notes TEXT NOT NULL, project TEXT NOT NULL,
+               cli TEXT, col TEXT NOT NULL, position REAL NOT NULL, session_id TEXT, created_at INTEGER NOT NULL,
+               updated_at INTEGER NOT NULL);",
+        )
+        .unwrap();
+        let db = Db::init(conn).unwrap();
+        assert_eq!(db.session("old").unwrap().unwrap().source, "board");
+        db.upsert_session(&session("new", Status::Done)).unwrap();
+        assert!(db.session("new").unwrap().is_some());
+    }
+
+    #[test]
     fn thread_titles_come_from_the_first_line() {
         assert_eq!(thread_title("\n  Add a dark mode toggle  \nto uninote"), "Add a dark mode toggle");
         assert_eq!(thread_title(&"x".repeat(200)).chars().count(), 80);
@@ -1148,7 +1058,6 @@ mod tests {
             last_event: None,
             waiting: None,
             source: "manual".into(),
-            task_id: None,
             permission_mode: None,
             updated_at: 1,
         }
@@ -1195,24 +1104,8 @@ mod tests {
     }
 
     #[test]
-    fn tasks_positions_and_settings_defaults() {
+    fn settings_defaults() {
         let db = Db::open_in_memory().unwrap();
-        assert_eq!(db.next_position("todo").unwrap(), 1.0);
-        let t = Task {
-            id: "t1".into(),
-            title: "x".into(),
-            notes: String::new(),
-            project: "C:/w".into(),
-            cli: Some(CliKind::Codex),
-            column: "todo".into(),
-            position: 1.0,
-            session_id: None,
-            created_at: 1,
-            updated_at: 1,
-        };
-        db.save_task(&t).unwrap();
-        assert_eq!(db.next_position("todo").unwrap(), 2.0);
-        assert_eq!(db.task("t1").unwrap().unwrap().cli, Some(CliKind::Codex));
         let s = db.settings().unwrap();
         assert!(s.notify_waiting && !s.companion_enabled);
     }
@@ -1268,19 +1161,6 @@ mod tests {
         db.upsert_session(&session("b", Status::Done)).unwrap();
         db.add_event("a", 1, &SessionEvent::Message { text: "a".into() }).unwrap();
         db.add_event("b", 1, &SessionEvent::Message { text: "b".into() }).unwrap();
-        db.save_task(&Task {
-            id: "t1".into(),
-            title: "x".into(),
-            notes: String::new(),
-            project: "C:/w".into(),
-            cli: None,
-            column: "done".into(),
-            position: 1.0,
-            session_id: Some("a".into()),
-            created_at: 1,
-            updated_at: 1,
-        })
-        .unwrap();
         let card = |id: &str, session: &str| DispatchCard {
             id: id.into(),
             cli: CliKind::Claude,
@@ -1292,7 +1172,6 @@ mod tests {
             problem: None,
             state: "started".into(),
             session_id: Some(session.into()),
-            task_id: None,
             target: None,
             auto: false,
         };
@@ -1310,7 +1189,6 @@ mod tests {
         assert!(db.events("a", 10).unwrap().is_empty());
         assert_eq!(db.events("b", 10).unwrap().len(), 1);
         assert!(db.session("b").unwrap().is_some());
-        assert_eq!(db.task("t1").unwrap().unwrap().session_id, None);
         let cards = db.chat_message("m1").unwrap().unwrap().cards;
         assert_eq!(cards[0].session_id, None);
         assert_eq!(cards[1].session_id.as_deref(), Some("b"));

@@ -88,7 +88,7 @@ test("one failed request while the live connection is up does not show the offli
   FakeSocket.all[0].open();
   vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new TypeError("Failed to fetch"))));
 
-  await expect(call("/api/tasks")).rejects.toThrow("Can't reach your desktop.");
+  await expect(call("/api/chat")).rejects.toThrow("Can't reach your desktop.");
   expect(phone.connection).toBe("online");
 });
 

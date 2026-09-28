@@ -14,7 +14,7 @@
   import TerminalWindow from "phosphor-svelte/lib/TerminalWindow";
   import X from "phosphor-svelte/lib/X";
   import { onMount } from "svelte";
-  import type { EventRow, SessionInfo, Task, Usage } from "$lib/api";
+  import type { EventRow, SessionInfo, Usage } from "$lib/api";
   import CliMark from "$lib/CliMark.svelte";
   import Dialog from "$lib/Dialog.svelte";
   import Horizon from "$lib/Horizon.svelte";
@@ -32,7 +32,6 @@
     tail: string;
     /** `[path, edits]`, in the order first changed. */
     files?: [string, number][];
-    task?: Task | null;
     usage?: Usage | null;
   };
   type View = "terminal" | "activity" | "details";
@@ -318,7 +317,7 @@
             <div class="kv"><span>CLI</span><b>{CLI_LABEL[s.cli]} · {t(`phone.mode.${s.mode}`)} · {t("sessions.detail.permMode", { mode: modeLabel(s.permissionMode) })}</b></div>
             <div class="kv">
               <span>{t("phone.session.startedAt")}</span>
-              <b>{clock(s.startedAt)}{#if s.source !== "manual"} · {s.source === "chat" ? t("sessions.detail.fromChat") : t("sessions.detail.fromBoard")}{/if}</b>
+              <b>{clock(s.startedAt)}{#if s.source === "chat"} · {t("sessions.detail.fromChat")}{/if}</b>
             </div>
             <div class="kv"><span>{t("sessions.runningFor")}</span><b>{duration((s.endedAt ?? now) - s.startedAt)}</b></div>
           </section>
@@ -351,13 +350,6 @@
             <h2 id="md-signal">{t("sessions.detail.signal")}</h2>
             <p class="small" style="margin:0">{signal}</p>
           </section>
-
-          {#if loaded?.task}
-            <section class="side-group" aria-labelledby="md-card">
-              <h2 id="md-card">{t("sessions.detail.boardCard")}</h2>
-              <a class="link" href="/m/board?col={loaded.task.column}">{loaded.task.title}</a>
-            </section>
-          {/if}
         </div>
       {/if}
     {/if}

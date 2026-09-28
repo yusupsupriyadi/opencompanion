@@ -23,7 +23,6 @@ function session(over: Partial<SessionInfo>): SessionInfo {
     lastEvent: null,
     waiting: null,
     source: "manual",
-    taskId: null,
     permissionMode: "ask",
     updatedAt: Date.now(),
     ...over,

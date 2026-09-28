@@ -50,7 +50,6 @@ export const en = {
   // lib/DispatchCard.svelte
   "chat.card.sentTo": "Sent to {cli} in {folder}.",
   "chat.card.startedIn": "Started {cli} in {folder}.",
-  "chat.card.addedToBoard": "Added to the Board in Todo.",
   "chat.card.discarded": "Discarded the {cli} card for {folder}.",
   "chat.card.undo": "Undo",
   "chat.card.followUpFor": "Follow-up for {title}",
@@ -79,8 +78,6 @@ export const en = {
   "chat.card.sendToSession": "Send to session",
   "chat.card.runIn": "Run in {folder}",
   "chat.card.edit": "Edit",
-  "chat.card.onBoard": "On the Board",
-  "chat.card.addToBoard": "Add to board",
   "chat.card.discard": "Discard",
 
   // lib/FolderMention.svelte
@@ -155,7 +152,6 @@ export const id: Record<keyof typeof en, string> = {
 
   "chat.card.sentTo": "Terkirim ke {cli} di {folder}.",
   "chat.card.startedIn": "{cli} dimulai di {folder}.",
-  "chat.card.addedToBoard": "Ditambahkan ke Board di kolom Todo.",
   "chat.card.discarded": "Kartu {cli} untuk {folder} dibuang.",
   "chat.card.undo": "Urungkan",
   "chat.card.followUpFor": "Pesan lanjutan untuk {title}",
@@ -184,8 +180,6 @@ export const id: Record<keyof typeof en, string> = {
   "chat.card.sendToSession": "Kirim ke sesi",
   "chat.card.runIn": "Jalankan di {folder}",
   "chat.card.edit": "Ubah",
-  "chat.card.onBoard": "Ada di Board",
-  "chat.card.addToBoard": "Tambah ke Board",
   "chat.card.discard": "Buang",
 
   "chat.mention.dialogTitle": "Pilih folder untuk planner",

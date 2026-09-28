@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import { goto } from "$app/navigation";
-import type { CliInstall, Task } from "$lib/api";
+import type { CliInstall } from "$lib/api";
 import { setUrl } from "../../../test/app-state.svelte";
 import { phoneServer, sent } from "../../../test/phone-server";
 import NewSession from "./+page.svelte";
@@ -59,32 +59,17 @@ test("a folder the desktop cannot find is flagged at the folder field", async ()
   expect(goto).not.toHaveBeenCalled();
 });
 
-test("running a Board card starts from the card and runs it through the Board", async () => {
-  setUrl("/m/new?task=t1");
-  const task: Task = {
-    id: "t1",
-    title: "Write the API docs",
-    notes: "Document every endpoint",
-    project: "C:\\Work\\api",
-    cli: "claude",
-    column: "todo",
-    position: 1,
-    sessionId: null,
-    createdAt: 1,
-    updatedAt: 1,
-  };
+test("?cwd= starts in that folder, kept as a typed path when it is not in the list", async () => {
+  setUrl("/m/new?cwd=C:%5CWork%5Capi");
   const fetchMock = phoneServer({
     "GET /api/options": options,
-    "GET /api/tasks": () => [200, { tasks: [task] }],
-    "POST /api/tasks/t1/run": () => [200, { session: { id: "s9" } }],
+    "POST /api/sessions": () => [200, { session: { id: "s9" } }],
   });
   const user = userEvent.setup();
   render(NewSession);
-  expect(await screen.findByRole("heading", { name: "Write the API docs" })).toBeInTheDocument();
-  // A folder outside the found list is kept as a typed path.
-  expect(screen.getByLabelText("Folder path")).toHaveValue("C:\\Work\\api");
-  expect(screen.getByLabelText("Prompt")).toHaveValue("Document every endpoint");
-  await user.click(screen.getByRole("button", { name: "Run in api" }));
-  expect(sent(fetchMock, "POST /api/tasks/t1/run")[0]).toMatchObject({ cli: "claude", cwd: "C:\\Work\\api", prompt: "Document every endpoint" });
+  expect(await screen.findByLabelText("Folder path")).toHaveValue("C:\\Work\\api");
+  await user.type(screen.getByLabelText("Prompt"), "Document every endpoint");
+  await user.click(screen.getByRole("button", { name: "Start Claude Code in api" }));
+  expect(sent(fetchMock, "POST /api/sessions")[0]).toMatchObject({ cli: "claude", cwd: "C:\\Work\\api", prompt: "Document every endpoint" });
   expect(goto).toHaveBeenCalledWith("/m/session?id=s9", { replaceState: true });
 });
