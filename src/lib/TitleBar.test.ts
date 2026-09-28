@@ -1,10 +1,15 @@
 import { render, screen } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import TitleBar from "./TitleBar.svelte";
 
 const win = vi.mocked(getCurrentWindow());
+const MAC_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 beforeEach(() => {
   win.minimize.mockClear();
@@ -34,6 +39,15 @@ test("Maximize turns into Restore while the window is maximized", async () => {
   const onResize = win.onResized.mock.calls[0][0];
   onResize({} as never);
   expect(await screen.findByRole("button", { name: "Maximize" })).toBeInTheDocument();
+});
+
+test("on macOS the native traffic lights replace the window buttons, and the bar still drags", () => {
+  vi.spyOn(navigator, "userAgent", "get").mockReturnValue(MAC_UA);
+  const { container } = render(TitleBar);
+  expect(screen.queryByRole("button", { name: "Minimize" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Maximize" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
+  expect(container.querySelector("#titlebar")).toHaveAttribute("data-tauri-drag-region");
 });
 
 test("the bar is the drag handle and the buttons are not", () => {
