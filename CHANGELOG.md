@@ -4,7 +4,7 @@ Notable changes to OpenCompanion are listed here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
-Planned as 0.1.0, the first public release. Windows 11 is tested by hand, Linux end to end in Docker, and macOS is ready for its first CI run.
+Planned as 0.1.0, the first public release. Windows 11 is tested by hand, Linux end to end in Docker, and macOS builds and passes its tests in CircleCI.
 
 ### Added
 
@@ -38,7 +38,7 @@ Planned as 0.1.0, the first public release. Windows 11 is tested by hand, Linux 
 - Pi never asks for permission, so Ask me, Auto and Bypass all let it run every tool; only Plan limits it. Its headless runs and the Chat planner were checked against a local stub, not a real provider, and interactive sessions only by unit tests.
 - omp's approval prompts in a terminal are not detected as Waiting for you yet, and a headless omp run refuses any tool that needs approval. omp 18.3.5 was checked only with runs that sent no prompt.
 - No Web Push to the phone yet; the phone shows notifications while its page is open.
-- macOS has not been built or run yet. On macOS a click on a notification does not open its session.
+- macOS is tested in CI only; nobody has opened the app on a Mac yet. On macOS a click on a notification does not open its session.
 - On a GNOME desktop the tray icon shows only with the AppIndicator extension.
 - On macOS and Linux, a child that detaches into a session of its own outlives Stop.
 
