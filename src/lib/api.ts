@@ -178,6 +178,100 @@ export interface SessionDetail {
   task: Task | null;
 }
 
+/** Mirrors `files::Entry`. Paths are relative to the session folder, with `/` between parts. */
+export interface FolderEntry {
+  name: string;
+  path: string;
+  dir: boolean;
+  ignored: boolean;
+}
+
+/** Mirrors `files::Listing`. */
+export interface FolderListing {
+  entries: FolderEntry[];
+  truncated: boolean;
+}
+
+/** Mirrors `files::Match`: a file for a name search, a line of it for a text search. */
+export interface FindMatch {
+  path: string;
+  line: number | null;
+  text: string | null;
+}
+
+/** Mirrors `files::Found`. */
+export interface FindResult {
+  matches: FindMatch[];
+  truncated: boolean;
+}
+
+/** Mirrors `files::FileText`. */
+export interface FileText {
+  text: string | null;
+  size: number;
+  binary: boolean;
+  tooLarge: boolean;
+}
+
+export type ChangeCode = "M" | "A" | "D" | "R" | "C" | "U" | "?";
+
+/** Mirrors `git::Change`. */
+export interface GitChange {
+  path: string;
+  oldPath: string | null;
+  code: ChangeCode;
+  staged: boolean;
+  unstaged: boolean;
+  added: number | null;
+  removed: number | null;
+}
+
+/** Mirrors `git::Status`: uncommitted changes in the session folder against HEAD. */
+export interface GitStatus {
+  repo: boolean;
+  branch: string | null;
+  head: string | null;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  changes: GitChange[];
+  truncated: boolean;
+}
+
+/** Mirrors `git::Diff`. */
+export interface GitDiff {
+  patch: string;
+  binary: boolean;
+  tooLarge: boolean;
+}
+
+/** Mirrors `git::Branch`. */
+export interface GitBranch {
+  name: string;
+  current: boolean;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  gone: boolean;
+  subject: string;
+  at: number;
+}
+
+/** Mirrors `git::Commit`. */
+export interface GitCommit {
+  hash: string;
+  subject: string;
+  author: string;
+  at: number;
+}
+
+/** Mirrors `git::Branches`. */
+export interface GitBranches {
+  repo: boolean;
+  branches: GitBranch[];
+  commits: GitCommit[];
+}
+
 export interface DispatchCard {
   id: string;
   cli: CliKind;
@@ -404,6 +498,17 @@ export const api = {
   projectFolders: () => invoke<ProjectFolder[]>("project_folders"),
   defaultProjectRoots: () => invoke<string[]>("default_project_roots"),
   folderExists: (path: string) => invoke<boolean>("folder_exists", { path }),
+
+  /** One folder of a session's folder; `dir` "" is its top. */
+  folderList: (id: string, dir: string) => invoke<FolderListing>("folder_list", { id, dir }),
+  folderFind: (id: string, query: string, contents: boolean) => invoke<FindResult>("folder_find", { id, query, contents }),
+  folderRead: (id: string, path: string) => invoke<FileText>("folder_read", { id, path }),
+  gitStatus: (id: string) => invoke<GitStatus>("git_status", { id }),
+  gitDiff: (id: string, change: Pick<GitChange, "path" | "oldPath" | "code">) =>
+    invoke<GitDiff>("git_diff", { id, path: change.path, oldPath: change.oldPath, untracked: change.code === "?" }),
+  gitBranches: (id: string) => invoke<GitBranches>("git_branches", { id }),
+  /** Refused while a session in the folder is live or tracked files have uncommitted changes. */
+  gitSwitch: (id: string, branch: string) => invoke<GitStatus>("git_switch", { id, branch }),
 
   /** Installed shells, the default first. */
   terminalShells: () => invoke<ShellInfo[]>("terminal_shells"),

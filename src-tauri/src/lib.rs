@@ -5,6 +5,8 @@ pub mod cli;
 pub mod companion;
 pub mod db;
 pub mod events;
+pub mod files;
+pub mod git;
 pub mod headless;
 pub mod models;
 pub mod monitor;
@@ -501,6 +503,72 @@ fn folder_exists(path: String) -> bool {
     !path.trim().is_empty() && std::path::Path::new(path.trim()).is_dir()
 }
 
+// A session's folder: files and git for the side panel. Desktop only; the phone never reads files.
+
+/// The folder a session runs in, which every path below is relative to.
+fn session_folder(state: &AppState, id: &str) -> Res<PathBuf> {
+    let session = state.db.session(id)?.ok_or("Session not found.")?;
+    let dir = PathBuf::from(&session.cwd);
+    if !dir.is_dir() {
+        return Err(format!("The folder {} does not exist.", session.cwd));
+    }
+    Ok(dir)
+}
+
+#[tauri::command]
+async fn folder_list(state: State<'_, AppState>, id: String, dir: String) -> Res<files::Listing> {
+    let root = session_folder(&state, &id)?;
+    blocking(move || files::list(&root, &dir)).await
+}
+
+/// Files whose path holds the query, or with `contents` the lines that hold it.
+#[tauri::command]
+async fn folder_find(state: State<'_, AppState>, id: String, query: String, contents: bool) -> Res<files::Found> {
+    let root = session_folder(&state, &id)?;
+    blocking(move || Ok(if contents { files::find_text(&root, &query) } else { files::find_names(&root, &query) })).await
+}
+
+#[tauri::command]
+async fn folder_read(state: State<'_, AppState>, id: String, path: String) -> Res<files::FileText> {
+    let root = session_folder(&state, &id)?;
+    blocking(move || files::read(&root, &path)).await
+}
+
+#[tauri::command]
+async fn git_status(state: State<'_, AppState>, id: String) -> Res<git::Status> {
+    let root = session_folder(&state, &id)?;
+    blocking(move || git::status(&root)).await
+}
+
+#[tauri::command]
+async fn git_diff(state: State<'_, AppState>, id: String, path: String, old_path: Option<String>, untracked: bool) -> Res<git::Diff> {
+    let root = session_folder(&state, &id)?;
+    blocking(move || git::diff(&root, &path, old_path.as_deref(), untracked)).await
+}
+
+#[tauri::command]
+async fn git_branches(state: State<'_, AppState>, id: String) -> Res<git::Branches> {
+    let root = session_folder(&state, &id)?;
+    blocking(move || git::branches(&root)).await
+}
+
+/// Refused while any OpenCompanion session in the folder is live: its CLI holds the files as
+/// they are on this branch.
+#[tauri::command]
+async fn git_switch(state: State<'_, AppState>, id: String, branch: String) -> Res<git::Status> {
+    let root = session_folder(&state, &id)?;
+    let folder = projects::norm(&root.display().to_string());
+    let busy = state
+        .db
+        .sessions(u32::MAX)?
+        .into_iter()
+        .any(|s| s.status.is_live() && projects::norm(&s.cwd) == folder);
+    if busy {
+        return Err("Stop or finish the sessions in this folder before switching branches.".into());
+    }
+    blocking(move || git::switch(&root, &branch)).await
+}
+
 // Terminals
 
 #[tauri::command]
@@ -928,6 +996,13 @@ pub fn run() {
             project_folders,
             default_project_roots,
             folder_exists,
+            folder_list,
+            folder_find,
+            folder_read,
+            git_status,
+            git_diff,
+            git_branches,
+            git_switch,
             terminal_shells,
             terminal_list,
             terminal_open,

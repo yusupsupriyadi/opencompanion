@@ -9,12 +9,13 @@ import * as settings from "./i18n/settings";
 import * as shell from "./i18n/shell";
 import * as terminal from "./i18n/terminal";
 import * as work from "./i18n/work";
+import * as workspace from "./i18n/workspace";
 
 export type Lang = "en" | "id";
 
-const en = { ...shell.en, ...sessions.en, ...chat.en, ...work.en, ...settings.en, ...phone.en, ...terminal.en };
+const en = { ...shell.en, ...sessions.en, ...chat.en, ...work.en, ...settings.en, ...phone.en, ...terminal.en, ...workspace.en };
 export type Key = keyof typeof en;
-const id: Record<Key, string> = { ...shell.id, ...sessions.id, ...chat.id, ...work.id, ...settings.id, ...phone.id, ...terminal.id };
+const id: Record<Key, string> = { ...shell.id, ...sessions.id, ...chat.id, ...work.id, ...settings.id, ...phone.id, ...terminal.id, ...workspace.id };
 const DICTS: Record<Lang, Record<Key, string>> = { en, id };
 
 export const LANGS: { id: Lang; label: string }[] = [

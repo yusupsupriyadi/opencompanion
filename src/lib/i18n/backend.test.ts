@@ -28,6 +28,17 @@ test("login item errors on macOS and Linux read in Indonesian", () => {
   expect(translateBackend("Starting at sign-in is not available on this system.", "id")).toBe("Mulai saat masuk tidak tersedia di sistem ini.");
 });
 
+test("file and git errors read in Indonesian, with git's own words kept", () => {
+  expect(translateBackend("Git is not installed or not on PATH.", "id")).toBe("Git tidak terpasang atau tidak ada di PATH.");
+  expect(translateBackend("That path is outside this session's folder.", "id")).toBe("Path itu berada di luar folder sesi ini.");
+  expect(translateBackend("Git could not switch branches: error: pathspec 'x' did not match", "id")).toBe(
+    "Git tidak bisa pindah branch: error: pathspec 'x' did not match",
+  );
+  expect(translateBackend("Commit or stash the changes in this folder before switching branches.", "id")).toBe(
+    "Commit atau stash perubahan di folder ini sebelum pindah branch.",
+  );
+});
+
 test("English and text the backend did not write pass through", () => {
   expect(translateBackend("This folder does not exist.", "en")).toBe("This folder does not exist.");
   expect(translateBackend("Running bun run test", "id")).toBe("Running bun run test");

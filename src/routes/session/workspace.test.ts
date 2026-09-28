@@ -1,0 +1,197 @@
+import { fireEvent, render, screen, within } from "@testing-library/svelte";
+import { beforeEach, expect, test } from "vitest";
+import type { FolderEntry, GitChange, GitStatus } from "$lib/api";
+import { app } from "$lib/store.svelte";
+import { setUrl } from "../../test/app-state.svelte";
+import { CLIS, backend, session } from "../../test/fixtures";
+import SessionPage from "./+page.svelte";
+
+const dir = (name: string, path = name, ignored = false): FolderEntry => ({ name, path, dir: true, ignored });
+const file = (name: string, path = name, ignored = false): FolderEntry => ({ name, path, dir: false, ignored });
+
+function change(path: string, over: Partial<GitChange> = {}): GitChange {
+  return { path, oldPath: null, code: "M", staged: false, unstaged: true, added: 3, removed: 1, ...over };
+}
+
+function gitStatus(over: Partial<GitStatus> = {}): GitStatus {
+  return { repo: true, branch: "main", head: "abc1234", upstream: "origin/main", ahead: 0, behind: 0, changes: [], truncated: false, ...over };
+}
+
+const LISTING: Record<string, FolderEntry[]> = {
+  "": [dir("src"), dir("build", "build", true), file("README.md")],
+  src: [file("app.ts", "src/app.ts")],
+};
+
+function folder(extra: Record<string, (args: Record<string, unknown> | undefined) => unknown> = {}, status = gitStatus({ changes: [change("src/app.ts")] })) {
+  const s = session({ status: "done", endedAt: Date.now() });
+  app.sessions = [s];
+  return backend({
+    get_session: () => ({ session: s, events: [], task: null }),
+    folder_list: (a) => ({ entries: LISTING[String(a?.dir)] ?? [], truncated: false }),
+    git_status: () => status,
+    git_branches: () => ({
+      repo: true,
+      branches: [
+        { name: "main", current: true, upstream: "origin/main", ahead: 0, behind: 0, gone: false, subject: "Fix the tray", at: Date.now() - 3_600_000 },
+        { name: "feature", current: false, upstream: null, ahead: 0, behind: 0, gone: false, subject: "Try a thing", at: Date.now() - 7_200_000 },
+      ],
+      commits: [{ hash: "abc1234", subject: "Fix the tray", author: "Ana", at: Date.now() - 3_600_000 }],
+    }),
+    ...extra,
+  });
+}
+
+beforeEach(() => {
+  localStorage.removeItem("oc-session-side-tab");
+  app.clis = CLIS;
+  app.sessions = [];
+  app.now = Date.now();
+  setUrl("/session?id=s1");
+});
+
+test("Files lists folders first, marks ignored and changed entries, and opens a file above the output", async () => {
+  const calls = folder({ folder_read: () => ({ text: "const a = 1;\nconst b = 2;\n", size: 26, binary: false, tooLarge: false }) });
+  render(SessionPage);
+
+  expect(await screen.findByRole("tab", { name: "Files" })).toHaveAttribute("aria-selected", "true");
+  const tree = await screen.findByRole("tree", { name: "Files in uninote" });
+  const build = within(tree).getByRole("treeitem", { name: /build/ });
+  expect(build).toHaveTextContent("Ignored by .gitignore");
+  const src = within(tree).getByRole("treeitem", { name: /^src/ });
+  expect(src).toHaveAttribute("aria-expanded", "false");
+  expect(src).toHaveTextContent("Holds uncommitted changes");
+
+  await fireEvent.click(src);
+  expect(calls.calls("folder_list")).toContainEqual({ id: "s1", dir: "src" });
+  const app_ts = await within(tree).findByRole("treeitem", { name: /app\.ts/ });
+  expect(app_ts).toHaveTextContent("Modified");
+  expect(app_ts).toHaveAttribute("aria-level", "2");
+
+  await fireEvent.click(app_ts);
+  expect(await screen.findByText("const b = 2;")).toBeInTheDocument();
+  expect(calls.calls("folder_read")).toEqual([{ id: "s1", path: "src/app.ts" }]);
+  expect(screen.getByRole("region", { name: "src/app.ts, read-only" })).toBeInTheDocument();
+  expect(document.getElementById("session-term")).not.toBeVisible();
+
+  await fireEvent.click(screen.getByRole("button", { name: "Output" }));
+  expect(document.getElementById("session-term")).toBeVisible();
+  await fireEvent.click(screen.getByRole("button", { name: "Close app.ts" }));
+  expect(screen.queryByRole("group", { name: "Session views" })).not.toBeInTheDocument();
+});
+
+test("the tree moves with the arrow keys", async () => {
+  folder();
+  render(SessionPage);
+  const tree = await screen.findByRole("tree");
+  const src = within(tree).getByRole("treeitem", { name: /^src/ });
+  expect(src).toHaveAttribute("tabindex", "0");
+
+  src.focus();
+  await fireEvent.keyDown(src, { key: "ArrowRight" });
+  expect(await within(tree).findByRole("treeitem", { name: /app\.ts/ })).toBeInTheDocument();
+  await fireEvent.keyDown(src, { key: "ArrowDown" });
+  expect(document.activeElement).toHaveAccessibleName(/app\.ts/);
+  await fireEvent.keyDown(document.activeElement!, { key: "ArrowLeft" });
+  expect(document.activeElement).toBe(src);
+  await fireEvent.keyDown(src, { key: "End" });
+  expect(document.activeElement).toHaveAccessibleName("README.md");
+});
+
+test("Changes lists what changed since the last commit and shows a file's diff", async () => {
+  const patch = ["diff --git a/src/app.ts b/src/app.ts", "--- a/src/app.ts", "+++ b/src/app.ts", "@@ -1,2 +1,2 @@", " const a = 1;", "-const b = 2;", "+const b = 3;", ""].join("\n");
+  const calls = folder({ git_diff: () => ({ patch, binary: false, tooLarge: false }) });
+  render(SessionPage);
+
+  const tab = await screen.findByRole("tab", { name: "Changes, 1 file" });
+  await fireEvent.click(tab);
+  expect(localStorage.getItem("oc-session-side-tab")).toBe("changes");
+  const list = await screen.findByRole("list", { name: "Uncommitted changes" });
+  expect(within(list).getByText("+3 −1")).toBeInTheDocument();
+  expect(screen.getByText("since abc1234")).toBeInTheDocument();
+
+  await fireEvent.click(within(list).getByRole("button", { name: "src/app.ts, Modified, 3 lines added, 1 removed" }));
+  expect(await screen.findByText("const b = 3;")).toBeInTheDocument();
+  expect(calls.calls("git_diff")).toEqual([{ id: "s1", path: "src/app.ts", oldPath: null, untracked: false }]);
+  expect(screen.getByText("const b = 2;").closest(".cl")).toHaveClass("del");
+  // The viewer can also show the whole file, since the file still exists.
+  expect(screen.getByRole("button", { name: "File" })).toHaveAttribute("aria-pressed", "false");
+});
+
+test("a folder outside git still has Files, and Changes says why it is empty", async () => {
+  folder({}, gitStatus({ repo: false, branch: null, head: null, upstream: null }));
+  render(SessionPage);
+  await fireEvent.click(await screen.findByRole("tab", { name: "Changes" }));
+  expect(await screen.findByText("uninote is not a git repository.")).toBeInTheDocument();
+});
+
+test("the side tabs move with the arrow keys and the choice is remembered", async () => {
+  folder();
+  const { unmount } = render(SessionPage);
+  const files = await screen.findByRole("tab", { name: "Files" });
+  files.focus();
+  await fireEvent.keyDown(files, { key: "ArrowLeft" });
+  const details = screen.getByRole("tab", { name: "Details" });
+  expect(details).toHaveAttribute("aria-selected", "true");
+  expect(document.activeElement).toBe(details);
+  expect(screen.getByRole("tabpanel", { name: "Details" })).toHaveTextContent("Process");
+  unmount();
+
+  render(SessionPage);
+  expect(await screen.findByRole("tab", { name: "Details" })).toHaveAttribute("aria-selected", "true");
+});
+
+test("a branch switch waits while the CLI works, and asks first once it can", async () => {
+  const running = session({ status: "running" });
+  app.sessions = [running];
+  folder();
+  app.sessions = [running];
+  const { unmount } = render(SessionPage);
+  await fireEvent.click(await screen.findByRole("tab", { name: /Branch/ }));
+  expect(await screen.findByText("Claude Code is working in this folder. Stop it or mark it done before switching branches.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Switch to feature" })).toBeDisabled();
+  unmount();
+
+  const calls = folder({ git_switch: () => gitStatus({ branch: "feature" }) }, gitStatus({ changes: [change("notes.md", { code: "?" })] }));
+  render(SessionPage);
+  const button = await screen.findByRole("button", { name: "Switch to feature" });
+  expect(button).toBeEnabled();
+  expect(screen.getByText("Tracks origin/main · up to date")).toBeInTheDocument();
+  await fireEvent.click(button);
+  const dialog = await screen.findByRole("dialog", { name: "Switch to feature?" });
+  await fireEvent.click(within(dialog).getByRole("button", { name: "Switch to feature" }));
+  expect(calls.calls("git_switch")).toEqual([{ id: "s1", branch: "feature" }]);
+});
+
+test("tracked changes block a switch", async () => {
+  folder();
+  render(SessionPage);
+  await fireEvent.click(await screen.findByRole("tab", { name: /Branch/ }));
+  expect(await screen.findByText("Commit or stash the changes in this folder before switching branches.")).toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: "Switch to feature" })).toBeDisabled();
+});
+
+test("searching by name and by contents, and a text hit opens the file at its line", async () => {
+  const calls = folder({
+    folder_find: (a) =>
+      a?.contents
+        ? { matches: [{ path: "src/app.ts", line: 2, text: "const b = 2;" }], truncated: false }
+        : { matches: [{ path: "src/app.ts", line: null, text: null }], truncated: false },
+    folder_read: () => ({ text: "const a = 1;\nconst b = 2;\n", size: 26, binary: false, tooLarge: false }),
+  });
+  render(SessionPage);
+  const find = await screen.findByRole("searchbox", { name: "Find in uninote" });
+  await fireEvent.input(find, { target: { value: "app" } });
+  const results = await screen.findByRole("list", { name: "Search results" });
+  expect(within(results).getByRole("button", { name: /app\.ts/ })).toBeInTheDocument();
+  expect(calls.calls("folder_find")).toEqual([{ id: "s1", query: "app", contents: false }]);
+
+  await fireEvent.click(screen.getByRole("button", { name: "Contents" }));
+  const line = await screen.findByRole("button", { name: "src/app.ts, line 2: const b = 2;" });
+  await fireEvent.click(line);
+  const viewer = await screen.findByRole("region", { name: "src/app.ts, read-only" });
+  const hit = await within(viewer).findByText("const b = 2;");
+  expect(hit.closest(".cl")).toHaveClass("hit");
+
+  await fireEvent.keyDown(find, { key: "Escape" });
+  expect(await screen.findByRole("tree")).toBeInTheDocument();
+});

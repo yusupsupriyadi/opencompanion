@@ -162,6 +162,7 @@ h1 { margin: 0; font-size: 28px; font-weight: 800; line-height: 1.2; }
 .btn.block { width: 100%; min-height: 48px; }
 .icon-btn { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: var(--r-btn); background: transparent; color: var(--ink-2); cursor: pointer; }
 .icon-btn:hover { background: var(--surface-2); color: var(--ink); }
+.icon-btn.sm { width: 32px; height: 32px; }
 
 /* Chips and marks */
 .chip { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: var(--r-sm); font: 400 12px/1.25 var(--font-pixel); white-space: nowrap; }
@@ -245,10 +246,35 @@ a.srow:hover { background: var(--surface-2); }
 .detail-side p { margin: 0; font-size: 13px; color: var(--ink-2); line-height: 1.45; }
 .not-found { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; max-width: 520px; }
 .side-toggle { display: none; margin-left: auto; }
+/* A session's side panel: Files, Changes, Branch and Details as tabs, 320 wide so the four labels fit. Only the panel
+   under the tabs scrolls. The terminal column can take a second tab, the file viewer, above it. */
+.detail-body.ws { grid-template-columns: minmax(0, 1fr) 320px; }
+.main-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.main-pane > .term { flex: 1; }
+.main-pane > .term.joined { border-top-left-radius: 0; }
+.detail-side.tabbed { gap: 12px; padding: 10px 12px 12px; overflow: hidden; }
+.side-tabs { display: flex; flex: none; gap: 2px; padding: 3px; border-radius: var(--r-btn); background: var(--surface-2); box-shadow: var(--glass-rim); }
+.side-tab { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 48px; padding: 5px 2px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink-2); font-size: 12px; font-weight: 700; cursor: pointer; transition: background-color .12s ease-out; }
+.side-tab:hover { background: var(--surface); }
+.side-tab[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--glass-rim); }
+.side-tab[aria-selected="true"] svg { color: var(--forest); }
+.side-tab .st-icon { display: inline-flex; align-items: center; gap: 4px; }
+.side-tab .st-count { font: 600 12px var(--font-mono); }
+.side-tab .st-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The 4px pad keeps focus rings inside the scroller. */
+.side-panel { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; margin: 0 -4px; padding: 2px 4px 4px; --scroll-thumb: var(--ink-2); --scroll-thumb-hover: var(--ink); }
+.side-panel.details { gap: 22px; }
+.side-head { display: flex; align-items: center; gap: 8px; }
+.side-head h3 { flex: 1; min-width: 0; margin: 0; font-size: 14px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-head h3.mono { font-size: 13px; font-weight: 600; }
+.side-note { margin: 0; font-size: 13px; line-height: 1.45; }
+.side-state { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; font-size: 13px; }
 @media (max-width: 1279px) {
-  .detail-body { grid-template-columns: minmax(0, 1fr); }
+  .detail-body, .detail-body.ws { grid-template-columns: minmax(0, 1fr); }
   .detail-side { display: none; }
   .detail-side.open { display: flex; }
+  /* Below the terminal, the panel keeps a height of its own so the tree scrolls inside it. */
+  .detail-side.tabbed.open { height: min(560px, 75vh); }
   .side-toggle { display: inline-flex; }
 }
 @media (max-width: 720px) {
@@ -321,6 +347,21 @@ dialog[open] { animation: rise .18s ease-out; }
 .xterm-host .xterm { height: 100%; }
 .xterm-host .xterm-viewport { background: transparent !important; }
 .term-note { padding: 10px 14px; border-top: 1px solid #EDE6C433; font: 12px var(--font-mono); color: var(--term-dim); }
+
+/* Tabs over a dark panel (Terminal screen, a session's terminal and viewer). A tab is a plate over the painting; the shown
+   one takes the terminal's own colors and joins the panel below, so it reads as the lid of that panel. */
+.tab-strip { display: flex; align-items: flex-end; gap: 4px; overflow-x: auto; flex-shrink: 0; }
+.tab { display: flex; align-items: center; flex-shrink: 0; max-width: 260px; padding-right: 4px; border-radius: var(--r-btn) var(--r-btn) 0 0; --surface: var(--glass); --surface-2: var(--glass-2); background: var(--surface); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-rim); }
+.tab.current { background: var(--term-bg); color: var(--term-text); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.tab-pick { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 38px; padding: 6px 6px 6px 12px; border: 0; background: transparent; cursor: pointer; }
+.tab-pick b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.tab-pick small { flex-shrink: 0; font-size: 12px; color: var(--ink-2); }
+.tab.current .tab-pick small { color: var(--term-dim); }
+.tab-close { width: 28px; height: 28px; flex-shrink: 0; }
+.tab.current .tab-close { color: var(--term-dim); }
+.tab.current .tab-close:hover { background: #ffffff1a; color: var(--term-text); }
+.tab.current :focus-visible { outline-color: var(--term-green); }
+.tab-new { flex-shrink: 0; margin-left: 2px; align-self: center; }
 
 /* Plain states: loading, empty, error (DESIGN.md D8). */
 .state-box { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; padding: 20px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); }
