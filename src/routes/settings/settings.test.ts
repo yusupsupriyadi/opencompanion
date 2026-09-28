@@ -58,9 +58,15 @@ beforeEach(() => {
   app.clis = CLIS;
 });
 
+/** Renders the section the Settings sidebar would open; a bare /settings is Phone access. */
+function open(section?: string) {
+  setUrl(section ? `/settings?s=${section}` : "/settings");
+  render(SettingsPage);
+}
+
 test("Plan is saved as soon as it is picked", async () => {
   const calls = api();
-  render(SettingsPage);
+  open("permissions");
   await userEvent.setup().click(await screen.findByLabelText(/^Plan/));
   expect(calls.calls("save_settings").at(-1)).toMatchObject({ settings: { permissionMode: "plan" } });
 });
@@ -68,7 +74,7 @@ test("Plan is saved as soon as it is picked", async () => {
 test("Bypass needs a second, explicit press, and Keep undoes the pick", async () => {
   const calls = api();
   const user = userEvent.setup();
-  render(SettingsPage);
+  open("permissions");
   await user.click(await screen.findByLabelText(/^Bypass/));
   expect(screen.getByRole("alert")).toHaveTextContent("Turn on Bypass for every new session?");
   expect(calls.calls("save_settings")).toHaveLength(0);
@@ -85,7 +91,7 @@ test("Bypass needs a second, explicit press, and Keep undoes the pick", async ()
 test("text size starts at the stored size and is saved as soon as another is picked", async () => {
   const calls = api();
   stored = { ...base, textSize: 110 };
-  render(SettingsPage);
+  open("text-size");
   expect(await screen.findByRole("radio", { name: /^110%/ })).toBeChecked();
   expect(screen.getByRole("radio", { name: "100% Default" })).not.toBeChecked();
 
@@ -104,7 +110,7 @@ test("a text size that fails to save goes back to the stored one", async () => {
     default_project_roots: () => [],
     project_folders: () => [],
   });
-  render(SettingsPage);
+  open("text-size");
   await userEvent.setup().click(await screen.findByRole("radio", { name: /^150%/ }));
   expect(calls.calls("save_settings")).toHaveLength(1);
   expect(screen.getByRole("radio", { name: /^100%/ })).toBeChecked();
@@ -113,7 +119,7 @@ test("a text size that fails to save goes back to the stored one", async () => {
 
 test("the table shows what each mode passes to each CLI", async () => {
   api();
-  render(SettingsPage);
+  open("permissions");
   expect(await screen.findByText("--dangerously-skip-permissions")).toBeInTheDocument();
   expect(screen.getByText("--dangerously-bypass-approvals-and-sandbox")).toBeInTheDocument();
   expect(screen.getByText("--agent plan")).toBeInTheDocument();
@@ -122,7 +128,7 @@ test("the table shows what each mode passes to each CLI", async () => {
 test("a custom provider is picked, then saved with its address, model and key", async () => {
   const calls = api();
   const user = userEvent.setup();
-  render(SettingsPage);
+  open("planner");
   await user.selectOptions(await screen.findByLabelText(/^What turns your chat messages/), "api");
   expect(calls.calls("save_settings").at(-1)).toMatchObject({ settings: { plannerSource: "api", chatCli: "claude" } });
   expect(screen.getByRole("checkbox", { name: "Let the planner read my project folders" })).toBeDisabled();
@@ -143,7 +149,7 @@ test("the provider form names what is missing instead of saving", async () => {
   const calls = api();
   stored = { ...base, plannerSource: "api" };
   const user = userEvent.setup();
-  render(SettingsPage);
+  open("planner");
   await user.click(await screen.findByRole("button", { name: "Save provider" }));
   expect(screen.getByText("Add the provider's base URL.")).toBeInTheDocument();
   expect(screen.getByText("Add the model name.")).toBeInTheDocument();
@@ -159,7 +165,7 @@ test("the provider form names what is missing instead of saving", async () => {
 test("finished sessions are kept for the time picked, and Delete history refreshes every list", async () => {
   const calls = api();
   const user = userEvent.setup();
-  render(SettingsPage);
+  open("history");
   const keep = await screen.findByLabelText("Keep finished sessions for");
   expect(keep).toHaveValue("0");
   await user.selectOptions(keep, "30");
@@ -186,7 +192,7 @@ test("the start at sign-in is offered where the platform has it, and saved when 
     project_folders: () => [],
   });
   const user = userEvent.setup();
-  render(SettingsPage);
+  open("window");
   const start = await screen.findByRole("checkbox", { name: "Start in the tray when I sign in" });
   expect(start).not.toBeChecked();
   await user.click(start);
@@ -196,7 +202,7 @@ test("the start at sign-in is offered where the platform has it, and saved when 
 test("closing the window keeps the app in the tray until that is turned off", async () => {
   const calls = api();
   const user = userEvent.setup();
-  render(SettingsPage);
+  open("window");
   const tray = await screen.findByRole("checkbox", { name: "Keep running in the tray" });
   expect(tray).toBeChecked();
   expect(screen.getByText(/Sessions keep running and your phone can still reach them/)).toBeInTheDocument();
@@ -217,13 +223,14 @@ test("a setting that could not be saved shows the stored value again", async () 
     project_folders: () => [],
   });
   const user = userEvent.setup();
-  render(SettingsPage);
+  open("notifications");
   const waiting = await screen.findByRole("checkbox", { name: "A session is waiting for you" });
   expect(waiting).toBeChecked();
   await user.click(waiting);
   await vi.waitFor(() => expect(waiting).toBeChecked());
 
-  const scan = screen.getByLabelText(/How often OpenCompanion looks/);
+  setUrl("/settings?s=outside");
+  const scan = await screen.findByLabelText(/How often OpenCompanion looks/);
   await user.selectOptions(scan, "60");
   await vi.waitFor(() => expect(scan).toHaveValue("10"));
   expect(toast.text).toBe("The database is locked.");
@@ -245,7 +252,7 @@ test("each CLI and each project folder can turn off some notifications", async (
     project_folders: () => [{ path: uninote, name: "uninote", markers: [], source: "recent" }],
   });
   const user = userEvent.setup();
-  render(SettingsPage);
+  open("notifications");
 
   const codexDone = await screen.findByRole("checkbox", { name: "Codex CLI: Done" });
   await user.click(codexDone);
@@ -278,7 +285,7 @@ test("a folder runs cards without asking only after a second, explicit press", a
     project_folders: () => [{ path: uninote, name: "uninote", markers: [], source: "recent" }],
   });
   const user = userEvent.setup();
-  render(SettingsPage);
+  open("planner");
 
   expect(await screen.findByText("None: every card waits for Run.")).toBeInTheDocument();
   const picker = screen.getByLabelText("Folder whose cards may start without asking");
@@ -302,29 +309,29 @@ test("picking Bahasa Indonesia saves the language and the page then reads in Ind
   onTestFinished(() => setLang("en"));
   const calls = api();
   const user = userEvent.setup();
-  render(SettingsPage);
+  open("language");
   await user.selectOptions(await screen.findByLabelText("Show OpenCompanion in"), "id");
   expect(calls.calls("save_settings").at(-1)).toMatchObject({ settings: { language: "id" } });
 
   expect(await screen.findByLabelText("Tampilkan OpenCompanion dalam")).toHaveValue("id");
-  expect(screen.getByRole("checkbox", { name: "Tetap berjalan di tray" })).toBeChecked();
-  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Pengaturan");
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Bahasa");
   await vi.waitFor(() => expect(toast.text).toBe("OpenCompanion sekarang memakai Bahasa Indonesia."));
+  setUrl("/settings?s=window");
+  expect(await screen.findByRole("checkbox", { name: "Tetap berjalan di tray" })).toBeChecked();
 });
 
-test("the Settings tabs lead to General, CLIs and Skills, with General marked", async () => {
+test("a bare /settings opens Phone access, named by the page's H1", async () => {
   api();
-  setUrl("/settings");
-  render(SettingsPage);
-  const tabs = within(screen.getByRole("navigation", { name: "Settings sections" }));
-  expect(tabs.getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
-    ["General", "/settings"],
-    ["CLIs", "/settings/clis"],
-    ["Skills", "/settings/skills"],
-  ]);
-  expect(tabs.getByRole("link", { name: "General" })).toHaveAttribute("aria-current", "page");
-  expect(tabs.getByRole("link", { name: "CLIs" })).not.toHaveAttribute("aria-current");
-  // Phone access sits here now that the sidebar no longer links to it.
+  open();
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Phone access");
+  expect(await screen.findByRole("switch", { name: "Phone access" })).toBeInTheDocument();
+  // One section at a time: the others wait for their item in the Settings sidebar.
+  expect(screen.queryByLabelText("Show OpenCompanion in")).toBeNull();
+});
+
+test("an unknown section falls back to Phone access", async () => {
+  api();
+  open("nope");
   expect(await screen.findByRole("switch", { name: "Phone access" })).toBeInTheDocument();
 });
 
@@ -332,7 +339,7 @@ test("Day and Dusk switch the theme and show which one is on", async () => {
   api();
   initTheme();
   const user = userEvent.setup();
-  render(SettingsPage);
+  open("theme");
   const dusk = await screen.findByRole("radio", { name: "Dusk" });
   await user.click(dusk);
   expect(document.documentElement.dataset.theme).toBe("dark");

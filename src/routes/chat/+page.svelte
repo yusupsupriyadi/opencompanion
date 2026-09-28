@@ -422,7 +422,7 @@
       {/if}
       {#if autoRun.length}
         <p class="meta composer-hint" id="chat-auto-run">
-          {t("chat.composer.autoRun", { folders: autoRun.map(folderName).join(", ") })} <a class="link" href="/settings#auto-run">{t("chat.composer.autoRunChange")}</a>
+          {t("chat.composer.autoRun", { folders: autoRun.map(folderName).join(", ") })} <a class="link" href="/settings?s=planner#auto-run">{t("chat.composer.autoRunChange")}</a>
         </p>
       {/if}
       {#if !canPlan}

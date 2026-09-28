@@ -6,6 +6,7 @@
   import { onMount } from "svelte";
   import DeleteSessionDialog from "./DeleteSessionDialog.svelte";
   import NewSessionDialog from "./NewSessionDialog.svelte";
+  import SettingsSidebar from "./SettingsSidebar.svelte";
   import Sidebar from "./Sidebar.svelte";
   import TitleBar from "./TitleBar.svelte";
   import Toast from "./Toast.svelte";
@@ -14,6 +15,13 @@
   let { children }: { children: Snippet } = $props();
 
   const onboarding = $derived(page.url.pathname === "/onboarding");
+  const inSettings = $derived(page.url.pathname === "/settings" || page.url.pathname.startsWith("/settings/"));
+
+  // Settings swaps the app sidebar for its own, whose Back link returns to the screen open before it.
+  let lastApp = $state("/");
+  $effect(() => {
+    if (!inSettings && !onboarding) lastApp = page.url.pathname + page.url.search;
+  });
 
   onMount(() => {
     initTheme();
@@ -31,8 +39,8 @@
 {#if onboarding}
   {@render children()}
 {:else}
-  <div class="app">
-    <Sidebar />
+  <div class="app" class:in-settings={inSettings}>
+    {#if inSettings}<SettingsSidebar back={lastApp} />{:else}<Sidebar />{/if}
     {@render children()}
   </div>
   <DeleteSessionDialog />

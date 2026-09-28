@@ -388,6 +388,8 @@ dialog[open] { animation: rise .18s ease-out; }
 }
 @media (max-width: 1100px) {
   .app { grid-template-columns: 76px minmax(0, 1fr); }
+  /* The Settings sidebar is a list of names, which icons alone cannot carry, so it keeps a narrower full column. */
+  .app.in-settings { grid-template-columns: 200px minmax(0, 1fr); }
   .sidebar { padding: 22px 12px; align-items: stretch; }
   .sidebar .side-sessions { display: none; }
   /* Icons only, but the labels stay the buttons' and links' names for screen readers. */
@@ -399,7 +401,7 @@ dialog[open] { animation: rise .18s ease-out; }
   .main { padding: 24px 24px; }
 }
 @media (max-width: 720px) {
-  .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: auto; min-height: 100vh; padding: var(--titlebar) 8px 8px; gap: 8px; }
+  .app, .app.in-settings { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: auto; min-height: 100vh; padding: var(--titlebar) 8px 8px; gap: 8px; }
   .sidebar { flex-direction: row; align-items: center; gap: 8px; padding: 10px 16px; overflow-x: auto; }
   .nav { flex-direction: row; }
   .main { padding: 20px 16px; overflow: visible; }

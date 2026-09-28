@@ -128,7 +128,6 @@
       <ArrowClockwise size={16} aria-hidden="true" /><span>{app.checkingClis ? t("work.scanning") : t("work.rescan")}</span>
     </button>
   </SettingsHead>
-  <h2 class="sr-only">{t("work.clis.heading")}</h2>
   <p class="note">{sub[0]}<span class="mono">--version</span>{sub[1]}</p>
 
   {#if app.clisState === "loading"}

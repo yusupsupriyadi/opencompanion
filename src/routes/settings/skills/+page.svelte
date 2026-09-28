@@ -126,7 +126,6 @@
       <ArrowClockwise size={16} aria-hidden="true" /><span>{scanning ? t("work.skills.reading") : t("work.rescan")}</span>
     </button>
   </SettingsHead>
-  <h2 class="sr-only">{t("work.skills.heading")}</h2>
   <p class="note">{t("work.skills.sub")}</p>
 
   {#if loadState === "loading"}

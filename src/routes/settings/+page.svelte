@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { page } from "$app/state";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import ArrowClockwise from "phosphor-svelte/lib/ArrowClockwise";
   import Copy from "phosphor-svelte/lib/Copy";
@@ -24,7 +25,11 @@
   import { MODES, TEXT_SIZES, ago, folderName, modeLabel, shortPath } from "$lib/format";
   import { LANGS, plural, t, tb, type Key } from "$lib/i18n.svelte";
   import SettingsHead from "$lib/SettingsHead.svelte";
+  import { sectionOf } from "$lib/settings-nav";
   import { app, currentTheme, loadSettings, refreshSessions, saveSettings, setTheme, showToast } from "$lib/store.svelte";
+
+  // One section at a time, the one picked in the Settings sidebar. Its name is the page's H1.
+  const section = $derived(sectionOf(page.url));
 
   let settings = $state<Settings | null>(null);
   let loadError = $state("");
@@ -351,7 +356,7 @@
 
 <svelte:head><title>{t("settings.pageTitle")}</title></svelte:head>
 
-<main class="main" id="settings-main">
+<main class="main settings-main" id="settings-main">
   <SettingsHead />
 
   {#if loadError}
@@ -363,142 +368,137 @@
   {:else if !settings}
     <p class="hint" role="status">{t("settings.loading")}</p>
   {:else}
-    <section class="card" id="phone" aria-labelledby="pa-title">
-      <div class="row" style="align-items:flex-start">
-        <div class="grow">
-          <h2 id="pa-title">{t("settings.phone.title")}</h2>
-          <p class="desc">{t("settings.phone.desc")}</p>
+    {#if section === "phone"}
+      <section class="card" id="phone" aria-labelledby="settings-title">
+        <div class="row" style="align-items:flex-start">
+          <p class="desc grow">{t("settings.phone.desc")}</p>
+          <button class="switch" type="button" role="switch" aria-checked={settings.companionEnabled} aria-labelledby="settings-title" disabled={switching} onclick={() => setPhone(!settings?.companionEnabled)}></button>
         </div>
-        <button class="switch" type="button" role="switch" aria-checked={settings.companionEnabled} aria-labelledby="pa-title" disabled={switching} onclick={() => setPhone(!settings?.companionEnabled)}></button>
-      </div>
 
-      {#if !settings.companionEnabled}
-        <div class="off-note">
-          <p class="meta" style="margin:0;font-size:14px">{t("settings.phone.offNote")}</p>
-          <div class="row">
-            <label class="port">
-              <span class="meta">{t("settings.phone.port")}</span>
-              <input class="input mono" type="number" min="1024" max="65535" bind:value={portDraft} />
-            </label>
-            <button class="btn primary" type="button" disabled={switching} onclick={() => setPhone(true)}><DeviceMobile size={16} aria-hidden="true" />{t("settings.phone.turnOn")}</button>
+        {#if !settings.companionEnabled}
+          <div class="off-note">
+            <p class="meta" style="margin:0;font-size:14px">{t("settings.phone.offNote")}</p>
+            <div class="row">
+              <label class="port">
+                <span class="meta">{t("settings.phone.port")}</span>
+                <input class="input mono" type="number" min="1024" max="65535" bind:value={portDraft} />
+              </label>
+              <button class="btn primary" type="button" disabled={switching} onclick={() => setPhone(true)}><DeviceMobile size={16} aria-hidden="true" />{t("settings.phone.turnOn")}</button>
+            </div>
           </div>
-        </div>
-      {:else if app.companion?.error}
-        <div class="warn" role="alert"><Warning size={18} aria-hidden="true" /><span>{t("settings.phone.portError", { error: app.companion.error })}</span></div>
-        <label class="port"><span class="meta">{t("settings.phone.port")}</span><input class="input mono" type="number" min="1024" max="65535" bind:value={portDraft} /></label>
-      {:else}
-        <div class="pair">
-          <div class="qr-col">
-            {#if qrSvg && left > 0}
-              <div class="qr" role="img" aria-label={t("settings.phone.qrLabel", { url: pairing?.url ?? "" })}>{@html qrSvg}</div>
-              <span class="meta">{t("settings.phone.code")}</span>
-              <span class="code">{pairing?.code.slice(0, 3)} {pairing?.code.slice(3)}</span>
-              <!-- Not a live region: a screen reader would read the countdown every second. The expiry is announced once, below. -->
-              <span class="meta">{t("settings.phone.expiresIn", { time: `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` })}</span>
+        {:else if app.companion?.error}
+          <div class="warn" role="alert"><Warning size={18} aria-hidden="true" /><span>{t("settings.phone.portError", { error: app.companion.error })}</span></div>
+          <label class="port"><span class="meta">{t("settings.phone.port")}</span><input class="input mono" type="number" min="1024" max="65535" bind:value={portDraft} /></label>
+        {:else}
+          <div class="pair">
+            <div class="qr-col">
+              {#if qrSvg && left > 0}
+                <div class="qr" role="img" aria-label={t("settings.phone.qrLabel", { url: pairing?.url ?? "" })}>{@html qrSvg}</div>
+                <span class="meta">{t("settings.phone.code")}</span>
+                <span class="code">{pairing?.code.slice(0, 3)} {pairing?.code.slice(3)}</span>
+                <!-- Not a live region: a screen reader would read the countdown every second. The expiry is announced once, below. -->
+                <span class="meta">{t("settings.phone.expiresIn", { time: `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` })}</span>
+              {:else}
+                <div class="qr empty"><span class="meta" role="status">{pairError || t("settings.phone.expired")}</span></div>
+              {/if}
+              <button class="btn secondary sm" type="button" style="align-self:flex-start" onclick={newCode}><ArrowClockwise size={16} aria-hidden="true" />{t("settings.phone.newCode")}</button>
+            </div>
+            <div class="pair-info">
+              <div class="field">
+                <span class="label">{t("settings.phone.address")}</span>
+                <div class="addr">
+                  <code>{address || t("settings.phone.noAddress")}</code>
+                  {#if address}<button class="icon-btn" type="button" aria-label={t("settings.phone.copyAddress")} onclick={() => copy(address)}><Copy size={18} aria-hidden="true" /></button>{/if}
+                </div>
+              </div>
+              <p style="margin:0;font-size:14px;line-height:1.45">{t("settings.phone.howTo")}</p>
+              <div class="warn"><Warning size={18} aria-hidden="true" /><span>{t("settings.phone.http")}</span></div>
+            </div>
+          </div>
+          <div class="field">
+            <span class="label">{t("settings.phone.devices")}</span>
+            {#if devices.length === 0}
+              <p class="meta" style="margin:0">{t("settings.phone.noDevices")}</p>
             {:else}
-              <div class="qr empty"><span class="meta" role="status">{pairError || t("settings.phone.expired")}</span></div>
+              <div class="devices">
+                {#each devices as d (d.id)}
+                  <div class="device">
+                    <DeviceMobile size={20} aria-hidden="true" />
+                    <span class="grow"><b>{d.name}</b><span class="meta">{d.lastSeen ? t("settings.phone.lastSeen", { when: ago(d.lastSeen, now) }) : t("settings.phone.notSeen")}</span></span>
+                    <button class="btn secondary sm" type="button" onclick={() => removeDevice(d)}>{t("settings.remove")}</button>
+                  </div>
+                {/each}
+              </div>
             {/if}
-            <button class="btn secondary sm" type="button" style="align-self:flex-start" onclick={newCode}><ArrowClockwise size={16} aria-hidden="true" />{t("settings.phone.newCode")}</button>
           </div>
-          <div class="pair-info">
-            <div class="field">
-              <span class="label">{t("settings.phone.address")}</span>
-              <div class="addr">
-                <code>{address || t("settings.phone.noAddress")}</code>
-                {#if address}<button class="icon-btn" type="button" aria-label={t("settings.phone.copyAddress")} onclick={() => copy(address)}><Copy size={18} aria-hidden="true" /></button>{/if}
+        {/if}
+        {#if !on && settings.companionEnabled && !app.companion?.error}
+          <p class="meta" role="status" style="margin:0">{t("settings.phone.starting")}</p>
+        {/if}
+      </section>
+    {:else if section === "permissions"}
+      <section class="card" id="permissions" aria-labelledby="settings-title">
+        <p class="desc">{t("settings.perm.desc")}</p>
+        <fieldset class="bare">
+          <legend class="sr-only">{t("settings.perm.legend")}</legend>
+          <div class="modes">
+            {#each MODES as m (m.id)}
+              <label class="opt stack" class:bypass={m.id === "bypass"}>
+                <input type="radio" name="perm-mode" value={m.id} bind:group={modeChoice} onchange={pickMode} />
+                <b>{m.label}</b>
+                <p>{m.short}</p>
+              </label>
+            {/each}
+          </div>
+        </fieldset>
+        {#if confirmBypass}
+          <div class="warn bypass-warn" role="alert">
+            <Warning size={18} aria-hidden="true" />
+            <div class="grow">
+              <p style="margin:0 0 10px"><b>{t("settings.perm.bypassAsk")}</b> {t("settings.perm.bypassWhat")}</p>
+              <div class="row" style="gap:10px;flex-wrap:wrap">
+                <button class="btn danger" type="button" onclick={() => applyMode("bypass")}>{t("settings.perm.useBypass")}</button>
+                <button class="btn secondary" type="button" onclick={keepMode}>{t("settings.perm.keep", { mode: modeLabel(settings.permissionMode) })}</button>
               </div>
             </div>
-            <p style="margin:0;font-size:14px;line-height:1.45">{t("settings.phone.howTo")}</p>
-            <div class="warn"><Warning size={18} aria-hidden="true" /><span>{t("settings.phone.http")}</span></div>
           </div>
-        </div>
-        <div class="field">
-          <span class="label">{t("settings.phone.devices")}</span>
-          {#if devices.length === 0}
-            <p class="meta" style="margin:0">{t("settings.phone.noDevices")}</p>
-          {:else}
-            <div class="devices">
-              {#each devices as d (d.id)}
-                <div class="device">
-                  <DeviceMobile size={20} aria-hidden="true" />
-                  <span class="grow"><b>{d.name}</b><span class="meta">{d.lastSeen ? t("settings.phone.lastSeen", { when: ago(d.lastSeen, now) }) : t("settings.phone.notSeen")}</span></span>
-                  <button class="btn secondary sm" type="button" onclick={() => removeDevice(d)}>{t("settings.remove")}</button>
-                </div>
+        {:else}
+          <p class="meta" style="margin:0">{MODES.find((m) => m.id === settings?.permissionMode)?.detail}</p>
+        {/if}
+        <div class="table-wrap">
+          <table>
+            <caption class="sr-only">{t("settings.perm.caption")}</caption>
+            <thead><tr><th scope="col">{t("settings.perm.mode")}</th><th scope="col">Claude Code</th><th scope="col">Codex CLI</th><th scope="col">OpenCode</th><th scope="col">Pi</th><th scope="col">omp</th></tr></thead>
+            <tbody>
+              {#each MODES as m (m.id)}
+                <tr class:current={settings.permissionMode === m.id}>
+                  <th scope="row">{m.label}</th>
+                  <td class="mono">{m.flags.claude}</td>
+                  <td class="mono">{m.flags.codex}</td>
+                  <td class="mono">{m.flags.opencode}</td>
+                  <td class="mono">{m.flags.pi}</td>
+                  <td class="mono">{m.flags.omp}</td>
+                </tr>
               {/each}
-            </div>
-          {/if}
+            </tbody>
+          </table>
         </div>
-      {/if}
-      {#if !on && settings.companionEnabled && !app.companion?.error}
-        <p class="meta" role="status" style="margin:0">{t("settings.phone.starting")}</p>
-      {/if}
-    </section>
-
-    <section class="card" id="permissions" aria-labelledby="perm-title">
-      <div>
-        <h2 id="perm-title">{t("settings.perm.title")}</h2>
-        <p class="desc">{t("settings.perm.desc")}</p>
-      </div>
-      <fieldset class="bare">
-        <legend class="sr-only">{t("settings.perm.legend")}</legend>
-        <div class="modes">
-          {#each MODES as m (m.id)}
-            <label class="opt stack" class:bypass={m.id === "bypass"}>
-              <input type="radio" name="perm-mode" value={m.id} bind:group={modeChoice} onchange={pickMode} />
-              <b>{m.label}</b>
-              <p>{m.short}</p>
-            </label>
-          {/each}
+      </section>
+    {:else if section === "planner"}
+      <section class="card" id="chat" aria-labelledby="settings-title">
+        <div class="field">
+          <label class="meta" for="planner-select">{t("settings.planner.label")}</label>
+          <select
+            class="select"
+            id="planner-select"
+            value={usingApi ? "api" : (settings.chatCli ?? planners[0]?.kind ?? "")}
+            onchange={(e) => pickPlanner(e.currentTarget)}
+          >
+            {#each planners as c (c.kind)}<option value={c.kind}>{c.label} {c.version ?? ""}</option>{/each}
+            {#if planners.length === 0}<option value="">{t("settings.planner.noCli")}</option>{/if}
+            <option value="api">{t("settings.planner.custom")}</option>
+          </select>
         </div>
-      </fieldset>
-      {#if confirmBypass}
-        <div class="warn bypass-warn" role="alert">
-          <Warning size={18} aria-hidden="true" />
-          <div class="grow">
-            <p style="margin:0 0 10px"><b>{t("settings.perm.bypassAsk")}</b> {t("settings.perm.bypassWhat")}</p>
-            <div class="row" style="gap:10px;flex-wrap:wrap">
-              <button class="btn danger" type="button" onclick={() => applyMode("bypass")}>{t("settings.perm.useBypass")}</button>
-              <button class="btn secondary" type="button" onclick={keepMode}>{t("settings.perm.keep", { mode: modeLabel(settings.permissionMode) })}</button>
-            </div>
-          </div>
-        </div>
-      {:else}
-        <p class="meta" style="margin:0">{MODES.find((m) => m.id === settings?.permissionMode)?.detail}</p>
-      {/if}
-      <div class="table-wrap">
-        <table>
-          <caption class="sr-only">{t("settings.perm.caption")}</caption>
-          <thead><tr><th scope="col">{t("settings.perm.mode")}</th><th scope="col">Claude Code</th><th scope="col">Codex CLI</th><th scope="col">OpenCode</th><th scope="col">Pi</th><th scope="col">omp</th></tr></thead>
-          <tbody>
-            {#each MODES as m (m.id)}
-              <tr class:current={settings.permissionMode === m.id}>
-                <th scope="row">{m.label}</th>
-                <td class="mono">{m.flags.claude}</td>
-                <td class="mono">{m.flags.codex}</td>
-                <td class="mono">{m.flags.opencode}</td>
-                <td class="mono">{m.flags.pi}</td>
-                <td class="mono">{m.flags.omp}</td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <div class="two">
-      <section class="card" id="chat" aria-labelledby="planner-title">
-        <h2 id="planner-title">{t("settings.planner.title")}</h2>
-        <label class="meta" for="planner-select">{t("settings.planner.label")}</label>
-        <select
-          class="select"
-          id="planner-select"
-          value={usingApi ? "api" : (settings.chatCli ?? planners[0]?.kind ?? "")}
-          onchange={(e) => pickPlanner(e.currentTarget)}
-        >
-          {#each planners as c (c.kind)}<option value={c.kind}>{c.label} {c.version ?? ""}</option>{/each}
-          {#if planners.length === 0}<option value="">{t("settings.planner.noCli")}</option>{/if}
-          <option value="api">{t("settings.planner.custom")}</option>
-        </select>
         {#if usingApi}
           <form class="provider" id="provider-form" novalidate onsubmit={saveProvider}>
             <div class="field">
@@ -552,11 +552,13 @@
             <button class="btn primary" type="submit" id="btn-save-provider">{t("settings.provider.save")}</button>
           </form>
         {/if}
-        <label class="check-row">
-          <input type="checkbox" checked={settings.plannerCanRead && !usingApi} disabled={usingApi} onchange={(e) => saveControl(e.currentTarget, { plannerCanRead: e.currentTarget.checked }, t("settings.planner.canReadSaved"))} />
-          <span>{t("settings.planner.canRead")}</span>
-        </label>
-        <p class="meta" style="margin:0">{usingApi ? t("settings.planner.readApi") : t("settings.planner.readCli")}</p>
+        <div class="field">
+          <label class="check-row">
+            <input type="checkbox" checked={settings.plannerCanRead && !usingApi} disabled={usingApi} onchange={(e) => saveControl(e.currentTarget, { plannerCanRead: e.currentTarget.checked }, t("settings.planner.canReadSaved"))} />
+            <span>{t("settings.planner.canRead")}</span>
+          </label>
+          <p class="meta" style="margin:0">{usingApi ? t("settings.planner.readApi") : t("settings.planner.readCli")}</p>
+        </div>
         <div class="field" id="auto-run">
           <span class="label">{t("settings.autoRun.title")}</span>
           <p class="help">{t("settings.autoRun.help")}</p>
@@ -596,10 +598,9 @@
           {/if}
         </div>
       </section>
-
-      <section class="card" id="projects" aria-labelledby="projects-title">
-        <h2 id="projects-title">{t("settings.projects.title")}</h2>
-        <p class="meta" style="margin:0">
+    {:else if section === "projects"}
+      <section class="card" id="projects" aria-labelledby="settings-title">
+        <p class="desc">
           {t("settings.projects.desc")}
           {#if projectCount !== null}{plural(projectCount, "settings.projects.foundOne", "settings.projects.found")}{/if}
         </p>
@@ -617,9 +618,8 @@
         {#if !settings.projectRoots.length && shownRoots.length}<p class="meta" style="margin:0">{t("settings.projects.auto")}</p>{/if}
         <button class="btn secondary" type="button" style="align-self:flex-start" onclick={addRoot}>{t("settings.projects.add")}</button>
       </section>
-
-      <section class="card" id="notifications" aria-labelledby="notif-title">
-        <h2 id="notif-title">{t("settings.notify.title")}</h2>
+    {:else if section === "notifications"}
+      <section class="card" id="notifications" aria-labelledby="settings-title">
         <div class="checks">
           <label><input type="checkbox" checked={settings.notifyWaiting} onchange={(e) => saveControl(e.currentTarget, { notifyWaiting: e.currentTarget.checked })} />{t("settings.notify.waiting")}</label>
           <label><input type="checkbox" checked={settings.notifyDone} onchange={(e) => saveControl(e.currentTarget, { notifyDone: e.currentTarget.checked })} />{t("settings.notify.done")}</label>
@@ -673,10 +673,9 @@
         </div>
         <p class="meta" style="margin:0">{t("settings.notify.footer")}</p>
       </section>
-
-      <section class="card" id="text-size" aria-labelledby="text-title">
-        <h2 id="text-title">{t("settings.text.title")}</h2>
-        <p class="meta" style="margin:0">{t("settings.text.desc")}</p>
+    {:else if section === "text-size"}
+      <section class="card" id="text-size" aria-labelledby="settings-title">
+        <p class="desc">{t("settings.text.desc")}</p>
         <fieldset class="bare">
           <legend class="sr-only">{t("settings.text.title")}</legend>
           <div class="sizes">
@@ -691,10 +690,9 @@
           </div>
         </fieldset>
       </section>
-
-      <section class="card" id="theme" aria-labelledby="theme-title">
-        <h2 id="theme-title">{t("settings.theme.title")}</h2>
-        <p class="meta" style="margin:0">{t("settings.theme.desc")}</p>
+    {:else if section === "theme"}
+      <section class="card" id="theme" aria-labelledby="settings-title">
+        <p class="desc">{t("settings.theme.desc")}</p>
         <fieldset class="bare">
           <legend class="sr-only">{t("settings.theme.title")}</legend>
           <div class="opts">
@@ -709,29 +707,31 @@
           </div>
         </fieldset>
       </section>
-
-      <section class="card" id="language" aria-labelledby="lang-title">
-        <h2 id="lang-title">{t("settings.language.title")}</h2>
-        <label class="meta" for="lang-select">{t("settings.language.label")}</label>
-        <!-- Each language is named in itself; the lang attribute lets a screen reader pronounce it. -->
-        <select class="select" id="lang-select" value={settings.language} aria-describedby="lang-help" onchange={(e) => pickLanguage(e.currentTarget)}>
-          {#each LANGS as l (l.id)}<option value={l.id} lang={l.id}>{l.label}</option>{/each}
-        </select>
-        <p class="meta" id="lang-help" style="margin:0">{t("settings.language.help")}</p>
+    {:else if section === "language"}
+      <section class="card" id="language" aria-labelledby="settings-title">
+        <div class="field">
+          <label class="meta" for="lang-select">{t("settings.language.label")}</label>
+          <!-- Each language is named in itself; the lang attribute lets a screen reader pronounce it. -->
+          <select class="select" id="lang-select" value={settings.language} aria-describedby="lang-help" onchange={(e) => pickLanguage(e.currentTarget)}>
+            {#each LANGS as l (l.id)}<option value={l.id} lang={l.id}>{l.label}</option>{/each}
+          </select>
+          <p class="meta" id="lang-help" style="margin:0">{t("settings.language.help")}</p>
+        </div>
       </section>
-
-      <section class="card" id="closing" aria-labelledby="close-title">
-        <h2 id="close-title">{t("settings.window.title")}</h2>
-        <label class="check-row">
-          <input
-            type="checkbox"
-            checked={settings.closeToTray}
-            onchange={(e) =>
-              saveControl(e.currentTarget, { closeToTray: e.currentTarget.checked }, e.currentTarget.checked ? t("settings.window.trayOnSaved") : t("settings.window.trayOffSaved"))}
-          />
-          <span>{t("settings.window.tray")}</span>
-        </label>
-        <p class="meta" style="margin:0">{settings.closeToTray ? t("settings.window.trayOn") : t("settings.window.trayOff")}</p>
+    {:else if section === "window"}
+      <section class="card" id="closing" aria-labelledby="settings-title">
+        <div class="field">
+          <label class="check-row">
+            <input
+              type="checkbox"
+              checked={settings.closeToTray}
+              onchange={(e) =>
+                saveControl(e.currentTarget, { closeToTray: e.currentTarget.checked }, e.currentTarget.checked ? t("settings.window.trayOnSaved") : t("settings.window.trayOffSaved"))}
+            />
+            <span>{t("settings.window.tray")}</span>
+          </label>
+          <p class="meta" style="margin:0">{settings.closeToTray ? t("settings.window.trayOn") : t("settings.window.trayOff")}</p>
+        </div>
         {#if info?.canStartAtLogin}
           <label class="check-row">
             <input
@@ -748,39 +748,45 @@
           </label>
         {/if}
       </section>
-
-      <section class="card" aria-labelledby="scan-title">
-        <h2 id="scan-title">{t("settings.scan.title")}</h2>
-        <label class="meta" for="scan-select">{t("settings.scan.label")}</label>
-        <select class="select" id="scan-select" value={String(settings.scanSeconds)} onchange={(e) => saveControl(e.currentTarget, { scanSeconds: Number(e.currentTarget.value) }, t("settings.scan.saved"))}>
-          <option value="5">{t("settings.scan.everySeconds", { n: 5 })}</option>
-          <option value="10">{t("settings.scan.everySeconds", { n: 10 })}</option>
-          <option value="30">{t("settings.scan.everySeconds", { n: 30 })}</option>
-          <option value="60">{t("settings.scan.everyMinute")}</option>
-        </select>
+    {:else if section === "outside"}
+      <section class="card" id="outside" aria-labelledby="settings-title">
+        <div class="field">
+          <label class="meta" for="scan-select">{t("settings.scan.label")}</label>
+          <select class="select" id="scan-select" value={String(settings.scanSeconds)} onchange={(e) => saveControl(e.currentTarget, { scanSeconds: Number(e.currentTarget.value) }, t("settings.scan.saved"))}>
+            <option value="5">{t("settings.scan.everySeconds", { n: 5 })}</option>
+            <option value="10">{t("settings.scan.everySeconds", { n: 10 })}</option>
+            <option value="30">{t("settings.scan.everySeconds", { n: 30 })}</option>
+            <option value="60">{t("settings.scan.everyMinute")}</option>
+          </select>
+        </div>
       </section>
-
-      <section class="card" aria-labelledby="history-title">
-        <h2 id="history-title">{t("settings.history.title")}</h2>
-        <p class="meta" style="margin:0">
+    {:else if section === "history"}
+      <section class="card" id="history" aria-labelledby="settings-title">
+        <p class="desc">
           {info ? t("settings.history.whereDir", { dir: info.dataDir }) : t("settings.history.where")}
           {#if info}{plural(info.counts.sessions, "settings.history.countOne", "settings.history.count")}{/if}
         </p>
-        <label class="meta" for="keep-select">{t("settings.history.keepLabel")}</label>
-        <select class="select" id="keep-select" value={String(settings.keepDays)} onchange={(e) => pickKeep(e.currentTarget)}>
-          {#each KEEP as days (days)}<option value={String(days)}>{keepLabel(days)}</option>{/each}
-        </select>
-        <p class="meta" style="margin:0">{t("settings.history.olderNote")}</p>
+        <div class="field">
+          <label class="meta" for="keep-select">{t("settings.history.keepLabel")}</label>
+          <select class="select" id="keep-select" value={String(settings.keepDays)} onchange={(e) => pickKeep(e.currentTarget)}>
+            {#each KEEP as days (days)}<option value={String(days)}>{keepLabel(days)}</option>{/each}
+          </select>
+          <p class="meta" style="margin:0">{t("settings.history.olderNote")}</p>
+        </div>
         <button class="btn secondary" type="button" style="align-self:flex-start" onclick={clearHistory}>
           {clearStep ? t("settings.history.deleteAgain") : t("settings.history.delete")}
         </button>
       </section>
-    </div>
+    {/if}
     {#if info}<p class="meta note" style="margin:0">OpenCompanion {info.version}</p>{/if}
   {/if}
 </main>
 
 <style>
+  /* One column wide enough for the permission table without a scrollbar; past it the painting shows. */
+  .settings-main > :global(*) {
+    max-width: 960px;
+  }
   .card {
     display: flex;
     flex-direction: column;
@@ -790,13 +796,20 @@
     background: var(--surface);
     border: 1px solid var(--line);
   }
-  .card h2 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 800;
+  /* A card is as wide as the column; its short controls keep the width they had in the old two-column grid. */
+  .card .select,
+  .card .opts,
+  .provider {
+    max-width: 480px;
+  }
+  .card .sizes {
+    max-width: 560px;
+  }
+  .card .rules {
+    max-width: 640px;
   }
   .desc {
-    margin: 4px 0 0;
+    margin: 0;
     font-size: 14px;
     color: var(--ink-2);
     max-width: 640px;
@@ -895,18 +908,6 @@
   }
   .port .input {
     width: 110px;
-  }
-  .two {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-  }
-  .two .card {
-    gap: 12px;
-    padding: 20px;
-  }
-  .two .card h2 {
-    font-size: 16px;
   }
   .checks {
     display: flex;
@@ -1102,9 +1103,6 @@
       grid-template-columns: 1fr 1fr;
     }
     .pair {
-      grid-template-columns: 1fr;
-    }
-    .two {
       grid-template-columns: 1fr;
     }
   }

@@ -298,17 +298,19 @@ def main():
     @step("settings: switch language to Indonesian and back", app)
     def _():
         app.nav("/settings")
+        app.nav("/settings?s=language")
         app.wait_css("#lang-select")
         app.js("const s=document.querySelector('#lang-select'); s.value='id'; s.dispatchEvent(new Event('change',{bubbles:true}));")
-        app.wait_text("Pengaturan", 10)
+        app.wait_text("Kembali ke aplikasi", 10)
         app.js("const s=document.querySelector('#lang-select'); s.value='en'; s.dispatchEvent(new Event('change',{bubbles:true}));")
-        app.wait_text("Settings", 10)
-        return "UI switched to 'Pengaturan' and back to 'Settings'"
+        app.wait_text("Back to app", 10)
+        return "UI switched to 'Kembali ke aplikasi' and back to 'Back to app'"
 
     phone = {}
 
     @step("settings: turn on phone access and get a pairing code", app)
     def _():
+        app.nav("/settings")
         app.wait_css("#phone")
         app.click_button("Turn on phone access")
         code_el = app.wait_css("#phone .code", 20)
@@ -351,6 +353,8 @@ def main():
 
     @step("theme: Dusk theme applies a dark data-theme", app)
     def _():
+        app.nav("/settings?s=theme")
+        app.wait_css("#theme")
         app.jsclick('#theme input[value="dark"]')
         app.wait(lambda: app.js("return document.documentElement.dataset.theme") == "dark", 10, "data-theme=dark")
         bg = app.js("return getComputedStyle(document.body).backgroundColor")
@@ -362,6 +366,7 @@ def main():
     @step("settings: start at login writes and removes the autostart entry", app)
     def _():
         entry = "/root/.config/autostart/opencompanion.desktop"
+        app.nav("/settings?s=window")
         box = "//label[contains(normalize-space(.), 'Start in the tray when I sign in')]//input[@type='checkbox']"
         app.js("arguments[0].scrollIntoView({block: 'center'})", {ELEMENT: app.xfind(box)})
         app.click(app.xfind(box))
@@ -378,6 +383,9 @@ def main():
         app.wait_text(f"{FAKES}/claude", 20)
         app.wait_text(f"{FAKES}/opencode", 5)
         body = app.body()
+        # The Settings sidebar has no app links: Back returns to the screen open before Settings.
+        app.click_css("#btn-settings-back")
+        app.wait(lambda: not app.js("return location.pathname").startswith("/settings"), 10, "left Settings")
         return f"paths listed; 'Not found' rows={body.count('Not found') + body.count('not found')}"
 
     @step("chat: page renders with Claude Code as planner", app)

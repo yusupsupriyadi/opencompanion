@@ -12,12 +12,11 @@ function rowOf(name: string) {
   return screen.getByRole("button", { name }).closest("tr") as HTMLElement;
 }
 
-test("Skills is a tab of Settings, marked as the open one", async () => {
+test("Skills is a Settings screen, named by its H1", async () => {
   setUrl("/settings/skills");
   backend({ scan_skills: () => skillScan() });
   render(SkillsPage);
-  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Settings");
-  expect(screen.getByRole("link", { name: "Skills" })).toHaveAttribute("aria-current", "page");
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Skills");
   await screen.findByRole("button", { name: "antislop" });
   expect(screen.getByRole("button", { name: "Rescan" })).toBeInTheDocument();
 });
