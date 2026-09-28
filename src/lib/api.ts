@@ -447,9 +447,11 @@ export interface ShellInfo {
   path: string;
 }
 
-/** Mirrors `terminal::TerminalInfo`: a plain shell, not an AI session. */
+/** Mirrors `terminal::TerminalInfo`: a plain shell in a session's folder, not an AI session. */
 export interface TerminalInfo {
   id: string;
+  /** The session whose screen shows its tab. */
+  sessionId: string;
   cwd: string;
   shell: string;
   shellLabel: string;
@@ -512,11 +514,11 @@ export const api = {
 
   /** Installed shells, the default first. */
   terminalShells: () => invoke<ShellInfo[]>("terminal_shells"),
-  /** Open terminals in tab order. */
-  terminalList: () => invoke<TerminalInfo[]>("terminal_list"),
-  /** `shell` null starts the default one. */
-  terminalOpen: (cwd: string, shell: string | null, cols?: number, rows?: number) =>
-    invoke<TerminalInfo>("terminal_open", { cwd, shell, cols, rows }),
+  /** A session's open terminals in tab order. */
+  terminalList: (sessionId: string) => invoke<TerminalInfo[]>("terminal_list", { sessionId }),
+  /** Opens a shell in the session's folder; `shell` null starts the default one. */
+  terminalOpen: (sessionId: string, shell: string | null, cols?: number, rows?: number) =>
+    invoke<TerminalInfo>("terminal_open", { sessionId, shell, cols, rows }),
   terminalWrite: (id: string, data: string) => invoke<void>("terminal_write", { id, data }),
   terminalResize: (id: string, cols: number, rows: number) => invoke<void>("terminal_resize", { id, cols, rows }),
   /** Like `sessionOutput`, for a terminal. */

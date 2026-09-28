@@ -27,6 +27,7 @@ function folder(extra: Record<string, (args: Record<string, unknown> | undefined
   app.sessions = [s];
   return backend({
     get_session: () => ({ session: s, events: [], task: null }),
+    terminal_list: () => [],
     folder_list: (a) => ({ entries: LISTING[String(a?.dir)] ?? [], truncated: false }),
     git_status: () => status,
     git_branches: () => ({
@@ -73,10 +74,11 @@ test("Files lists folders first, marks ignored and changed entries, and opens a 
   expect(screen.getByRole("region", { name: "src/app.ts, read-only" })).toBeInTheDocument();
   expect(document.getElementById("session-term")).not.toBeVisible();
 
-  await fireEvent.click(screen.getByRole("button", { name: "Output" }));
+  await fireEvent.click(screen.getByRole("button", { name: /^Claude Code\s*output$/ }));
   expect(document.getElementById("session-term")).toBeVisible();
   await fireEvent.click(screen.getByRole("button", { name: "Close app.ts" }));
-  expect(screen.queryByRole("group", { name: "Session views" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /app\.ts/ })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^Claude Code\s*output$/ })).toHaveAttribute("aria-current", "true");
 });
 
 test("the tree moves with the arrow keys", async () => {

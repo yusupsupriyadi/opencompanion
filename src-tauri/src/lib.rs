@@ -438,6 +438,7 @@ async fn resume_session(state: State<'_, AppState>, id: String, cols: Option<u16
 }
 
 /// Tells every screen and the phone that sessions are gone, and that Board cards lost their link.
+/// The shells opened from them end too, off this thread: killing a process tree takes a moment.
 fn announce_deleted(app: &AppHandle, manager: &session::Manager, companion: &Companion, ids: &[String]) {
     if ids.is_empty() {
         return;
@@ -447,6 +448,10 @@ fn announce_deleted(app: &AppHandle, manager: &session::Manager, companion: &Com
     }
     manager.tasks_changed();
     companion.broadcast(json!({ "type": "resync" }));
+    if let Some(state) = app.try_state::<AppState>() {
+        let (terminals, ids) = (Arc::clone(&state.terminals), ids.to_vec());
+        std::thread::spawn(move || ids.iter().for_each(|id| terminals.close_session(id)));
+    }
 }
 
 /// Deletes every finished session with its events, terminal log and hook files.
@@ -471,7 +476,9 @@ fn delete_session(app: AppHandle, state: State<'_, AppState>, id: String) -> Res
 /// Retention (PRD FR-62), run at start, every hour, and when Settings shortens it.
 fn prune(app: &AppHandle, manager: &session::Manager, companion: &Companion, db: &Db) {
     let keep = db.settings().map(|s| s.keep_days).unwrap_or(0);
-    let gone = manager.prune(keep);
+    // The first run comes before the app state exists, and so before any shell was opened.
+    let in_use = app.try_state::<AppState>().map(|s| s.terminals.sessions()).unwrap_or_default();
+    let gone = manager.prune(keep, &in_use);
     announce_deleted(app, manager, companion, &gone);
 }
 
@@ -569,22 +576,24 @@ async fn git_switch(state: State<'_, AppState>, id: String, branch: String) -> R
     blocking(move || git::switch(&root, &branch)).await
 }
 
-// Terminals
+// Terminals: plain shells in a session's folder, in tabs beside its own terminal.
 
 #[tauri::command]
 async fn terminal_shells() -> Res<Vec<terminal::Shell>> {
     blocking(|| Ok(terminal::available_shells())).await
 }
 
+/// One session's shells, in tab order.
 #[tauri::command]
-fn terminal_list(state: State<'_, AppState>) -> Vec<terminal::TerminalInfo> {
-    state.terminals.list()
+fn terminal_list(state: State<'_, AppState>, session_id: String) -> Vec<terminal::TerminalInfo> {
+    state.terminals.list().into_iter().filter(|t| t.session_id == session_id).collect()
 }
 
 #[tauri::command]
-async fn terminal_open(state: State<'_, AppState>, cwd: String, shell: Option<String>, cols: Option<u16>, rows: Option<u16>) -> Res<terminal::TerminalInfo> {
+async fn terminal_open(state: State<'_, AppState>, session_id: String, shell: Option<String>, cols: Option<u16>, rows: Option<u16>) -> Res<terminal::TerminalInfo> {
+    let cwd = session_folder(&state, &session_id)?.display().to_string();
     let terminals = Arc::clone(&state.terminals);
-    blocking(move || terminals.open(&cwd, shell.as_deref(), cols, rows)).await
+    blocking(move || terminals.open(&session_id, &cwd, shell.as_deref(), cols, rows)).await
 }
 
 #[tauri::command]

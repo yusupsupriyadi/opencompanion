@@ -1,15 +1,9 @@
-// Strings for the Terminal screen and its New terminal dialog. Keys start with "terminal.";
-// Indonesian must cover every key.
+// Strings for the shell tabs on a session's screen and their New terminal dialog. Keys start with
+// "terminal."; Indonesian must cover every key.
 export const en = {
-  "terminal.heading": "Terminal",
-  "terminal.loading": "Loading terminals…",
-  "terminal.loadFailed": "Terminals could not be loaded",
-  "terminal.emptyTitle": "No terminal open",
-  "terminal.emptyBody":
-    "Open a shell in a project folder to run the project, its tests or git. AI coding CLIs run as sessions instead, from New session.",
+  "terminal.loadFailed": "This session's terminals could not be loaded: {error}",
   "terminal.new": "New terminal",
-  "terminal.tabs": "Open terminals",
-  "terminal.tabTitle": "{path} · {shell}",
+  "terminal.newIn": "Open a shell in {folder}, for a dev server, tests or git",
   "terminal.exited": "Exited",
   "terminal.closeNamed": "Close terminal: {name}",
   "terminal.closeHint": "Close terminal. Ends {shell} and everything started in it.",
@@ -22,21 +16,15 @@ export const en = {
   "terminal.form.shell": "Shell",
   "terminal.form.shellsLoading": "Looking for shells…",
   "terminal.form.noShell": "No shell was found on this computer.",
-  "terminal.form.help": "It keeps running while you use other screens, and stops when you close its tab or quit OpenCompanion.",
+  "terminal.form.help": "It keeps running while you use other screens, and stops when you close its tab, delete this session or quit OpenCompanion.",
   "terminal.form.submit": "Open in {folder}",
   "terminal.form.opening": "Opening…",
 };
 
 export const id: Record<keyof typeof en, string> = {
-  "terminal.heading": "Terminal",
-  "terminal.loading": "Memuat terminal…",
-  "terminal.loadFailed": "Terminal tidak bisa dimuat",
-  "terminal.emptyTitle": "Belum ada terminal yang terbuka",
-  "terminal.emptyBody":
-    "Buka shell di folder project untuk menjalankan project, test-nya, atau git. CLI AI coding tetap berjalan sebagai sesi, lewat Sesi baru.",
+  "terminal.loadFailed": "Terminal sesi ini tidak bisa dimuat: {error}",
   "terminal.new": "Terminal baru",
-  "terminal.tabs": "Terminal yang terbuka",
-  "terminal.tabTitle": "{path} · {shell}",
+  "terminal.newIn": "Buka shell di {folder}, untuk dev server, test, atau git",
   "terminal.exited": "Berhenti",
   "terminal.closeNamed": "Tutup terminal: {name}",
   "terminal.closeHint": "Tutup terminal. Menghentikan {shell} dan semua yang dijalankan di dalamnya.",
@@ -49,7 +37,7 @@ export const id: Record<keyof typeof en, string> = {
   "terminal.form.shell": "Shell",
   "terminal.form.shellsLoading": "Mencari shell…",
   "terminal.form.noShell": "Tidak ada shell yang ditemukan di komputer ini.",
-  "terminal.form.help": "Terminal tetap berjalan saat Anda membuka layar lain, dan berhenti saat tab-nya ditutup atau OpenCompanion ditutup.",
+  "terminal.form.help": "Terminal tetap berjalan saat Anda membuka layar lain, dan berhenti saat tab-nya ditutup, sesi ini dihapus, atau OpenCompanion ditutup.",
   "terminal.form.submit": "Buka di {folder}",
   "terminal.form.opening": "Membuka…",
 };

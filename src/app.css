@@ -348,7 +348,7 @@ dialog[open] { animation: rise .18s ease-out; }
 .xterm-host .xterm-viewport { background: transparent !important; }
 .term-note { padding: 10px 14px; border-top: 1px solid #EDE6C433; font: 12px var(--font-mono); color: var(--term-dim); }
 
-/* Tabs over a dark panel (Terminal screen, a session's terminal and viewer). A tab is a plate over the painting; the shown
+/* Tabs over a dark panel (a session's own terminal, its shells and the viewer). A tab is a plate over the painting; the shown
    one takes the terminal's own colors and joins the panel below, so it reads as the lid of that panel. */
 .tab-strip { display: flex; align-items: flex-end; gap: 4px; overflow-x: auto; flex-shrink: 0; }
 .tab { display: flex; align-items: center; flex-shrink: 0; max-width: 260px; padding-right: 4px; border-radius: var(--r-btn) var(--r-btn) 0 0; --surface: var(--glass); --surface-2: var(--glass-2); background: var(--surface); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-rim); }
@@ -361,7 +361,8 @@ dialog[open] { animation: rise .18s ease-out; }
 .tab.current .tab-close { color: var(--term-dim); }
 .tab.current .tab-close:hover { background: #ffffff1a; color: var(--term-text); }
 .tab.current :focus-visible { outline-color: var(--term-green); }
-.tab-new { flex-shrink: 0; margin-left: 2px; align-self: center; }
+/* New terminal sits on the same glass plate as a tab, so it reads as "one more tab" and shows over the painting. */
+.tab-new { flex-shrink: 0; width: 38px; height: 38px; margin-left: 2px; border-radius: var(--r-btn) var(--r-btn) 0 0; --surface: var(--glass); --surface-2: var(--glass-2); background: var(--surface); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-rim); color: var(--ink); }
 
 /* Plain states: loading, empty, error (DESIGN.md D8). */
 .state-box { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; padding: 20px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); }

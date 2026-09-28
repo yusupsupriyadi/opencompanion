@@ -1,8 +1,10 @@
-//! Plain shell terminals: PowerShell, Command Prompt or bash in a project folder, for dev
-//! servers, builds, git and the rest. Unlike sessions they run no AI CLI of their own, so there is
-//! no status detection and no history in SQLite, and they end when the app does. They stay on the
-//! desktop: the phone companion never sees them.
+//! Plain shell terminals: PowerShell, Command Prompt or bash in a session's folder, for dev
+//! servers, builds, git and the rest, shown as extra tabs beside the session's own terminal.
+//! Unlike sessions they run no AI CLI of their own, so there is no status detection and no
+//! history in SQLite, and they end when the app does. They stay on the desktop: the phone
+//! companion never sees them.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -37,6 +39,8 @@ pub struct Shell {
 #[serde(rename_all = "camelCase")]
 pub struct TerminalInfo {
     pub id: String,
+    /// The session it was opened from: its tab shows on that session's screen.
+    pub session_id: String,
     pub cwd: String,
     /// The `Shell::id` it runs.
     pub shell: String,
@@ -187,8 +191,20 @@ impl Terminals {
             .ok_or_else(|| "Terminal not found.".to_string())
     }
 
-    /// Starts `shell` (the default one when `None`) in `cwd`.
-    pub fn open(self: &Arc<Self>, cwd: &str, shell: Option<&str>, cols: Option<u16>, rows: Option<u16>) -> Result<TerminalInfo, String> {
+    /// Sessions with a terminal open.
+    pub fn sessions(&self) -> HashSet<String> {
+        lock(&self.open).iter().map(|t| t.info().session_id).collect()
+    }
+
+    /// Starts `shell` (the default one when `None`) in `cwd`, for session `session_id`.
+    pub fn open(
+        self: &Arc<Self>,
+        session_id: &str,
+        cwd: &str,
+        shell: Option<&str>,
+        cols: Option<u16>,
+        rows: Option<u16>,
+    ) -> Result<TerminalInfo, String> {
         let cwd = cwd.trim();
         if cwd.is_empty() || !Path::new(cwd).is_dir() {
             return Err("This folder does not exist.".into());
@@ -205,6 +221,7 @@ impl Terminals {
         let term = Arc::new(Term {
             info: Mutex::new(TerminalInfo {
                 id: id.clone(),
+                session_id: session_id.to_string(),
                 cwd: cwd.to_string(),
                 shell: shell.id.clone(),
                 shell_label: shell.label.clone(),
@@ -358,6 +375,19 @@ impl Terminals {
         Ok(())
     }
 
+    /// A deleted session: its tabs have nowhere left to show, so its shells end too.
+    pub fn close_session(&self, session_id: &str) {
+        let gone: Vec<Arc<Term>> = {
+            let mut open = lock(&self.open);
+            let (gone, keep) = std::mem::take(&mut *open).into_iter().partition(|t| t.info().session_id == session_id);
+            *open = keep;
+            gone
+        };
+        for term in gone {
+            end(&term);
+        }
+    }
+
     /// App exit: no terminal outlives the window it was opened from.
     pub fn kill_all(&self) {
         let all = std::mem::take(&mut *lock(&self.open));
@@ -424,10 +454,10 @@ mod tests {
     fn a_missing_folder_or_shell_opens_nothing() {
         let terms = Terminals::new(Arc::new(Recorder::default()));
         let missing = std::env::temp_dir().join("air-terminal-no-such-folder");
-        let err = terms.open(&missing.display().to_string(), None, None, None).unwrap_err();
+        let err = terms.open("s1", &missing.display().to_string(), None, None, None).unwrap_err();
         assert_eq!(err, "This folder does not exist.");
         let here = std::env::temp_dir().display().to_string();
-        let err = terms.open(&here, Some("no-such-shell"), None, None).unwrap_err();
+        let err = terms.open("s1", &here, Some("no-such-shell"), None, None).unwrap_err();
         assert_eq!(err, "That shell is not installed on this computer.");
         assert!(terms.list().is_empty());
     }
@@ -439,9 +469,10 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("air-terminal-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let info = terms
-            .open(&dir.display().to_string(), Some(&test_shell()), Some(100), Some(30))
+            .open("s1", &dir.display().to_string(), Some(&test_shell()), Some(100), Some(30))
             .expect("the shell starts");
         assert!(info.running);
+        assert_eq!(info.session_id, "s1");
         assert_eq!(terms.list().len(), 1);
 
         terms.write(&info.id, "echo oc-term-ok\r").unwrap();
@@ -466,5 +497,24 @@ mod tests {
         assert!(terms.list().is_empty());
         assert_eq!(terms.close(&info.id).unwrap_err(), "Terminal not found.");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_deleted_session_ends_only_its_own_shells() {
+        let terms = Terminals::new(Arc::new(Recorder::default()));
+        let here = std::env::temp_dir().display().to_string();
+        let shell = test_shell();
+        let a1 = terms.open("a", &here, Some(&shell), None, None).expect("the shell starts");
+        terms.open("a", &here, Some(&shell), None, None).expect("the shell starts");
+        let b = terms.open("b", &here, Some(&shell), None, None).expect("the shell starts");
+        assert_eq!(terms.sessions(), HashSet::from(["a".to_string(), "b".to_string()]));
+
+        terms.close_session("a");
+        let left = terms.list();
+        assert_eq!(left.len(), 1);
+        assert_eq!(left[0].id, b.id);
+        assert_eq!(terms.sessions(), HashSet::from(["b".to_string()]));
+        assert_eq!(terms.write(&a1.id, "x").unwrap_err(), "Terminal not found.");
+        terms.kill_all();
     }
 }

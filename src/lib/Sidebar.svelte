@@ -9,7 +9,6 @@
   import Kanban from "phosphor-svelte/lib/Kanban";
   import Plus from "phosphor-svelte/lib/Plus";
   import PushPin from "phosphor-svelte/lib/PushPin";
-  import TerminalIcon from "phosphor-svelte/lib/Terminal";
   import Trash from "phosphor-svelte/lib/Trash";
   import type { SessionView } from "./api";
   import AppLogo from "./AppLogo.svelte";
@@ -23,7 +22,6 @@
     { href: "/", key: "shell.nav.overview", icon: House },
     { href: "/board", key: "shell.nav.board", icon: Kanban },
     { href: "/chat", key: "shell.nav.chat", icon: ChatsCircle },
-    { href: "/terminal", key: "shell.nav.terminal", icon: TerminalIcon },
     { href: "/settings", key: "shell.nav.settings", icon: GearSix },
   ] as const;
 

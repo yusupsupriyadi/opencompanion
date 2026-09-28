@@ -90,8 +90,8 @@ export const en = {
 
   // Viewer above the terminal
   "workspace.viewer.tabs": "Session views",
-  "workspace.viewer.terminal": "Terminal",
-  "workspace.viewer.output": "Output",
+  "workspace.viewer.terminal": "terminal",
+  "workspace.viewer.output": "output",
   "workspace.viewer.kindFile": "file",
   "workspace.viewer.kindDiff": "changes",
   "workspace.viewer.close": "Close {name}",
@@ -198,8 +198,8 @@ export const id: Record<keyof typeof en, string> = {
   "workspace.branch.switched": "{folder} sekarang di {branch}.",
 
   "workspace.viewer.tabs": "Tampilan sesi",
-  "workspace.viewer.terminal": "Terminal",
-  "workspace.viewer.output": "Output",
+  "workspace.viewer.terminal": "terminal",
+  "workspace.viewer.output": "output",
   "workspace.viewer.kindFile": "file",
   "workspace.viewer.kindDiff": "perubahan",
   "workspace.viewer.close": "Tutup {name}",

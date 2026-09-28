@@ -4,8 +4,13 @@ import { beforeEach, expect, test, vi } from "vitest";
 import type { EventRow } from "$lib/api";
 import { app } from "$lib/store.svelte";
 import { setUrl } from "../../test/app-state.svelte";
-import { CLIS, backend, session } from "../../test/fixtures";
+import { CLIS, backend as mockBackend, session } from "../../test/fixtures";
 import SessionPage from "./+page.svelte";
+
+/** These sessions have no shell open beside them. */
+function backend(handlers: Parameters<typeof mockBackend>[0]) {
+  return mockBackend({ terminal_list: () => [], ...handlers });
+}
 
 beforeEach(() => {
   app.clis = CLIS;

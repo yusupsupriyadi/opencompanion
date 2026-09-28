@@ -1,29 +1,22 @@
 <script lang="ts">
   import TerminalIcon from "phosphor-svelte/lib/Terminal";
   import X from "phosphor-svelte/lib/X";
-  import { onMount, untrack } from "svelte";
+  import { onMount } from "svelte";
   import { api, errorText, type ShellInfo } from "./api";
-  import FolderField from "./FolderField.svelte";
   import { folderName } from "./format";
   import { t, tb } from "./i18n.svelte";
 
-  let {
-    initialCwd = "",
-    onsubmit,
-    oncancel,
-  }: { initialCwd?: string; onsubmit: (cwd: string, shell: string) => Promise<void>; oncancel: () => void } = $props();
+  // A shell always opens in the session's folder; only the shell is picked here.
+  let { folder, onsubmit, oncancel }: { folder: string; onsubmit: (shell: string) => Promise<void>; oncancel: () => void } = $props();
 
   // The dialog remounts the form every time it opens.
-  let cwd = $state(untrack(() => initialCwd));
   let shells = $state<ShellInfo[]>([]);
   let shellsState = $state<"loading" | "ready" | "error">("loading");
   let shell = $state("");
-  let folderError = $state("");
   let failure = $state("");
   let busy = $state(false);
 
   const picked = $derived(shells.find((s) => s.id === shell));
-  const dir = $derived(cwd.trim());
 
   onMount(async () => {
     try {
@@ -40,14 +33,9 @@
   async function submit(e: SubmitEvent) {
     e.preventDefault();
     failure = "";
-    if (!dir || !(await api.folderExists(dir))) {
-      folderError = dir ? t("shell.form.folderMissing") : t("shell.form.folderEmpty");
-      document.getElementById("nt-folder")?.focus();
-      return;
-    }
     busy = true;
     try {
-      await onsubmit(dir, shell);
+      await onsubmit(shell);
     } catch (err) {
       failure = errorText(err);
     } finally {
@@ -62,7 +50,10 @@
     <button class="icon-btn" type="button" aria-label={t("shell.close")} onclick={oncancel}><X size={18} aria-hidden="true" /></button>
   </div>
 
-  <FolderField id="nt-folder" bind:value={cwd} error={folderError} oninput={() => (folderError = "")} />
+  <div class="field">
+    <p class="label">{t("shell.folder.label")}</p>
+    <p class="mono" id="nt-folder">{folder}</p>
+  </div>
 
   <div class="field">
     {#if shells.length}
@@ -88,13 +79,18 @@
     <span class="meta grow">{t("shell.form.escHint")}</span>
     <button class="btn secondary" type="button" onclick={oncancel}>{t("shell.form.cancel")}</button>
     <button class="btn primary" type="submit" id="btn-open-terminal" disabled={busy || !shell}>
-      <TerminalIcon size={16} aria-hidden="true" /><span>{busy ? t("terminal.form.opening") : t("terminal.form.submit", { folder: dir ? folderName(dir) : "…" })}</span>
+      <TerminalIcon size={16} aria-hidden="true" /><span>{busy ? t("terminal.form.opening") : t("terminal.form.submit", { folder: folderName(folder) })}</span>
     </button>
   </div>
 </form>
 
 <style>
+  #nt-folder,
   #nt-shell-path {
     overflow-wrap: anywhere;
+  }
+  #nt-folder {
+    margin: 0;
+    font-size: 13px;
   }
 </style>

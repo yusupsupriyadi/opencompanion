@@ -153,6 +153,10 @@ class App:
         self.wait(lambda: self.js("return location.pathname") == href.split("?")[0], 10, f"route {href}")
 
 
+# The shell tab shown on a session's screen.
+SHELL_TAB = "section[id^=shell-panel-]:not([hidden])"
+
+
 def xq(s):
     return "'" + s + "'" if "'" not in s else 'concat("' + s.replace('"', '') + '")'
 
@@ -254,30 +258,30 @@ def main():
         app.wait(lambda: "got: ping-e2e" in rows(), 20, "echo in xterm")
         return "xterm shows 'fake ready' then 'got: ping-e2e'"
 
-    @step("terminal screen: bash tab runs a command", app)
+    @step("shell tab: bash in the session's folder runs a command", app)
     def _():
-        app.nav("/terminal")
+        # Still on the interactive session: New terminal opens a shell tab in its folder.
         app.click_css("#btn-new-terminal")
-        app.type(app.wait_css("#nt-folder"), PROJECT)
+        app.wait_css("#nt-shell")
         shells = app.js("return [...document.querySelectorAll('#nt-shell option')].map(o=>o.value+'='+o.textContent)")
         app.click_css("#btn-open-terminal:not([disabled])")
-        rows = lambda: app.js("return [...document.querySelectorAll('#terminal-main .xterm-rows')].map(r=>r.innerText).join('\\n')") or ""
-        ta = app.wait_css("#terminal-main .xterm-helper-textarea", 20)
+        rows = lambda: app.js(f"return [...document.querySelectorAll('{SHELL_TAB} .xterm-rows')].map(r=>r.innerText).join('\\n')") or ""
+        ta = app.wait_css(f"{SHELL_TAB} .xterm-helper-textarea", 20)
         time.sleep(1.5)
         app.type(ta, "echo E2E_$((40+2)); pwd\n")
         app.wait(lambda: "E2E_42" in rows(), 20, "command output")
-        assert PROJECT in rows(), "shell did not start in the chosen folder"
+        assert PROJECT in rows(), "shell did not start in the session's folder"
         return f"shells={shells}; output has E2E_42 and cwd {PROJECT}"
 
-    @step("terminal: Ctrl+Shift+V pastes on Linux", app)
+    @step("shell tab: Ctrl+Shift+V pastes on Linux", app)
     def _():
-        rows = lambda: app.js("return [...document.querySelectorAll('#terminal-main .xterm-rows')].map(r=>r.innerText).join('\\n')") or ""
+        rows = lambda: app.js(f"return [...document.querySelectorAll('{SHELL_TAB} .xterm-rows')].map(r=>r.innerText).join('\\n')") or ""
         # xclip stays in the background to serve the clipboard; it must not hold our output open.
         subprocess.run(["xclip", "-selection", "clipboard"], input=b"echo PASTED_$((2+3))", check=True, timeout=10,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        app.js("document.querySelector('#terminal-main .xterm-helper-textarea').focus()")
+        app.js(f"document.querySelector('{SHELL_TAB} .xterm-helper-textarea').focus()")
         app.chord(CONTROL, SHIFT, "v")
-        app.type(app.find("#terminal-main .xterm-helper-textarea"), "\n")
+        app.type(app.find(f"{SHELL_TAB} .xterm-helper-textarea"), "\n")
         app.wait(lambda: "PASTED_5" in rows(), 15, "pasted command ran")
         return "clipboard text pasted with Ctrl+Shift+V and ran: PASTED_5"
 

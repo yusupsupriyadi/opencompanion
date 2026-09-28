@@ -9,7 +9,7 @@
   import { currentPlatform } from "./platform";
   import { pastedImage, pathForPaste, shiftEnter } from "./term-input";
 
-  // `session` is an AI CLI session; `terminal` a plain shell from the Terminal screen.
+  // `session` is an AI CLI session; `terminal` a plain shell opened in a tab beside it.
   let { id, live, label, kind = "session" }: { id: string; live: boolean; label: string; kind?: "session" | "terminal" } = $props();
 
   let host: HTMLDivElement | undefined = $state();

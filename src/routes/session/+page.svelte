@@ -1,17 +1,19 @@
 <script lang="ts">
   import { page } from "$app/state";
   import { listen } from "@tauri-apps/api/event";
+  import ArrowClockwise from "phosphor-svelte/lib/ArrowClockwise";
   import Check from "phosphor-svelte/lib/Check";
   import Files from "phosphor-svelte/lib/Files";
   import GitBranch from "phosphor-svelte/lib/GitBranch";
   import GitDiff from "phosphor-svelte/lib/GitDiff";
   import Info from "phosphor-svelte/lib/Info";
   import Play from "phosphor-svelte/lib/Play";
+  import Plus from "phosphor-svelte/lib/Plus";
   import Stop from "phosphor-svelte/lib/Stop";
   import X from "phosphor-svelte/lib/X";
   import { onMount, tick } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
-  import { api, errorText, type EventRow, type GitChange, type SessionDetail, type SessionInfo, type Usage } from "$lib/api";
+  import { api, errorText, type EventRow, type GitChange, type SessionDetail, type SessionInfo, type TerminalInfo, type Usage } from "$lib/api";
   import BranchPanel from "$lib/BranchPanel.svelte";
   import ChangesPanel from "$lib/ChangesPanel.svelte";
   import CliMark from "$lib/CliMark.svelte";
@@ -23,10 +25,12 @@
   import NeedsYou from "$lib/NeedsYou.svelte";
   import StatusChip from "$lib/StatusChip.svelte";
   import Terminal from "$lib/Terminal.svelte";
+  import TerminalForm from "$lib/TerminalForm.svelte";
   import Timeline from "$lib/Timeline.svelte";
   import { CLI_LABEL, SIGNAL_TEXT, clock, duration, folderName, isLive, memory, modeLabel, shortPath } from "$lib/format";
   import { plural, t, tb, type Key } from "$lib/i18n.svelte";
   import { pasteKey } from "$lib/platform";
+  import { SessionShells } from "$lib/shells.svelte";
   import { app, showToast } from "$lib/store.svelte";
   import { GitWatch, splitPath, type ViewTarget } from "$lib/workspace.svelte";
 
@@ -88,9 +92,53 @@
     document.getElementById(`side-tab-${SIDE_TABS[next].id}`)?.focus();
   }
 
-  // A file or a change opened from the panel shows in a second tab above the terminal.
+  // Tabs above the terminal: the session's own ("term"), plain shells opened in its folder (by
+  // their id), and a file or change opened from the panel ("viewer").
   let viewer = $state<ViewTarget | null>(null);
-  let mainTab = $state<"term" | "viewer">("term");
+  let mainTab = $state("term");
+  const shells = $derived(new SessionShells(id));
+  $effect(() => shells.start());
+  // A tab that went away (a closed shell, a new session) falls back to the session's terminal.
+  const shownTab = $derived(
+    mainTab === "viewer" ? (viewer ? "viewer" : "term") : shells.list.some((x) => x.id === mainTab) ? mainTab : "term",
+  );
+  let newShellOpen = $state(false);
+  let restarting = $state("");
+  let shellFailure = $state("");
+
+  async function openShell(shell: string) {
+    const info = await shells.open(shell);
+    mainTab = info.id;
+    newShellOpen = false;
+  }
+
+  async function closeShell(x: TerminalInfo) {
+    shellFailure = "";
+    const at = shells.list.findIndex((y) => y.id === x.id);
+    try {
+      await shells.close(x.id);
+    } catch (e) {
+      shellFailure = errorText(e);
+      return;
+    }
+    const next = shells.list[Math.min(at, shells.list.length - 1)];
+    if (mainTab === x.id) mainTab = next?.id ?? "term";
+    // The button that closed it is gone: focus goes to the shell after it, or to the session's tab.
+    await tick();
+    document.getElementById(next ? `shell-tab-${next.id}` : "view-tab-term")?.focus();
+  }
+
+  async function restartShell(x: TerminalInfo) {
+    shellFailure = "";
+    restarting = x.id;
+    try {
+      await shells.restart(x.id);
+    } catch (e) {
+      shellFailure = errorText(e);
+    } finally {
+      restarting = "";
+    }
+  }
 
   async function show(target: ViewTarget) {
     viewer = target;
@@ -345,16 +393,29 @@
 
     <div class="detail-body ws">
       <div class="main-pane">
-        {#if viewer}
-          {@const name = splitPath(viewer.path).name}
-          <div class="tab-strip" id="session-views" role="group" aria-label={t("workspace.viewer.tabs")}>
-            <div class="tab" class:current={mainTab === "term"}>
-              <button class="tab-pick" type="button" id="view-tab-term" aria-current={mainTab === "term" ? "true" : undefined} aria-controls="session-term" onclick={() => (mainTab = "term")}>
-                <b>{s.mode === "interactive" ? t("workspace.viewer.terminal") : t("workspace.viewer.output")}</b>
+        <div class="tab-strip" id="session-views" role="group" aria-label={t("workspace.viewer.tabs")}>
+          <div class="tab" class:current={shownTab === "term"}>
+            <button class="tab-pick" type="button" id="view-tab-term" aria-current={shownTab === "term" ? "true" : undefined} aria-controls="session-term" onclick={() => (mainTab = "term")}>
+              <b>{CLI_LABEL[s.cli]}</b>
+              <small>{s.mode === "interactive" ? t("workspace.viewer.terminal") : t("workspace.viewer.output")}</small>
+            </button>
+          </div>
+          {#each shells.list as x (x.id)}
+            {@const name = shells.names.get(x.id) ?? x.shellLabel}
+            <div class="tab" class:current={shownTab === x.id}>
+              <button class="tab-pick" type="button" id="shell-tab-{x.id}" aria-current={shownTab === x.id ? "true" : undefined} aria-controls="shell-panel-{x.id}" onclick={() => (mainTab = x.id)}>
+                <b>{name}</b>
+                {#if !x.running}<span class="chip idle">{t("terminal.exited")}</span>{/if}
+              </button>
+              <button class="icon-btn tab-close" type="button" aria-label={t("terminal.closeNamed", { name })} title={t("terminal.closeHint", { shell: x.shellLabel })} onclick={() => closeShell(x)}>
+                <X size={14} aria-hidden="true" />
               </button>
             </div>
-            <div class="tab" class:current={mainTab === "viewer"}>
-              <button class="tab-pick" type="button" id="view-tab-file" aria-current={mainTab === "viewer" ? "true" : undefined} aria-controls="session-viewer" title={viewer.path} onclick={() => (mainTab = "viewer")}>
+          {/each}
+          {#if viewer}
+            {@const name = splitPath(viewer.path).name}
+            <div class="tab" class:current={shownTab === "viewer"}>
+              <button class="tab-pick" type="button" id="view-tab-file" aria-current={shownTab === "viewer" ? "true" : undefined} aria-controls="session-viewer" title={viewer.path} onclick={() => (mainTab = "viewer")}>
                 <b class="mono">{name}</b>
                 <small>{viewer.kind === "diff" ? t("workspace.viewer.kindDiff") : t("workspace.viewer.kindFile")}</small>
               </button>
@@ -362,9 +423,19 @@
                 <X size={14} aria-hidden="true" />
               </button>
             </div>
-          </div>
+          {/if}
+          <button class="icon-btn tab-new" type="button" id="btn-new-terminal" aria-label={t("terminal.new")} title={t("terminal.newIn", { folder: folderName(s.cwd) })} onclick={() => (newShellOpen = true)}>
+            <Plus size={16} aria-hidden="true" />
+          </button>
+        </div>
+        {#if shells.state === "error"}
+          <p class="err-text shell-note" role="alert">
+            <span>{t("terminal.loadFailed", { error: tb(shells.error) })}</span>
+            <button class="btn secondary sm" type="button" onclick={() => shells.load()}>{t("sessions.tryAgain")}</button>
+          </p>
         {/if}
-        <section class="term" id="session-term" class:joined={viewer !== null} hidden={viewer !== null && mainTab === "viewer"} aria-label={t("sessions.detail.output")}>
+        {#if shellFailure}<p class="err-text shell-note" role="alert">{tb(shellFailure)}</p>{/if}
+        <section class="term joined" id="session-term" hidden={shownTab !== "term"} aria-label={t("sessions.detail.output")}>
           {#if s.mode === "interactive"}
             {#key `${id}-${termKey}`}
               <Terminal id={s.id} {live} label={t("sessions.detail.terminalLabel", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) })} />
@@ -382,8 +453,31 @@
             {#if sendError}<div class="term-note" role="alert">{tb(sendError)}</div>{/if}
           {/if}
         </section>
+        {#each shells.list as x (x.id)}
+          {@const label = t("terminal.label", { shell: shells.names.get(x.id) ?? x.shellLabel, folder: folderName(s.cwd) })}
+          <section class="term joined" id="shell-panel-{x.id}" aria-label={label} hidden={shownTab !== x.id}>
+            {#key `${x.id}-${x.startedAt}`}
+              <Terminal kind="terminal" id={x.id} live={x.running} {label} />
+            {/key}
+            {#if x.running}
+              <div class="term-note">{t("terminal.live", { paste: pasteKey() })}</div>
+            {:else}
+              <div class="term-note exit-row">
+                <span class="grow">
+                  {x.exitCode === null ? t("terminal.exitedNoCode", { shell: x.shellLabel }) : t("terminal.exitedCode", { shell: x.shellLabel, code: x.exitCode })}
+                </span>
+                <button class="btn primary sm" type="button" disabled={restarting === x.id} onclick={() => restartShell(x)}>
+                  <ArrowClockwise size={14} aria-hidden="true" />{restarting === x.id ? t("terminal.restarting") : t("terminal.restart")}
+                </button>
+                <button class="btn secondary sm" type="button" onclick={() => closeShell(x)}>
+                  <X size={14} aria-hidden="true" />{t("shell.close")}
+                </button>
+              </div>
+            {/if}
+          </section>
+        {/each}
         {#if viewer}
-          <section class="term joined" id="session-viewer" hidden={mainTab !== "viewer"}>
+          <section class="term joined" id="session-viewer" hidden={shownTab !== "viewer"}>
             <FileViewer
               {id}
               target={viewer}
@@ -492,6 +586,12 @@
   {/if}
 </main>
 
+<Dialog bind:open={newShellOpen} labelledby="nt-title">
+  {#if s}
+    <TerminalForm folder={s.cwd} onsubmit={openShell} oncancel={() => (newShellOpen = false)} />
+  {/if}
+</Dialog>
+
 <Dialog bind:open={stopOpen} labelledby="stop-title">
   <div class="d-body">
     <h2 id="stop-title">{t("sessions.detail.stopTitle")}</h2>
@@ -526,5 +626,21 @@
     .activity .legend {
       display: none;
     }
+  }
+  .shell-note {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 8px 0;
+  }
+  .exit-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .exit-row .btn {
+    font-family: var(--font-ui);
   }
 </style>

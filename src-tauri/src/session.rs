@@ -1254,13 +1254,14 @@ impl Manager {
     }
 
     /// Retention (PRD FR-62): finished sessions that ended more than `keep_days` ago go, with
-    /// their events, terminal logs and hook files. `0` keeps everything. Returns the ids that went.
-    pub fn prune(&self, keep_days: u32) -> Vec<String> {
+    /// their events, terminal logs and hook files, except those in `in_use`, which have a shell
+    /// open in a tab. `0` keeps everything. Returns the ids that went.
+    pub fn prune(&self, keep_days: u32, in_use: &HashSet<String>) -> Vec<String> {
         let mut gone = Vec::new();
         if keep_days > 0 {
             let cutoff = db::now_ms() - i64::from(keep_days) * 86_400_000;
             for id in self.db.finished_sessions(Some(cutoff)).unwrap_or_default() {
-                if self.delete(&id).is_ok() {
+                if !in_use.contains(&id) && self.delete(&id).is_ok() {
                     gone.push(id);
                 }
             }
@@ -1539,11 +1540,14 @@ mod tests {
         fs::write(dir.join("sessions").join("notes.txt"), "not ours to judge").unwrap();
 
         // Keeping everything still sweeps files whose session is gone.
-        assert!(m.prune(0).is_empty());
+        assert!(m.prune(0, &HashSet::new()).is_empty());
         assert!(!m.log_path(&orphan).exists() && !m.hook_path(&orphan).exists());
         assert!(dir.join("sessions").join("notes.txt").exists());
 
-        assert_eq!(m.prune(7), vec![old_id.clone()]);
+        // A shell still open in its tab keeps an old session.
+        assert!(m.prune(7, &HashSet::from([old_id.clone()])).is_empty());
+        assert!(db.session(&old_id).unwrap().is_some());
+        assert_eq!(m.prune(7, &HashSet::new()), vec![old_id.clone()]);
         assert!(db.session(&old_id).unwrap().is_none());
         assert!(!m.log_path(&old_id).exists() && !m.hook_settings_path(&old_id).exists());
         assert!(db.session(&new_id).unwrap().is_some() && m.log_path(&new_id).exists());
