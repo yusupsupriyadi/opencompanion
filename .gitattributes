@@ -1,0 +1,5 @@
+# Scripts that run inside Linux containers and CI must keep LF, even in a Windows checkout
+# with core.autocrlf, or bash and python read the carriage returns as part of each line.
+*.sh text eol=lf
+*.py text eol=lf
+e2e/linux/Dockerfile text eol=lf
