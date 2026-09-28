@@ -187,7 +187,7 @@ test("the start at sign-in is offered where the platform has it, and saved when 
   });
   const user = userEvent.setup();
   render(SettingsPage);
-  const start = await screen.findByRole("checkbox", { name: "Start in the tray when I sign in to Windows" });
+  const start = await screen.findByRole("checkbox", { name: "Start in the tray when I sign in" });
   expect(start).not.toBeChecked();
   await user.click(start);
   expect(stored.startAtLogin).toBe(true);

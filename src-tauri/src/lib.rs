@@ -685,7 +685,7 @@ async fn run_task(state: State<'_, AppState>, input: RunTaskInput) -> Res<Sessio
 
 // Settings and phone access
 
-/// Settings, with the start at sign-in read from Windows, where it can be changed outside the app.
+/// Settings, with the start at sign-in read from the system, where it can be changed outside the app.
 #[tauri::command]
 fn get_settings(state: State<'_, AppState>) -> Res<Settings> {
     let mut settings = state.db.settings()?;
@@ -703,7 +703,7 @@ fn apply_text_size(app: &AppHandle, settings: &Settings) {
 #[tauri::command]
 async fn save_settings(app: AppHandle, state: State<'_, AppState>, settings: Settings) -> Res<Settings> {
     let before = state.db.settings()?;
-    // Windows is asked first, so a refused change is never stored as done.
+    // The system is asked first, so a refused change is never stored as done.
     if settings.start_at_login != autostart::enabled() {
         let on = settings.start_at_login;
         blocking(move || autostart::set(on)).await?;

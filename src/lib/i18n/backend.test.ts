@@ -15,6 +15,19 @@ test("backend messages read in Indonesian, with their names and numbers kept", (
   );
 });
 
+test("login item errors on macOS and Linux read in Indonesian", () => {
+  expect(translateBackend("Could not add OpenCompanion to the login items: Permission denied (os error 13)", "id")).toBe(
+    "OpenCompanion tidak bisa ditambahkan ke daftar mulai saat masuk: Permission denied (os error 13)",
+  );
+  expect(translateBackend("Could not remove OpenCompanion from the login items: Read-only file system (os error 30)", "id")).toBe(
+    "OpenCompanion tidak bisa dihapus dari daftar mulai saat masuk: Read-only file system (os error 30)",
+  );
+  expect(translateBackend("Your home folder could not be found, so the login item could not be written.", "id")).toBe(
+    "Folder home Anda tidak ditemukan, jadi OpenCompanion tidak bisa ditambahkan ke daftar mulai saat masuk.",
+  );
+  expect(translateBackend("Starting at sign-in is not available on this system.", "id")).toBe("Mulai saat masuk tidak tersedia di sistem ini.");
+});
+
 test("English and text the backend did not write pass through", () => {
   expect(translateBackend("This folder does not exist.", "en")).toBe("This folder does not exist.");
   expect(translateBackend("Running bun run test", "id")).toBe("Running bun run test");

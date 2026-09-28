@@ -109,7 +109,13 @@ const RULES: Rule[] = [
   [/^Turn on phone access first\.$/, "Nyalakan akses HP dulu."],
   [/^No local network address was found on this computer\.$/, "Tidak ada alamat jaringan lokal di komputer ini."],
   [/^Port (\d+) is not available: (.+)$/, "Port $1 tidak tersedia: $2"],
-  [/^Starting at sign-in is only available on Windows for now\.$/, "Mulai saat masuk Windows baru tersedia di Windows."],
+  [/^Starting at sign-in is not available on this system\.$/, "Mulai saat masuk tidak tersedia di sistem ini."],
+  [/^Could not add OpenCompanion to the login items: (.+)$/, "OpenCompanion tidak bisa ditambahkan ke daftar mulai saat masuk: $1"],
+  [/^Could not remove OpenCompanion from the login items: (.+)$/, "OpenCompanion tidak bisa dihapus dari daftar mulai saat masuk: $1"],
+  [
+    /^Your home folder could not be found, so the login item could not be written\.$/,
+    "Folder home Anda tidak ditemukan, jadi OpenCompanion tidak bisa ditambahkan ke daftar mulai saat masuk.",
+  ],
   [/^Windows did not run reg\.exe: (.+)$/, "Windows tidak menjalankan reg.exe: $1"],
   [/^Windows refused to change the sign-in list: (.*)$/, "Windows menolak mengubah daftar saat masuk: $1"],
   // Outside sessions and transcripts

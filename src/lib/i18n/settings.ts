@@ -162,7 +162,7 @@ export const en = {
   "settings.window.trayOff": "Closing the window quits OpenCompanion and stops every session it started.",
   "settings.window.trayOnSaved": "Closing the window now keeps OpenCompanion in the tray.",
   "settings.window.trayOffSaved": "Closing the window now quits OpenCompanion.",
-  "settings.window.login": "Start in the tray when I sign in to Windows",
+  "settings.window.login": "Start in the tray when I sign in",
   "settings.window.loginOnSaved": "OpenCompanion starts in the tray when you sign in.",
   "settings.window.loginOffSaved": "OpenCompanion no longer starts when you sign in.",
 
@@ -344,16 +344,16 @@ export const id: Record<keyof typeof en, string> = {
   "settings.language.help": "Mengubah setiap layar di komputer ini dan halaman HP. Pesan dari CLI tetap seperti yang ditulis CLI.",
   "settings.language.saved": "OpenCompanion sekarang memakai Bahasa Indonesia.",
 
-  "settings.window.title": "Jendela dan masuk Windows",
+  "settings.window.title": "Jendela dan masuk ke komputer",
   "settings.window.tray": "Tetap berjalan di tray",
   "settings.window.trayOn":
     "Sesi tetap berjalan dan HP Anda masih bisa menjangkaunya. Klik ikon tray untuk membuka jendela lagi; keluar lewat menunya untuk menghentikan sesi.",
   "settings.window.trayOff": "Menutup jendela berarti keluar dari OpenCompanion dan menghentikan setiap sesi yang dimulainya.",
   "settings.window.trayOnSaved": "Sekarang, menutup jendela membuat OpenCompanion tetap berjalan di tray.",
   "settings.window.trayOffSaved": "Sekarang, menutup jendela berarti keluar dari OpenCompanion.",
-  "settings.window.login": "Mulai di tray saat saya masuk ke Windows",
-  "settings.window.loginOnSaved": "OpenCompanion akan mulai di tray saat Anda masuk ke Windows.",
-  "settings.window.loginOffSaved": "OpenCompanion tidak lagi mulai saat Anda masuk ke Windows.",
+  "settings.window.login": "Mulai di tray saat saya masuk ke komputer",
+  "settings.window.loginOnSaved": "OpenCompanion akan mulai di tray saat Anda masuk ke komputer.",
+  "settings.window.loginOffSaved": "OpenCompanion tidak lagi mulai saat Anda masuk ke komputer.",
 
   "settings.scan.title": "Sesi luar",
   "settings.scan.label": "Seberapa sering OpenCompanion mencari CLI yang berjalan di terminal lain. Pemindaian hanya membaca daftar proses.",
