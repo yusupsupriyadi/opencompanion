@@ -56,7 +56,8 @@ jobs:
           keys:
             - cargo-windows-{{ checksum "src-tauri/Cargo.lock" }}
       - run:
-          name: Install Rust, Bun and Node.js where missing
+          # Node is pinned (jsdom needs ^24.15.0), whatever the image carries.
+          name: Install Rust, Bun and Node.js 24.21.0
           shell: bash.exe
           command: |
             if ! command -v cargo > /dev/null; then
@@ -66,13 +67,15 @@ jobs:
             export PATH="$HOME/.cargo/bin:$PATH"
             rustup component add clippy
             command -v bun > /dev/null || powershell.exe -NoProfile -Command "irm bun.sh/install.ps1 | iex"
-            command -v node > /dev/null || { nvm install 24 && nvm use 24; }
-            node --version && bun --version && cargo --version
+            curl -fsSL -o node.zip https://nodejs.org/dist/v24.21.0/node-v24.21.0-win-x64.zip
+            powershell.exe -NoProfile -Command "Expand-Archive -Path node.zip -DestinationPath C:\node -Force"
+            echo 'export PATH="/c/node/node-v24.21.0-win-x64:$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"' > "$HOME/ci-path.sh"
+            . "$HOME/ci-path.sh" && node --version && bun --version && cargo --version
       - run:
           name: Checks
           shell: bash.exe
           command: |
-            export PATH="$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"
+            . "$HOME/ci-path.sh"
             bash scripts/ci/checks.sh
           no_output_timeout: 30m
       - save_cache:
@@ -90,12 +93,16 @@ jobs:
           keys:
             - cargo-macos-{{ checksum "src-tauri/Cargo.lock" }}
       - run:
-          name: Install Rust, Bun and Node.js where missing
+          # Node is pinned (jsdom needs ^24.15.0), whatever the image carries.
+          name: Install Rust, Bun and Node.js 24.21.0
           command: |
             command -v cargo > /dev/null || curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal -c clippy
             command -v bun > /dev/null || curl -fsSL https://bun.sh/install | bash
-            command -v node > /dev/null || brew install node
-            echo 'export PATH="$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"' >> "$BASH_ENV"
+            curl -fsSL https://nodejs.org/dist/v24.21.0/node-v24.21.0-darwin-arm64.tar.gz | tar -xz -C "$HOME"
+            echo 'export PATH="$HOME/node-v24.21.0-darwin-arm64/bin:$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"' >> "$BASH_ENV"
+            export PATH="$HOME/node-v24.21.0-darwin-arm64/bin:$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"
+            rustup component add clippy
+            node --version && bun --version && cargo --version
       - run:
           # cargo test compiles the app for macOS, which also reads tauri.macos.conf.json.
           name: Checks

@@ -10,7 +10,8 @@ fi
 [ "$mode" = checks ] && exit 0
 
 bun install --frozen-lockfile
-bun run tauri build --bundles deb 2>&1 | tail -n 5
+# Full output: a CI job with no output for too long is cancelled, and errors must stay visible.
+bun run tauri build --bundles deb 2>&1 | tee /out/tauri-build.log
 # Its dependencies (WebKitGTK, GTK, AppIndicator) came with the image.
 dpkg -i ./src-tauri/target/release/bundle/deb/*.deb > /out/deb-install.log 2>&1
 (cd src-tauri && cargo build --bin fake-cli)
