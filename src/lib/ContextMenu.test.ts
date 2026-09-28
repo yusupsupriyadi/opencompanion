@@ -98,7 +98,7 @@ test("Pin in the menu pins the session, and the next menu offers Unpin", async (
 
   await fireEvent.contextMenu(link);
   await user.click(screen.getByRole("menuitem", { name: "Pin session" }));
-  expect(screen.getByRole("button", { name: "Pin session: Write API docs" })).toHaveAttribute("aria-pressed", "true");
+  expect(link).toHaveAccessibleName(/, Pinned$/);
   expect(JSON.parse(localStorage.getItem("air-pinned-sessions") ?? "[]")).toEqual(["a"]);
 
   await fireEvent.contextMenu(link);

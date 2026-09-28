@@ -10,14 +10,13 @@
   import Plus from "phosphor-svelte/lib/Plus";
   import PushPin from "phosphor-svelte/lib/PushPin";
   import PushPinSlash from "phosphor-svelte/lib/PushPinSlash";
-  import Trash from "phosphor-svelte/lib/Trash";
   import type { SessionView } from "./api";
   import AppLogo from "./AppLogo.svelte";
   import CliMark from "./CliMark.svelte";
   import { folderEntries, menu, openMenu, sessionMenu } from "./context-menu.svelte";
   import { CLI_LABEL, STATUS, folderName, isLive } from "./format";
   import { plural, t } from "./i18n.svelte";
-  import { app, askDelete, askNewSession } from "./store.svelte";
+  import { app, askNewSession } from "./store.svelte";
 
   // CLIs, Skills, Phone access and the theme live under Settings.
   const NAV = [
@@ -77,7 +76,7 @@
 
   type Group = { key: string; cwd: string; pinned: boolean; sessions: SessionView[] };
 
-  // Right-click menus: the row buttons' actions, plus the ones about the folder itself.
+  // Rows carry no buttons: their actions live in the right-click menu (Shift+F10 or the Menu key).
   const menuFor = (key: string) => menu.open && menu.key === key;
   function sessionContext(e: MouseEvent, s: SessionView) {
     const pinned = pinnedSessions.includes(s.id);
@@ -143,7 +142,7 @@
           <div class="folder-group" role="group" aria-labelledby="side-folder-{i}">
             <!-- The button inside takes the keys: Shift+F10 or the Menu key on it bubbles up here. -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div class="folder-row" class:pinned={g.pinned} class:menu-open={menuFor(`folder:${g.key}`)} oncontextmenu={(e) => folderContext(e, g)}>
+            <div class="folder-row" class:menu-open={menuFor(`folder:${g.key}`)} oncontextmenu={(e) => folderContext(e, g)}>
               <button
                 class="folder-head"
                 type="button"
@@ -156,6 +155,9 @@
                 <span class="caret" aria-hidden="true"><CaretDown size={12} /></span>
                 <FolderSimple size={16} aria-hidden="true" />
                 <span class="mono ellipsis" id="side-folder-{i}">{folderName(g.cwd)}</span>
+                {#if g.pinned}
+                  <span class="pin-mark"><PushPin size={14} weight="fill" aria-hidden="true" /><span class="sr-only">{t("shell.sidebar.pinned")}</span></span>
+                {/if}
                 {#if shut}
                   {#if g.sessions.some((s) => s.status === "waiting")}
                     <span class="head-wait" title={t("shell.status.waiting")}><HandPalm size={14} aria-hidden="true" /><span class="sr-only">{t("shell.status.waiting")}</span></span>
@@ -163,27 +165,6 @@
                   <span class="count">{g.sessions.length} <span class="sr-only">{plural(g.sessions.length, "shell.sidebar.countOne", "shell.sidebar.countMany")}</span></span>
                 {/if}
               </button>
-              <div class="row-actions">
-                <button
-                  class="icon-btn row-btn"
-                  type="button"
-                  aria-label={t("shell.sidebar.newSessionIn", { folder: folderName(g.cwd) })}
-                  title={t("shell.sidebar.newSessionIn", { folder: folderName(g.cwd) })}
-                  onclick={() => askNewSession(g.cwd)}
-                >
-                  <Plus size={14} aria-hidden="true" />
-                </button>
-                <button
-                  class="icon-btn row-btn pin-btn"
-                  type="button"
-                  aria-pressed={g.pinned}
-                  aria-label={t("shell.sidebar.pinFolderNamed", { folder: folderName(g.cwd) })}
-                  title={g.pinned ? t("shell.sidebar.unpinFolder") : t("shell.sidebar.pinFolder")}
-                  onclick={() => pinFolder(g)}
-                >
-                  <PushPin size={14} weight={g.pinned ? "fill" : "regular"} aria-hidden="true" />
-                </button>
-              </div>
             </div>
             <div class="folder-items" id="side-folder-items-{i}" hidden={shut}>
               {#if g.sessions.length === 0}
@@ -194,7 +175,6 @@
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div
                   class="mini-item"
-                  class:pinned={sessionPinned}
                   class:current={s.id === currentSession}
                   class:menu-open={menuFor(`side:${s.id}`)}
                   oncontextmenu={(e) => sessionContext(e, s)}
@@ -207,31 +187,9 @@
                   >
                     <CliMark kind={s.cli} bare />
                     <b class="ellipsis" class:shimmer={s.status === "running"}>{s.title}</b>
-                    <span class="sr-only">{CLI_LABEL[s.cli]}, {STATUS[s.status].label}</span>
+                    {#if sessionPinned}<span class="pin-mark"><PushPin size={14} weight="fill" aria-hidden="true" /></span>{/if}
+                    <span class="sr-only">{CLI_LABEL[s.cli]}, {STATUS[s.status].label}{#if sessionPinned}, {t("shell.sidebar.pinned")}{/if}</span>
                   </a>
-                  <div class="row-actions">
-                    {#if !isLive(s)}
-                      <button
-                        class="icon-btn row-btn del"
-                        type="button"
-                        aria-label={t("shell.sidebar.deleteSessionNamed", { title: s.title })}
-                        title={t("shell.deleteSession")}
-                        onclick={() => askDelete(s)}
-                      >
-                        <Trash size={14} aria-hidden="true" />
-                      </button>
-                    {/if}
-                    <button
-                      class="icon-btn row-btn pin-btn"
-                      type="button"
-                      aria-pressed={sessionPinned}
-                      aria-label={t("shell.sidebar.pinSessionNamed", { title: s.title })}
-                      title={sessionPinned ? t("shell.sidebar.unpinSession") : t("shell.sidebar.pinSession")}
-                      onclick={() => pinSession(s.id)}
-                    >
-                      <PushPin size={14} weight={sessionPinned ? "fill" : "regular"} aria-hidden="true" />
-                    </button>
-                  </div>
                 </div>
               {/each}
             </div>
@@ -248,16 +206,8 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .mini-item,
-  .folder-row {
-    position: relative;
-    --row-bg: var(--surface-2);
-  }
-  .mini-item.current {
-    --row-bg: var(--surface);
-  }
-  /* The whole row lights up while the pointer or keyboard is on it, buttons included, and while
-     its right-click menu is open. */
+  /* The whole row lights up while the pointer or keyboard is on it, and while its right-click
+     menu is open. */
   .mini-item:hover .mini,
   .mini-item:focus-within .mini,
   .mini-item.menu-open .mini,
@@ -269,46 +219,14 @@
   .mini-item .mini[aria-current="page"] {
     background: var(--surface);
   }
-  /* Navigation stays calm: row buttons show on hover or keyboard focus, laid over the end of
-     the row. A pin that is on stays visible and keeps its own room. */
-  .row-actions {
-    position: absolute;
-    top: 50%;
-    right: 4px;
-    translate: 0 -50%;
-    display: flex;
-    gap: 2px;
-    padding-left: 14px;
-    border-radius: 0 var(--r-btn) var(--r-btn) 0;
+  /* A pin is a state, not a button: pinning and unpinning are in the menu. */
+  .pin-mark {
+    display: grid;
+    flex: none;
+    color: var(--ink-2);
   }
-  .mini-item:hover .row-actions,
-  .mini-item:focus-within .row-actions,
-  .folder-row:hover .row-actions,
-  .folder-row:focus-within .row-actions {
-    background: linear-gradient(to right, transparent, var(--row-bg) 14px);
-  }
-  .row-btn {
-    width: 26px;
-    height: 26px;
-    opacity: 0;
-    transition: opacity 0.12s ease-out;
-  }
-  .row-btn:hover {
-    background: var(--surface);
-  }
-  .mini-item:hover .row-btn,
-  .mini-item:focus-within .row-btn,
-  .folder-row:hover .row-btn,
-  .folder-row:focus-within .row-btn,
-  .pinned .pin-btn {
-    opacity: 1;
-  }
-  .pinned > .mini,
-  .pinned > .folder-head {
-    padding-right: 36px;
-  }
-  .del:hover {
-    color: var(--st-err);
+  .mini .pin-mark {
+    margin-left: auto;
   }
   /* Lines up with the session titles: rows indent 12, then logo 16 and gap 6. */
   .folder-empty {
@@ -326,7 +244,6 @@
   .side-head .side-label {
     padding-bottom: 0;
   }
-  /* Right edge matches the row buttons below (4 from the edge). */
   .side-add {
     width: 28px;
     height: 28px;

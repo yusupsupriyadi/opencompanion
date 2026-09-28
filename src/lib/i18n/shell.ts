@@ -18,12 +18,10 @@ export const en = {
   "shell.sidebar.countMany": "sessions",
   "shell.sidebar.pinFolder": "Pin folder",
   "shell.sidebar.unpinFolder": "Unpin folder",
-  "shell.sidebar.pinFolderNamed": "Pin folder: {folder}",
   "shell.sidebar.noRecent": "No recent sessions",
-  "shell.sidebar.deleteSessionNamed": "Delete session: {title}",
   "shell.sidebar.pinSession": "Pin session",
   "shell.sidebar.unpinSession": "Unpin session",
-  "shell.sidebar.pinSessionNamed": "Pin session: {title}",
+  "shell.sidebar.pinned": "Pinned",
 
   // Right-click menus on session and folder rows
   "shell.menu.sessionLabel": "Session: {title}",
@@ -166,12 +164,10 @@ export const id: Record<keyof typeof en, string> = {
   "shell.sidebar.countMany": "sesi",
   "shell.sidebar.pinFolder": "Sematkan folder",
   "shell.sidebar.unpinFolder": "Lepas sematan folder",
-  "shell.sidebar.pinFolderNamed": "Sematkan folder: {folder}",
   "shell.sidebar.noRecent": "Tidak ada sesi terbaru",
-  "shell.sidebar.deleteSessionNamed": "Hapus sesi: {title}",
   "shell.sidebar.pinSession": "Sematkan sesi",
   "shell.sidebar.unpinSession": "Lepas sematan sesi",
-  "shell.sidebar.pinSessionNamed": "Sematkan sesi: {title}",
+  "shell.sidebar.pinned": "Disematkan",
 
   "shell.menu.sessionLabel": "Sesi: {title}",
   "shell.menu.folderLabel": "Folder: {folder}",

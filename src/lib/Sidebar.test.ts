@@ -1,14 +1,17 @@
-import { render, screen, within } from "@testing-library/svelte";
+import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { tick } from "svelte";
 import { beforeEach, expect, test } from "vitest";
 import { i18n } from "$lib/i18n.svelte";
 import { setUrl } from "../test/app-state.svelte";
 import { session } from "../test/fixtures";
+import ContextMenu from "./ContextMenu.svelte";
+import { closeMenu } from "./context-menu.svelte";
 import Sidebar from "./Sidebar.svelte";
 import { app, pendingNew } from "./store.svelte";
 
 beforeEach(() => {
+  closeMenu(false);
   app.sessions = [];
   app.companion = null;
   pendingNew.open = false;
@@ -111,12 +114,27 @@ test("a folder collapses to one line that still says how many sessions it holds 
   expect(again).toHaveAccessibleName("calendar");
 });
 
+/** Right-clicks `target` and picks `item` from the menu that opens. */
+async function fromMenu(user: ReturnType<typeof userEvent.setup>, target: HTMLElement, item: string) {
+  await fireEvent.contextMenu(target);
+  await user.click(screen.getByRole("menuitem", { name: item }));
+}
+
+test("rows carry no buttons: their actions are in the right-click menu", () => {
+  app.sessions = [session({ id: "a", title: "Add week view", cwd: "C:\\p\\calendar", status: "done" })];
+  render(Sidebar);
+  const folder = document.querySelector<HTMLElement>(".folder-row")!;
+  expect(within(folder).getAllByRole("button")).toEqual([screen.getByRole("button", { name: "calendar" })]);
+  expect(within(document.querySelector<HTMLElement>(".mini-item")!).queryAllByRole("button")).toEqual([]);
+});
+
 test("New session opens from a folder with that folder, or from Sessions with none", async () => {
   const user = userEvent.setup();
   app.sessions = [session({ id: "a", title: "Add week view", cwd: "C:\\p\\calendar", status: "done" })];
   render(Sidebar);
+  render(ContextMenu);
 
-  await user.click(screen.getByRole("button", { name: "New session in calendar" }));
+  await fromMenu(user, screen.getByRole("button", { name: "calendar" }), "New session in calendar");
   expect(pendingNew).toEqual({ open: true, cwd: "C:\\p\\calendar" });
 
   pendingNew.open = false;
@@ -148,10 +166,12 @@ test("a pinned session comes first in its folder, after a restart", async () => 
   const older = Array.from({ length: 6 }, (_, n) => session({ id: `o${n}`, title: `Older ${n}`, cwd: "C:\\p\\uninote", status: "done" }));
   app.sessions = older;
   const { unmount } = render(Sidebar);
-  const pin = screen.getByRole("button", { name: "Pin session: Older 5" });
-  expect(pin).toHaveAttribute("aria-pressed", "false");
-  await user.click(pin);
-  expect(pin).toHaveAttribute("aria-pressed", "true");
+  render(ContextMenu);
+  const link = screen.getByRole("link", { name: /Older 5/ });
+  expect(link).toHaveAccessibleName("Older 5 Claude Code, Done");
+  await fromMenu(user, link, "Pin session");
+  expect(link).toHaveAccessibleName("Older 5 Claude Code, Done, Pinned");
+  expect(link.querySelector(".pin-mark")).not.toBeNull();
 
   unmount();
   const newer = Array.from({ length: 6 }, (_, n) => session({ id: `n${n}`, title: `Newer ${n}`, cwd: "C:\\p\\uninote", status: "done" }));
@@ -159,7 +179,7 @@ test("a pinned session comes first in its folder, after a restart", async () => 
   render(Sidebar);
   const titles = [...document.querySelectorAll(".mini b")].map((b) => b.textContent);
   expect(titles).toEqual(["Older 5", "Newer 0", "Newer 1", "Newer 2", "Newer 3", "Newer 4", "Newer 5", "Older 0", "Older 1", "Older 2", "Older 3", "Older 4"]);
-  expect(screen.getByRole("button", { name: "Pin session: Older 5" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("link", { name: /Older 5/ })).toHaveAccessibleName("Older 5 Claude Code, Done, Pinned");
 });
 
 test("a pinned folder stays on top, even with no recent session, ready for a new one", async () => {
@@ -167,9 +187,11 @@ test("a pinned folder stays on top, even with no recent session, ready for a new
   const calendar = session({ id: "a", title: "Add week view", cwd: "C:\\p\\calendar", status: "waiting" });
   app.sessions = [calendar, session({ id: "b", title: "Write API docs", cwd: "C:\\p\\uninote", status: "done" })];
   const { unmount } = render(Sidebar);
+  render(ContextMenu);
   expect(groupNames()).toEqual(["calendar", "uninote"]);
-  await user.click(screen.getByRole("button", { name: "Pin folder: uninote" }));
+  await fromMenu(user, screen.getByRole("button", { name: "uninote" }), "Pin folder");
   expect(groupNames()).toEqual(["uninote", "calendar"]);
+  expect(screen.getByRole("button", { name: "uninote Pinned" })).toBeInTheDocument();
 
   // Its only session was deleted; the folder stays with an empty state and New session.
   unmount();
@@ -177,12 +199,11 @@ test("a pinned folder stays on top, even with no recent session, ready for a new
   render(Sidebar);
   expect(groupNames()).toEqual(["uninote", "calendar"]);
   expect(screen.getByText("No recent sessions")).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "New session in uninote" }));
+  const head = screen.getByRole("button", { name: "uninote Pinned" });
+  await fromMenu(user, head, "New session in uninote");
   expect(pendingNew).toEqual({ open: true, cwd: "C:\\p\\uninote" });
 
-  const unpin = screen.getByRole("button", { name: "Pin folder: uninote" });
-  expect(unpin).toHaveAttribute("aria-pressed", "true");
-  await user.click(unpin);
+  await fromMenu(user, head, "Unpin folder");
   expect(groupNames()).toEqual(["calendar"]);
 });
 

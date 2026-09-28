@@ -119,9 +119,10 @@
   button:focus {
     background: var(--surface-2);
   }
-  /* Only the icon turns red, like the rows' trash buttons: over the brightest sky in Dusk, red
-     label text falls just under 4.5:1, while an icon needs 3:1. */
-  .danger:not([aria-disabled]):focus :global(svg) {
+  /* Delete reads red at rest and lit; the menu's tint (--glass-menu) is what keeps it at 4.5:1. A
+     refused Delete stays grey. */
+  .danger:not([aria-disabled]),
+  .danger:not([aria-disabled]) :global(svg) {
     color: var(--st-err);
   }
   button[aria-disabled] {
