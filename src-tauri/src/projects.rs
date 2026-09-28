@@ -318,11 +318,12 @@ mod tests {
         let known = discover_with(&[], &[], &[], &[root], 50);
         let ai_remote = base.join("Work").join("ai-remote").display().to_string();
         assert_eq!(resolve("ai-remote", &known).as_deref(), Some(ai_remote.as_str()));
-        assert_eq!(resolve(r"C:\Users\someone\projects\AI-Remote", &known).as_deref(), Some(ai_remote.as_str()));
+        let elsewhere = Path::new(std::path::MAIN_SEPARATOR_STR).join("Users").join("someone").join("projects").join("AI-Remote");
+        assert_eq!(resolve(&elsewhere.display().to_string(), &known).as_deref(), Some(ai_remote.as_str()));
         assert_eq!(resolve("ai_remote", &known).as_deref(), Some(ai_remote.as_str()));
         assert_eq!(resolve(&ai_remote, &known).as_deref(), Some(ai_remote.as_str()));
         assert_eq!(resolve("nothing-like-it", &known), None);
-        let trailing = format!("{ai_remote}\\");
+        let trailing = format!("{ai_remote}{}", std::path::MAIN_SEPARATOR);
         assert_eq!(resolve(&trailing, &known).as_deref(), Some(ai_remote.as_str()));
         let _ = fs::remove_dir_all(&base);
     }

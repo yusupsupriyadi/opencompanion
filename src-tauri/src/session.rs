@@ -1421,8 +1421,10 @@ mod tests {
 
     #[test]
     fn titles_come_from_the_prompt_or_the_folder() {
-        assert_eq!(title_for(CliKind::Codex, r"C:\p\uninote", "Fix tests\nthen more"), "Fix tests");
-        assert_eq!(title_for(CliKind::Claude, r"C:\p\uninote\", "  "), "Claude Code in uninote");
+        let sep = std::path::MAIN_SEPARATOR;
+        let dir = format!("{sep}p{sep}uninote");
+        assert_eq!(title_for(CliKind::Codex, &dir, "Fix tests\nthen more"), "Fix tests");
+        assert_eq!(title_for(CliKind::Claude, &format!("{dir}{sep}"), "  "), "Claude Code in uninote");
     }
 
     #[test]

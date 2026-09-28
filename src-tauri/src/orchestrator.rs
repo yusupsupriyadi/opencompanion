@@ -805,13 +805,14 @@ mod tests {
 
     #[test]
     fn prompt_lists_folders_with_markers_before_the_request() {
-        let known = vec![folder(Path::new(r"C:\p\uninote"))];
+        let path = Path::new(std::path::MAIN_SEPARATOR_STR).join("p").join("uninote");
+        let known = vec![folder(&path)];
         let c = clis();
         let text = prompt_text(&input(&c, &known));
         let clis_at = text.find("## Installed CLIs").unwrap();
         let ask_at = text.find("add dark mode").unwrap();
         assert!(clis_at < ask_at);
-        assert!(text.contains(r"- uninote: C:\p\uninote (git, package.json)"), "{text}");
+        assert!(text.contains(&format!("- uninote: {} (git, package.json)", path.display())), "{text}");
     }
 
     #[test]
