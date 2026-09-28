@@ -369,15 +369,14 @@ endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\node_
     #[cfg(unix)]
     #[test]
     fn a_cli_leads_its_own_session() {
-        let out = hidden("/bin/sh")
-            .args(["-c", "echo $$ $(ps -o sid= -p $$)"])
-            .stdin(Stdio::null())
-            .output()
-            .unwrap();
-        let text = String::from_utf8_lossy(&out.stdout);
-        let ids: Vec<&str> = text.split_whitespace().collect();
-        assert_eq!(ids.len(), 2, "{text}");
-        assert_eq!(ids[0], ids[1], "the child is not a session leader: {text}");
+        // getsid(2) rather than `ps`: its session column differs between Linux and macOS.
+        let mut child = hidden("/bin/sleep").arg("5").stdin(Stdio::null()).spawn().unwrap();
+        let pid = child.id() as i32;
+        // SAFETY: getsid(2) only reads the session id of another process.
+        let sid = unsafe { libc::getsid(pid) };
+        let _ = child.kill();
+        let _ = child.wait();
+        assert_eq!(sid, pid, "the child is not a session leader");
     }
 
     #[cfg(windows)]
