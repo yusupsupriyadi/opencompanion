@@ -69,7 +69,7 @@ pub fn read(kind: CliKind, cwd: Option<&Path>, started_at: u64) -> Transcript {
 /// `read` with the home folder given, so tests can point it at a temporary one.
 pub fn read_in(home: &Path, kind: CliKind, cwd: Option<&Path>, started_at: u64) -> Transcript {
     let Some(cwd) = cwd else {
-        return unavailable("Windows did not share this process's folder, so its transcript cannot be matched.");
+        return unavailable("The system did not share this process's folder, so its transcript cannot be matched.");
     };
     let since = (UNIX_EPOCH + Duration::from_secs(started_at)).checked_sub(SLACK).unwrap_or(UNIX_EPOCH);
     let found = match kind {

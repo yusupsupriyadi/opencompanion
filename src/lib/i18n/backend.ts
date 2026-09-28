@@ -123,7 +123,7 @@ const RULES: Rule[] = [
   [/^Transcript not available for this CLI\.$/, "Transkrip tidak tersedia untuk CLI ini."],
   [/^No messages in this session yet\.$/, "Belum ada pesan di sesi ini."],
   [/^(.+) has not written a transcript for this folder since this process started\.$/, "$1 belum menulis transkrip untuk folder ini sejak proses ini mulai."],
-  [/^Windows did not share this process's folder, so its transcript cannot be matched\.$/, "Windows tidak memberi tahu folder proses ini, jadi transkripnya tidak bisa dicocokkan."],
+  [/^The system did not share this process's folder, so its transcript cannot be matched\.$/, "Sistem tidak memberi tahu folder proses ini, jadi transkripnya tidak bisa dicocokkan."],
   [/^Your home folder could not be found, so the CLI's history could not be either\.$/, "Folder home Anda tidak ditemukan, jadi riwayat CLI juga tidak."],
   [/^The transcript could not be read: (.+)$/, "Transkrip tidak bisa dibaca: $1"],
 ];

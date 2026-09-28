@@ -1,5 +1,14 @@
 import { expect, test } from "vitest";
-import { platformOf } from "./platform";
+import { folderExample, pasteKey, platformOf } from "./platform";
+
+test("each OS names its own paste key and folder example", () => {
+  expect(pasteKey("windows")).toBe("Ctrl+V");
+  expect(pasteKey("macos")).toBe("⌘V");
+  expect(pasteKey("linux")).toBe("Ctrl+Shift+V");
+  expect(folderExample("windows")).toBe(String.raw`C:\Users\you\Project\my-app`);
+  expect(folderExample("macos")).toBe("/Users/you/Projects/my-app");
+  expect(folderExample("linux")).toBe("/home/you/projects/my-app");
+});
 
 test("the webview's user agent names the OS", () => {
   expect(platformOf("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36 Edg/140.0")).toBe(

@@ -6,6 +6,7 @@
   import { onMount } from "svelte";
   import { api } from "./api";
   import { t } from "./i18n.svelte";
+  import { currentPlatform } from "./platform";
   import { pastedImage, pathForPaste, shiftEnter } from "./term-input";
 
   // `session` is an AI CLI session; `terminal` a plain shell from the Terminal screen.
@@ -92,7 +93,7 @@
     };
     term.parser.registerCsiHandler({ prefix: "?", final: "h" }, onWin32Mode(true));
     term.parser.registerCsiHandler({ prefix: "?", final: "l" }, onWin32Mode(false));
-    const windows = navigator.userAgent.includes("Windows");
+    const windows = currentPlatform() === "windows";
 
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -110,6 +111,7 @@
         const key = e.key.toLowerCase();
         // Ctrl+V lets the browser paste, as in Windows Terminal. The AI CLIs expect that on Windows
         // (Claude Code pastes its own images on Alt+V); elsewhere a session keeps Ctrl+V for the CLI.
+        // Ctrl+Shift+V (Linux) and Cmd+V (macOS) are never taken by xterm, so the browser pastes those.
         if (key === "v" && (kind === "terminal" || windows)) return false;
         // A shell has no copy key of its own: Ctrl+C copies a selection and interrupts without one.
         if (kind === "terminal" && key === "c" && term.hasSelection()) {

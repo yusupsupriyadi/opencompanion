@@ -13,6 +13,7 @@
   import Dialog from "$lib/Dialog.svelte";
   import { folderName } from "$lib/format";
   import { t, tb } from "$lib/i18n.svelte";
+  import { pasteKey } from "$lib/platform";
   import Terminal from "$lib/Terminal.svelte";
   import TerminalForm from "$lib/TerminalForm.svelte";
 
@@ -184,7 +185,7 @@
           <Terminal kind="terminal" id={x.id} live={x.running} label={t("terminal.label", { shell: x.shellLabel, folder: name })} />
         {/key}
         {#if x.running}
-          <div class="term-note">{t("terminal.live")}</div>
+          <div class="term-note">{t("terminal.live", { paste: pasteKey() })}</div>
         {:else}
           <div class="term-note exit-row">
             <span class="grow">

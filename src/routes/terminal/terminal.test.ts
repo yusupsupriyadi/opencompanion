@@ -125,7 +125,7 @@ test("a shell that exited says so and can be restarted", async () => {
   await user.click(screen.getByRole("button", { name: "Restart" }));
 
   expect(calls.calls("terminal_restart")[0]).toEqual({ id: "t1" });
-  expect(await screen.findByText(/Ctrl\+V pastes/)).toBeInTheDocument();
+  expect(await screen.findByText(/pastes text, or an image/)).toBeInTheDocument();
   expect(screen.queryByText("PowerShell exited with code 1.")).not.toBeInTheDocument();
 });
 
@@ -153,4 +153,13 @@ test("a list that fails to load can be tried again", async () => {
   fail = false;
   await user.click(screen.getByRole("button", { name: "Try again" }));
   expect(await screen.findByRole("heading", { name: "No terminal open" })).toBeInTheDocument();
+});
+
+test("the hint names the paste key of the OS the app runs on", async () => {
+  const ua = vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15");
+  backend({ terminal_list: () => [term()] });
+  const { container } = render(TerminalPage);
+  await vi.waitFor(() => expect(container.querySelector(".term-note")).toHaveTextContent("Ctrl+Shift+V pastes text"));
+  expect(container.querySelector(".term-note")?.textContent).not.toContain("{paste}");
+  ua.mockRestore();
 });

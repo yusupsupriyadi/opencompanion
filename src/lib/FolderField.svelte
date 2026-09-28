@@ -5,6 +5,7 @@
   import { api } from "./api";
   import { folderName } from "./format";
   import { t } from "./i18n.svelte";
+  import { folderExample } from "./platform";
 
   // `label` has no default value: the default name, "Project folder", has to follow the UI language.
   let {
@@ -55,7 +56,7 @@
         aria-describedby={error ? `${id}-error` : undefined}
         autocomplete="off"
         spellcheck="false"
-        placeholder="C:\Users\you\Project\my-app"
+        placeholder={folderExample()}
       />
     </div>
     <button class="btn secondary" type="button" onclick={browse}>{t("shell.folder.browse")}</button>

@@ -58,8 +58,11 @@ export function folderName(path: string): string {
 
 /** Shortens the home folder to `~` for display; the full path stays in titles and tooltips. */
 export function shortPath(path: string): string {
-  const m = path.match(/^[A-Za-z]:[\\/]Users[\\/][^\\/]+/);
-  return m ? "~" + path.slice(m[0].length).replace(/\\/g, "/") : path;
+  const win = path.match(/^[A-Za-z]:[\\/]Users[\\/][^\\/]+/);
+  if (win) return "~" + path.slice(win[0].length).replace(/\\/g, "/");
+  // macOS keeps homes in /Users, Linux in /home.
+  const unix = path.match(/^\/(?:Users|home)\/[^/]+(?=\/|$)/);
+  return unix ? "~" + path.slice(unix[0].length) : path;
 }
 
 export function duration(ms: number): string {

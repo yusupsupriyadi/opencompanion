@@ -145,7 +145,7 @@ export const en = {
   "settings.text.saved": "Text size is {size}%.",
 
   "settings.theme.title": "Theme",
-  "settings.theme.desc": "Until you pick one, OpenCompanion follows the light or dark setting in Windows.",
+  "settings.theme.desc": "Until you pick one, OpenCompanion follows your system's light or dark setting.",
   "settings.theme.day": "Day",
   "settings.theme.dusk": "Dusk",
 
@@ -335,7 +335,7 @@ export const id: Record<keyof typeof en, string> = {
   "settings.text.saved": "Ukuran teks sekarang {size}%.",
 
   "settings.theme.title": "Tema",
-  "settings.theme.desc": "Sebelum Anda memilih, OpenCompanion mengikuti mode terang atau gelap di Windows.",
+  "settings.theme.desc": "Sebelum Anda memilih, OpenCompanion mengikuti mode terang atau gelap di sistem Anda.",
   "settings.theme.day": "Siang",
   "settings.theme.dusk": "Senja",
 

@@ -11,3 +11,13 @@ export function platformOf(ua: string): Platform {
 export function currentPlatform(): Platform {
   return platformOf(typeof navigator === "undefined" ? "" : navigator.userAgent);
 }
+
+/** The key that pastes into a terminal: Linux terminals keep Ctrl+V for the program inside. */
+export function pasteKey(p: Platform = currentPlatform()): string {
+  return p === "macos" ? "⌘V" : p === "linux" ? "Ctrl+Shift+V" : "Ctrl+V";
+}
+
+/** A project folder written the way this OS writes paths, for input placeholders. */
+export function folderExample(p: Platform = currentPlatform()): string {
+  return p === "windows" ? String.raw`C:\Users\you\Project\my-app` : p === "macos" ? "/Users/you/Projects/my-app" : "/home/you/projects/my-app";
+}

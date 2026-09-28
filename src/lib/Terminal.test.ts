@@ -7,6 +7,7 @@ import Terminal from "./Terminal.svelte";
 
 const SAVED = String.raw`C:\Temp\opencompanion-paste\pasted-1.png`;
 const WINDOWS_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36 Edg/140.0";
+const LINUX_UA = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15";
 
 beforeEach(() => {
   vi.mocked(listen).mockImplementation(async () => () => undefined);
@@ -29,7 +30,9 @@ function mount(kind: "session" | "terminal", screen = "") {
 }
 
 function key(target: HTMLElement, init: KeyboardEventInit & { keyCode?: number }) {
-  target.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init }));
+  const ev = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
+  target.dispatchEvent(ev);
+  return ev;
 }
 
 function paste(target: HTMLElement, text: string, files: File[] = []) {
@@ -71,6 +74,18 @@ test("on Windows Ctrl+V in a session is left to the browser's paste, elsewhere i
   key(windows.input, { key: "v", keyCode: 86, ctrlKey: true });
   await tick();
   expect(windows.sent()).toEqual([]);
+});
+
+test("on Linux Ctrl+Shift+V in a session is left to the browser's paste, as in Linux terminals, and Ctrl+V reaches the CLI", async () => {
+  vi.spyOn(navigator, "userAgent", "get").mockReturnValue(LINUX_UA);
+  const linux = mount("session");
+  // The browser pastes only when the terminal leaves the key alone.
+  const chord = key(linux.input, { key: "V", keyCode: 86, ctrlKey: true, shiftKey: true });
+  expect(chord.defaultPrevented).toBe(false);
+  await tick();
+  expect(linux.sent()).toEqual([]);
+  key(linux.input, { key: "v", keyCode: 86, ctrlKey: true });
+  await vi.waitFor(() => expect(linux.sent()).toEqual(["\x16"]));
 });
 
 test("a pasted screenshot is saved to a file and the file's path is pasted", async () => {

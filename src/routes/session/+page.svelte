@@ -15,6 +15,7 @@
   import Timeline from "$lib/Timeline.svelte";
   import { CLI_LABEL, SIGNAL_TEXT, clock, duration, folderName, isLive, memory, modeLabel, shortPath } from "$lib/format";
   import { t, tb } from "$lib/i18n.svelte";
+  import { pasteKey } from "$lib/platform";
   import { app, showToast } from "$lib/store.svelte";
 
   const id = $derived(page.url.searchParams.get("id") ?? "");
@@ -251,7 +252,7 @@
             <Terminal id={s.id} {live} label={t("sessions.detail.terminalLabel", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) })} />
           {/key}
           <div class="term-note">
-            {live ? t("sessions.detail.terminalLive") : t("sessions.detail.terminalClosed")}
+            {live ? t("sessions.detail.terminalLive", { paste: pasteKey() }) : t("sessions.detail.terminalClosed")}
           </div>
         {:else}
           <Timeline {events} />
