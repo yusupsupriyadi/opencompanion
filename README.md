@@ -15,7 +15,7 @@ When you run Claude Code, Codex CLI or OpenCode in several folders at once, each
 
 It is a Tauri 2 + Svelte 5 app that runs on your computer. There is no account, no cloud server and no telemetry. Each CLI keeps talking to its own provider with your own login, as it does in your terminal.
 
-The UI is available in English and Indonesian (Settings › Language). The current version is 0.1.1, and Windows 11 is the tested platform. There are no prebuilt releases yet, so you [build it from source](#build-from-source).
+The UI is available in English and Indonesian (Settings › Language). The current version is 0.1.1. It runs on Windows, Linux and macOS; [Platforms](#platforms) says how each one was tested. There are no prebuilt releases yet, so you [build it from source](#build-from-source).
 
 ## Features
 
@@ -60,12 +60,31 @@ Notes:
 - omp (`@oh-my-pi/pi-coding-agent`) is a Pi fork that runs on Bun, so OpenCompanion reads it with the Pi adapter. Each mode sets its `--approval-mode`. In a terminal, omp asks before a tool that the mode does not allow, and OpenCompanion does not detect that prompt yet. A headless run has nobody to ask, so the tool fails and the refusal appears in the output. Plan gives it only `read`, `grep` and `glob`: omp has no `ls`, and its `find` is off unless a judge model is set up. Transcripts and the session id for Resume come from `~/.omp/agent/sessions`, which names a folder under your home folder by its relative path (`-project-app`). The models come from `omp models --json`. omp 18.3.5 was checked only with runs that sent no prompt: every mode's flags, the planner's flags, the session header and the model list. No session that sends a prompt has been run from OpenCompanion yet.
 - On Windows, an interactive session starts PowerShell 7 (or Windows PowerShell when PowerShell 7 is missing), which loads your profile and then starts the CLI. The session ends when the CLI exits. Headless sessions start the CLI directly.
 
+## Platforms
+
+| | Windows 11 | Linux | macOS |
+|---|---|---|---|
+| How it was tested | By hand, every day | End to end in Docker on Ubuntu 24.04: the installed `.deb`, driven through WebDriver ([e2e/linux](CONTRIBUTING.md#linux-end-to-end-in-docker)) | Not built or run yet. The code and a CircleCI job for its build and tests are ready |
+| Packages from `bun run tauri build` | `.msi`, `.exe` | `.deb`, `.rpm`, AppImage | `.app`, `.dmg` |
+| Window controls | OpenCompanion's own | OpenCompanion's own | Native traffic lights |
+| Paste in a terminal | Ctrl+V | Ctrl+Shift+V (Ctrl+V goes to the CLI) | ⌘V |
+| A click on a notification | Opens the session | Opens the session, with a notification server that supports actions (GNOME, KDE, dunst and most others) | Does not open the session |
+| Start in the tray at sign-in | Run key in the registry | `~/.config/autostart/opencompanion.desktop` | `~/Library/LaunchAgents/dev.opencompanion.app.plist` |
+| Tray icon | Taskbar corner | Needs AppIndicator support; GNOME shows it only with the AppIndicator extension | Menu bar |
+
+The macOS column says what the code does. None of it has been tried on a Mac yet.
+
+- On macOS and Linux, OpenCompanion reads your login shell's environment when it starts (`$SHELL -ilc env`, at most 5 seconds). So a CLI installed with Homebrew, npm, nvm, volta or bun is found, `#!/usr/bin/env node` scripts find node, and variables you export in `~/.zshrc` or `~/.bashrc` (API keys, proxies) reach the CLI, even when OpenCompanion starts from Finder or a desktop launcher. If the shell does not answer, it adds the usual install folders to the PATH instead.
+- On macOS and Linux, Stop ends the CLI's whole process group, so the dev servers and tools it started stop with it, as on Windows.
+- If Linux cannot create the tray icon, OpenCompanion still starts, and closing the window quits it, so the window cannot end up hidden with no way back.
+- On Linux, folder rules (auto-run folders, notification rules) compare folder names with case, as the file system does. On Windows and macOS they ignore case.
+
 ## Requirements
 
-- Windows 11. macOS and Linux build from the same code but are untested.
+- Windows 11, a Linux desktop with WebKitGTK 4.1, or macOS.
 - Rust (stable), with the MSVC toolchain on Windows.
-- The Tauri 2 system prerequisites for your platform: on Windows, Microsoft C++ Build Tools and WebView2 (WebView2 ships with Windows 11). See [tauri.app/start/prerequisites](https://tauri.app/start/prerequisites/).
-- [Bun](https://bun.sh).
+- The Tauri 2 system prerequisites for your platform, see [tauri.app/start/prerequisites](https://tauri.app/start/prerequisites/): on Windows, Microsoft C++ Build Tools and WebView2 (WebView2 ships with Windows 11); on Linux, WebKitGTK 4.1, libayatana-appindicator and the other listed packages, plus `xdg-utils` to bundle an AppImage; on macOS, the Xcode Command Line Tools.
+- [Bun](https://bun.sh), and [Node.js](https://nodejs.org) (LTS) to run the tests.
 - At least one supported CLI, installed and signed in. OpenCompanion runs it with your own account and quota.
 
 ## Build from source
@@ -84,7 +103,7 @@ On first start, Onboarding lists the CLIs it found. It installs and changes noth
 
 Phone access is off until you turn it on. Then OpenCompanion serves the phone page over HTTP and WebSocket on your local network, on port 8765 unless you pick another one in Settings.
 
-1. On the desktop, open Settings › Phone access and press Turn on phone access. If Windows Firewall asks, allow OpenCompanion on private networks.
+1. On the desktop, open Settings › Phone access and press Turn on phone access. If Windows Firewall asks, allow OpenCompanion on private networks; if macOS asks whether to accept incoming connections, allow them.
 2. On the phone, join the same Wi-Fi and scan the QR code with the camera, or open the address shown and type the 6-digit pairing code. A code works once, expires after 2 minutes and allows 5 wrong tries.
 3. Give the phone a name. It then shows your sessions.
 
@@ -104,8 +123,8 @@ Good to know:
 - The Chat planner receives your message with its context: recent Chat turns, the installed CLIs, your project folder paths and the current sessions. A CLI planner passes that to the CLI's provider; a custom endpoint receives it directly.
 - Data lives in the app data folder. Settings shows the exact path.
   - Windows: `%APPDATA%\dev.opencompanion.app`
-  - macOS (untested): `~/Library/Application Support/dev.opencompanion.app`
-  - Linux (untested): `~/.local/share/dev.opencompanion.app`
+  - macOS: `~/Library/Application Support/dev.opencompanion.app`
+  - Linux: `~/.local/share/dev.opencompanion.app`
 - That folder holds `opencompanion.db` (SQLite: sessions, events, Chat, Board, settings and paired devices), terminal logs under `sessions/`, the hook files for Claude Code sessions under `hooks/`, and the planner's working folder `planner/`.
 - Images you paste into a terminal are saved in the system temp folder, under `opencompanion-paste` (`%TEMP%\opencompanion-paste` on Windows). OpenCompanion does not delete them; they stay until you or the system clear the temp folder.
 - Shells on the Terminal screen are not saved: their output lives in memory while the tab is open and is gone when you close it or quit.
@@ -134,7 +153,11 @@ bun run check                          # svelte-check
 bun run test                           # component tests (Vitest, mocked backend)
 cd src-tauri && cargo test             # unit tests + session manager and companion integration tests
 cd src-tauri && cargo clippy --all-targets
+bash scripts/ci/checks.sh              # all of the above, clippy with -D warnings (Git Bash on Windows)
+bash e2e/linux/run.sh all              # the checks and an end-to-end run on Ubuntu 24.04, in Docker
 ```
+
+The tests need Node.js: Vitest runs on Node, not on Bun. CI runs on CircleCI and only when triggered, one job per OS; [CONTRIBUTING](CONTRIBUTING.md#ci) shows how.
 
 The integration tests drive a stand-in CLI (`src-tauri/src/bin/fake-cli.rs`) that prints the event formats captured from the real CLIs, so they need no CLI and no quota. `src-tauri/src/bin/air-spike.rs` runs the real CLIs from a terminal for spikes.
 
@@ -157,7 +180,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, code style and pull requests.
 | `src-tauri/src/transcript.rs` | Transcripts of sessions opened outside OpenCompanion, read from each CLI's own history (Claude Code, Codex, Pi and omp JSONL, OpenCode's SQLite database opened read-only) |
 | `src-tauri/src/terminal.rs`, `paste.rs` | Terminal screen: shell detection and plain shells in tabs. Pasted images saved for the terminal to paste as a path |
 | `src-tauri/src/skills.rs` | Settings › Skills: reads the user skill folders of each CLI (`~/.claude/skills`, `~/.codex/skills`, `~/.agents/skills`, `~/.config/opencode/skills`, `~/.gemini/skills`, `~/.pi/agent/skills`, `~/.omp/agent/skills`) and compares them by content hash. Read-only |
-| `src-tauri/src/autostart.rs`, `proc.rs` | Start at Windows sign-in, and process launch and tree kill |
+| `src-tauri/src/autostart.rs`, `proc.rs`, `shell_env.rs` | Start at sign-in on each OS, process launch and tree kill, and the login shell's environment for CLIs on macOS and Linux |
 | `src-tauri/src/bin/` | `fake-cli` for the integration tests, `air-spike` for spikes against the real CLIs |
 | `src-tauri/tests/` | Integration tests for the session manager and the phone companion |
 | `src/routes` | Desktop screens (Overview, Session, All sessions, Chat, Board, Terminal, Settings with its General, CLIs and Skills tabs, Onboarding) and the phone app under `/m` |
@@ -169,23 +192,23 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, code style and pull requests.
 
 ## Status
 
-Built: the P0 requirements of PRD sections A to G, most P1 ones (install commands, custom CLI paths, resume, waiting detection, Approve/Deny, planner context, activity track, device list, offline screen, permission modes Ask me / Plan / Auto / Bypass, text size, planner model and thinking level, `@` folder mentions in Chat, CPU and memory per session, transcripts of sessions opened outside OpenCompanion, retention of finished sessions, notification choices per CLI and per project folder, Chat follow-ups sent to a running session, the tray icon that keeps sessions running after the window closes, starting in the tray at Windows sign-in, All sessions with search and filters, cards that start without Run in folders the owner picks, never with Bypass, an English or Indonesian UI), and the Board (section H, including Add to board from Chat). Outside the PRD: Settings › Skills, which shows which skill is missing from a CLI's folder or has different content there, with a copy command to run yourself; the installable phone page; the Terminal screen for plain shells; Mark done for an idle terminal session; and image paste and Shift+Enter in terminals.
+Built: the P0 requirements of PRD sections A to G, most P1 ones (install commands, custom CLI paths, resume, waiting detection, Approve/Deny, planner context, activity track, device list, offline screen, permission modes Ask me / Plan / Auto / Bypass, text size, planner model and thinking level, `@` folder mentions in Chat, CPU and memory per session, transcripts of sessions opened outside OpenCompanion, retention of finished sessions, notification choices per CLI and per project folder, Chat follow-ups sent to a running session, the tray icon that keeps sessions running after the window closes, starting in the tray at sign-in, All sessions with search and filters, cards that start without Run in folders the owner picks, never with Bypass, an English or Indonesian UI), and the Board (section H, including Add to board from Chat). Outside the PRD: Settings › Skills, which shows which skill is missing from a CLI's folder or has different content there, with a copy command to run yourself; the installable phone page; the Terminal screen for plain shells; Mark done for an idle terminal session; and image paste and Shift+Enter in terminals.
 
 ### Known limits
 
 - Approve/Deny works for Claude Code (headless through its stdio control protocol, interactive through hooks). Codex and OpenCode prompts are answered in their own terminal; OpenCode's headless `run` refuses prompts by itself.
 - Codex success-path events are parsed from its documentation; on the development machine Codex could not authenticate, so only its failure path was observed.
-- On Windows, clicking a notification while it is on screen opens its session (FR-40); one clicked later from the notification center only brings OpenCompanion forward. On macOS and Linux a click does not open the session yet: the Tauri notification plugin has no click action there.
+- On Windows and Linux, clicking a notification while it is on screen opens its session (FR-40); one clicked later from the notification center only brings OpenCompanion forward. On macOS a click does not open the session: macOS notifications go through the Tauri notification plugin, which reports no click there.
 - Not built yet: Web Push to the phone (FR-42). It needs HTTPS and a push service; on the plain-HTTP LAN the phone shows notifications while its page is open.
 - The phone page can be added to the home screen (web app manifest, Apple tags). On the plain-HTTP LAN, Chrome shows no install prompt and no service worker runs, so the installed app opens only while the desktop answers; over HTTPS or on localhost the service worker keeps the app shell and the offline screen. On iPhone the Home Screen app keeps its own storage, apart from Safari, so it is paired once more by typing the code.
 - The desktop sidebar lists every session, but the phone lists the 60 newest.
 - OpenCompanion does not delete pasted images from the temp folder. A paste that cannot be saved pastes nothing, without a message.
-- Windows 11 is the tested platform. macOS and Linux build from the same code but are untested.
+- Windows 11 is tested by hand and Linux end to end in Docker. macOS has not been built or run yet; its CircleCI job is ready. Nobody has tried a Linux desktop session (GNOME, KDE) by hand yet either.
 
 ### Roadmap
 
 - Web Push to the phone (FR-42), which needs HTTPS and a push service.
-- Testing on macOS and Linux, including notification clicks there.
+- Running OpenCompanion by hand on macOS and on Linux desktops (GNOME, KDE), including the tray, notification clicks and start at sign-in.
 - A successful Codex CLI run observed end to end, and Approve/Deny for Codex CLI and OpenCode. The M0 spike names the likely routes: `codex app-server` and `opencode serve`.
 - Gemini CLI support once it can be tested, then more CLIs such as Aider and Qwen Code.
 - A native mobile app (FR-58), after the web companion.

@@ -12,7 +12,7 @@ By taking part you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md). Se
 
 ## Set up
 
-You need Rust (stable, with the MSVC toolchain on Windows), the [Tauri 2 prerequisites](https://tauri.app/start/prerequisites/) for your platform, and [Bun](https://bun.sh).
+You need Rust (stable, with the MSVC toolchain on Windows), the [Tauri 2 prerequisites](https://tauri.app/start/prerequisites/) for your platform, [Bun](https://bun.sh), and [Node.js](https://nodejs.org) (LTS). Vitest runs on Node: with Bun alone, `bun run test` cannot start its test workers.
 
 ```sh
 git clone https://github.com/yusupsupriyadi/opencompanion.git
@@ -25,7 +25,7 @@ bun run tauri dev
 
 You can work on most screens and run every test without any AI CLI installed. To try real sessions, install at least one of Claude Code, Codex CLI or OpenCode and sign in to it. Real sessions use your own account and quota.
 
-Windows 11 is the only tested platform. If you build on macOS or Linux, say so in your issue or pull request; reports from those platforms are especially useful.
+Windows 11 is tested by hand, Linux end to end in Docker (see below), and macOS only through CI. If you run OpenCompanion on macOS or on a Linux desktop, say so in your issue or pull request; reports from those platforms are especially useful.
 
 ## Checks
 
@@ -38,6 +38,8 @@ cd src-tauri
 cargo test                    # Rust unit tests and the integration tests in src-tauri/tests
 cargo clippy --all-targets    # keep it at zero warnings
 ```
+
+`bash scripts/ci/checks.sh` runs the four in order (with `clippy -- -D warnings`), on any OS; on Windows run it from Git Bash.
 
 `bun run test` needs no Tauri runtime: the component tests mock the backend. `cargo test` runs the unit tests in each module plus `src-tauri/tests/manager.rs` (the session manager) and `src-tauri/tests/companion.rs` (the phone API and WebSocket).
 
@@ -52,6 +54,30 @@ The integration tests start `fake-cli` (`src-tauri/src/bin/fake-cli.rs`) in plac
 | `fake-cli [PROMPT]` | an interactive CLI: prints a prompt, echoes one line (also as the terminal title), exits |
 
 So `cargo test` needs no CLI, no login and no quota, and it gives the same result on every machine. If you change how a CLI's output is parsed in `events.rs`, update `fake-cli` so the tests cover the new format.
+
+### Linux end to end, in Docker
+
+`e2e/linux/` builds an Ubuntu 24.04 image with the Tauri prerequisites, WebKitWebDriver and a virtual display, copies your working tree into a container, and tests there. It needs only Docker (Docker Desktop on Windows, from Git Bash):
+
+```sh
+bash e2e/linux/run.sh checks   # scripts/ci/checks.sh on Linux
+bash e2e/linux/run.sh e2e      # build and install the .deb, then drive the app
+bash e2e/linux/run.sh all      # both
+```
+
+The end-to-end run starts the installed app under Xvfb and drives it through `tauri-driver` with `e2e/linux/e2e.py` (standard library only). `claude` and `opencode` are wrappers around `fake-cli` that only the login shell's PATH holds, so the run also proves the app picks up that PATH. It covers onboarding, headless and interactive sessions, Approve, the Terminal screen with Ctrl+Shift+V paste, All sessions, the Board, language and theme, start at login, phone pairing, a click on a notification (through `dunst`), and a restart. Screenshots, `results.json` and logs land in `e2e/linux/out/`.
+
+### CI
+
+CircleCI runs the same scripts (`.circleci/config.yml`). Every job is off by default, so a push runs nothing. To run jobs, open the project in CircleCI, choose Trigger Pipeline and set any of the boolean parameters `linux`, `linux_e2e`, `windows` and `macos` to true. From a terminal, with a personal API token:
+
+```sh
+curl -X POST https://circleci.com/api/v2/project/gh/yusupsupriyadi/opencompanion/pipeline \
+  -H "Circle-Token: $CIRCLECI_TOKEN" -H "Content-Type: application/json" \
+  -d '{"branch": "main", "parameters": {"linux": true, "windows": true, "macos": true}}'
+```
+
+A macOS minute costs 20 Linux minutes of credits, so run `macos` when a change touches macOS code paths or before a release.
 
 ### Checking against the real CLIs
 
