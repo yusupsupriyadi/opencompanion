@@ -221,6 +221,44 @@ pub struct Device {
     pub last_seen: Option<i64>,
 }
 
+/// A session OpenCompanion starts by itself on a cron schedule, in the computer's local time.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Automation {
+    pub id: String,
+    pub name: String,
+    pub cli: CliKind,
+    pub cwd: String,
+    pub mode: Mode,
+    pub prompt: String,
+    pub permission_mode: String,
+    /// Five cron fields: minute, hour, day of month, month, day of week.
+    pub schedule: String,
+    pub enabled: bool,
+    /// `None` while paused.
+    pub next_run_at: Option<i64>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+/// One time an automation came due, or was run by hand.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationRun {
+    pub id: String,
+    pub automation_id: String,
+    pub due_at: i64,
+    pub ran_at: i64,
+    /// `started`, `late`, `skipped` or `failed`.
+    pub outcome: String,
+    /// `None` when nothing started, or once the session itself was deleted.
+    pub session_id: Option<String>,
+    pub error: Option<String>,
+}
+
+/// Runs kept per automation; older ones are removed as new ones come in.
+pub const RUNS_KEPT: u32 = 50;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
@@ -473,6 +511,30 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS automations (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  cli TEXT NOT NULL,
+  cwd TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  permission_mode TEXT NOT NULL,
+  schedule TEXT NOT NULL,
+  enabled INTEGER NOT NULL,
+  next_run_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS automation_runs (
+  id TEXT PRIMARY KEY,
+  automation_id TEXT NOT NULL,
+  due_at INTEGER NOT NULL,
+  ran_at INTEGER NOT NULL,
+  outcome TEXT NOT NULL,
+  session_id TEXT,
+  error TEXT
+);
+CREATE INDEX IF NOT EXISTS automation_runs_by_automation ON automation_runs(automation_id, ran_at);
 ";
 
 pub struct Db {
@@ -524,6 +586,41 @@ fn chat_from(row: &Row) -> rusqlite::Result<ChatMessage> {
         created_at: row.get("created_at")?,
     })
 }
+
+fn automation_from(row: &Row) -> rusqlite::Result<Automation> {
+    let mode: String = row.get("mode")?;
+    Ok(Automation {
+        id: row.get("id")?,
+        name: row.get("name")?,
+        cli: kind_from(&row.get::<_, String>("cli")?),
+        cwd: row.get("cwd")?,
+        mode: if mode == "headless" { Mode::Headless } else { Mode::Interactive },
+        prompt: row.get("prompt")?,
+        permission_mode: row.get("permission_mode")?,
+        schedule: row.get("schedule")?,
+        enabled: row.get("enabled")?,
+        next_run_at: row.get("next_run_at")?,
+        created_at: row.get("created_at")?,
+        updated_at: row.get("updated_at")?,
+    })
+}
+
+fn run_from(row: &Row) -> rusqlite::Result<AutomationRun> {
+    Ok(AutomationRun {
+        id: row.get("id")?,
+        automation_id: row.get("automation_id")?,
+        due_at: row.get("due_at")?,
+        ran_at: row.get("ran_at")?,
+        outcome: row.get("outcome")?,
+        session_id: row.get("session_id")?,
+        error: row.get("error")?,
+    })
+}
+
+/// A run's session id reads as null once retention or the owner deleted that session.
+const RUNS_SELECT: &str = "SELECT r.id, r.automation_id, r.due_at, r.ran_at, r.outcome, r.error,
+    CASE WHEN s.id IS NULL THEN NULL ELSE r.session_id END AS session_id
+  FROM automation_runs r LEFT JOIN sessions s ON s.id = r.session_id";
 
 fn thread_from(row: &Row) -> rusqlite::Result<ChatThread> {
     Ok(ChatThread {
@@ -942,6 +1039,120 @@ impl Db {
         self.with(|c| c.execute("DELETE FROM devices WHERE id = ?1", [id]).map(|_| ()))
     }
 
+    // Automations
+
+    pub fn upsert_automation(&self, a: &Automation) -> R<()> {
+        self.with(|c| {
+            c.execute(
+                "INSERT INTO automations (id, name, cli, cwd, mode, prompt, permission_mode, schedule, enabled,
+                   next_run_at, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                 ON CONFLICT(id) DO UPDATE SET
+                   name = excluded.name, cli = excluded.cli, cwd = excluded.cwd, mode = excluded.mode,
+                   prompt = excluded.prompt, permission_mode = excluded.permission_mode, schedule = excluded.schedule,
+                   enabled = excluded.enabled, next_run_at = excluded.next_run_at, updated_at = excluded.updated_at",
+                params![
+                    a.id,
+                    a.name,
+                    a.cli.bin(),
+                    a.cwd,
+                    if a.mode == Mode::Headless { "headless" } else { "interactive" },
+                    a.prompt,
+                    a.permission_mode,
+                    a.schedule,
+                    a.enabled,
+                    a.next_run_at,
+                    a.created_at,
+                    a.updated_at,
+                ],
+            )
+            .map(|_| ())
+        })
+    }
+
+    pub fn automation(&self, id: &str) -> R<Option<Automation>> {
+        self.with(|c| c.query_row("SELECT * FROM automations WHERE id = ?1", [id], automation_from).optional())
+    }
+
+    /// Oldest first, so the list keeps its order as automations are added.
+    pub fn automations(&self) -> R<Vec<Automation>> {
+        self.with(|c| {
+            let mut st = c.prepare("SELECT * FROM automations ORDER BY created_at, rowid")?;
+            let rows = st.query_map([], automation_from)?;
+            rows.collect()
+        })
+    }
+
+    /// Enabled automations whose time has come.
+    pub fn due_automations(&self, now: i64) -> R<Vec<Automation>> {
+        self.with(|c| {
+            let mut st = c.prepare(
+                "SELECT * FROM automations WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ?1
+                 ORDER BY next_run_at, rowid",
+            )?;
+            let rows = st.query_map([now], automation_from)?;
+            rows.collect()
+        })
+    }
+
+    pub fn set_next_run(&self, id: &str, at: Option<i64>) -> R<()> {
+        self.with(|c| c.execute("UPDATE automations SET next_run_at = ?2 WHERE id = ?1", params![id, at]).map(|_| ()))
+    }
+
+    /// Removes the automation and its runs. Sessions it started stay.
+    pub fn delete_automation(&self, id: &str) -> R<()> {
+        self.with(|c| {
+            let tx = c.unchecked_transaction()?;
+            tx.execute("DELETE FROM automation_runs WHERE automation_id = ?1", [id])?;
+            tx.execute("DELETE FROM automations WHERE id = ?1", [id])?;
+            tx.commit()
+        })
+    }
+
+    /// Stores a run and keeps only the newest `RUNS_KEPT` of its automation.
+    pub fn add_run(&self, r: &AutomationRun) -> R<()> {
+        self.with(|c| {
+            let tx = c.unchecked_transaction()?;
+            tx.execute(
+                "INSERT OR REPLACE INTO automation_runs (id, automation_id, due_at, ran_at, outcome, session_id, error)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![r.id, r.automation_id, r.due_at, r.ran_at, r.outcome, r.session_id, r.error],
+            )?;
+            tx.execute(
+                "DELETE FROM automation_runs WHERE automation_id = ?1 AND id NOT IN
+                   (SELECT id FROM automation_runs WHERE automation_id = ?1 ORDER BY ran_at DESC, rowid DESC LIMIT ?2)",
+                params![r.automation_id, RUNS_KEPT],
+            )?;
+            tx.commit()
+        })
+    }
+
+    /// Newest first.
+    pub fn runs(&self, automation_id: &str, limit: u32) -> R<Vec<AutomationRun>> {
+        self.with(|c| {
+            let mut st = c.prepare(&format!("{RUNS_SELECT} WHERE r.automation_id = ?1 ORDER BY r.ran_at DESC, r.rowid DESC LIMIT ?2"))?;
+            let rows = st.query_map(params![automation_id, limit], run_from)?;
+            rows.collect()
+        })
+    }
+
+    pub fn last_run(&self, automation_id: &str) -> R<Option<AutomationRun>> {
+        Ok(self.runs(automation_id, 1)?.into_iter().next())
+    }
+
+    /// The session the automation started last, while it still exists.
+    pub fn last_session(&self, automation_id: &str) -> R<Option<String>> {
+        self.with(|c| {
+            c.query_row(
+                "SELECT r.session_id FROM automation_runs r JOIN sessions s ON s.id = r.session_id
+                 WHERE r.automation_id = ?1 ORDER BY r.ran_at DESC, r.rowid DESC LIMIT 1",
+                [automation_id],
+                |r| r.get(0),
+            )
+            .optional()
+        })
+    }
+
     // Settings
 
     pub fn settings(&self) -> R<Settings> {
@@ -1258,5 +1469,65 @@ mod tests {
         let mut before = db.finished_sessions(Some(5_000)).unwrap();
         before.sort();
         assert_eq!(before, ["old", "stopped"]);
+    }
+
+    #[test]
+    fn automations_keep_their_runs_and_forget_deleted_sessions() {
+        let db = Db::open_in_memory().unwrap();
+        let auto = |id: &str, enabled: bool, next: Option<i64>, created: i64| Automation {
+            id: id.into(),
+            name: format!("Review {id}"),
+            cli: CliKind::Claude,
+            cwd: "C:/p/uninote".into(),
+            mode: Mode::Headless,
+            prompt: "review the open pull requests".into(),
+            permission_mode: "ask".into(),
+            schedule: "0 9 * * 1-5".into(),
+            enabled,
+            next_run_at: next,
+            created_at: created,
+            updated_at: created,
+        };
+        db.upsert_automation(&auto("a", true, Some(100), 1)).unwrap();
+        db.upsert_automation(&auto("b", false, Some(100), 2)).unwrap();
+        db.upsert_automation(&auto("c", true, Some(900), 3)).unwrap();
+        let ids = |list: Vec<Automation>| list.into_iter().map(|a| a.id).collect::<Vec<_>>();
+        assert_eq!(ids(db.automations().unwrap()), ["a", "b", "c"]);
+        assert_eq!(ids(db.due_automations(500).unwrap()), ["a"]);
+        db.set_next_run("a", None).unwrap();
+        assert!(db.due_automations(500).unwrap().is_empty());
+        let mut renamed = auto("c", true, Some(900), 3);
+        renamed.name = "Nightly".into();
+        db.upsert_automation(&renamed).unwrap();
+        assert_eq!(db.automation("c").unwrap().unwrap(), renamed);
+
+        db.upsert_session(&session("kept", Status::Done)).unwrap();
+        let run = |n: i64, session_id: Option<&str>| AutomationRun {
+            id: format!("r{n}"),
+            automation_id: "a".into(),
+            due_at: n,
+            ran_at: n,
+            outcome: "started".into(),
+            session_id: session_id.map(str::to_owned),
+            error: None,
+        };
+        for n in 0..55 {
+            db.add_run(&run(n, None)).unwrap();
+        }
+        db.add_run(&run(60, Some("kept"))).unwrap();
+        db.add_run(&run(61, Some("gone"))).unwrap();
+        let runs = db.runs("a", 100).unwrap();
+        assert_eq!(runs.len(), RUNS_KEPT as usize);
+        assert_eq!(runs[0].id, "r61");
+        // The deleted session is not offered to open, and the kept one still is.
+        assert_eq!(runs[0].session_id, None);
+        assert_eq!(runs[1].session_id.as_deref(), Some("kept"));
+        assert_eq!(db.last_run("a").unwrap().unwrap().id, "r61");
+        assert_eq!(db.last_session("a").unwrap().as_deref(), Some("kept"));
+
+        db.delete_automation("a").unwrap();
+        assert!(db.automation("a").unwrap().is_none());
+        assert!(db.runs("a", 100).unwrap().is_empty());
+        assert!(db.session("kept").unwrap().is_some());
     }
 }

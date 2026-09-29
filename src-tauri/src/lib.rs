@@ -1,4 +1,5 @@
 pub mod actions;
+pub mod automations;
 pub mod autostart;
 pub mod ccs;
 pub mod cli;
@@ -83,6 +84,12 @@ impl Emit for TauriEmit {
         let _ = self.app.emit("settings-changed", ());
         if let Some(c) = self.companion.get() {
             c.broadcast(json!({ "type": "settings" }));
+        }
+    }
+    fn automations_changed(&self) {
+        let _ = self.app.emit("automations-changed", ());
+        if let Some(c) = self.companion.get() {
+            c.broadcast(json!({ "type": "automations" }));
         }
     }
     fn notify(&self, title: &str, body: &str, session_id: &str) {
@@ -746,6 +753,54 @@ fn chat_delete_thread(state: State<'_, AppState>, thread_id: String) -> Res<()> 
     Ok(())
 }
 
+// Automations
+
+#[tauri::command]
+fn list_automations(state: State<'_, AppState>) -> Res<Vec<automations::View>> {
+    automations::list(&state.db)
+}
+
+#[tauri::command]
+fn get_automation(state: State<'_, AppState>, id: String) -> Res<automations::Detail> {
+    automations::detail(&state.db, &id)
+}
+
+#[tauri::command]
+async fn save_automation(state: State<'_, AppState>, id: Option<String>, draft: automations::Draft) -> Res<db::Automation> {
+    let manager = Arc::clone(&state.manager);
+    blocking(move || {
+        let saved = automations::save(manager.db(), id.as_deref(), draft, |kind| manager.resolve_exe(kind).map(|_| ()))?;
+        manager.automations_changed();
+        Ok(saved)
+    })
+    .await
+}
+
+#[tauri::command]
+fn set_automation_enabled(state: State<'_, AppState>, id: String, enabled: bool) -> Res<db::Automation> {
+    let saved = automations::set_enabled(&state.db, &id, enabled)?;
+    state.manager.automations_changed();
+    Ok(saved)
+}
+
+#[tauri::command]
+fn delete_automation(state: State<'_, AppState>, id: String) -> Res<()> {
+    automations::delete(&state.db, &id)?;
+    state.manager.automations_changed();
+    Ok(())
+}
+
+#[tauri::command]
+async fn run_automation(state: State<'_, AppState>, id: String) -> Res<db::AutomationRun> {
+    let manager = Arc::clone(&state.manager);
+    blocking(move || automations::run_now(&manager, &id)).await
+}
+
+#[tauri::command]
+fn preview_schedule(schedule: String) -> Res<Vec<i64>> {
+    automations::preview(&schedule, db::now_ms())
+}
+
 // Settings and phone access
 
 /// Settings, with the start at sign-in read from the system, where it can be changed outside the app.
@@ -927,6 +982,15 @@ pub fn run() {
                 data_dir,
             });
             {
+                // The first pass waits one tick, so the login shell's PATH and the orphan cleanup
+                // above are done before a missed automation starts.
+                let manager = Arc::clone(&app.state::<AppState>().manager);
+                std::thread::spawn(move || loop {
+                    std::thread::sleep(std::time::Duration::from_secs(automations::TICK_SECS));
+                    automations::tick(&manager, db::now_ms());
+                });
+            }
+            {
                 let handle = app.handle().clone();
                 std::thread::spawn(move || loop {
                     std::thread::sleep(CLIS_EVERY);
@@ -989,6 +1053,13 @@ pub fn run() {
             chat_delete_thread,
             chat_models,
             chat_set_model,
+            list_automations,
+            get_automation,
+            save_automation,
+            set_automation_enabled,
+            delete_automation,
+            run_automation,
+            preview_schedule,
             get_settings,
             save_settings,
             companion_status,

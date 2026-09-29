@@ -18,6 +18,7 @@ use sha2::{Digest, Sha256};
 use tokio::sync::{broadcast, oneshot};
 
 use crate::actions;
+use crate::automations;
 use crate::cli::CliKind;
 use crate::db::{self, Db, Device, DispatchCard, Mode, PlannerSource};
 use crate::events::SessionEvent;
@@ -308,6 +309,11 @@ fn router(ctx: Ctx) -> Router {
         .route("/api/chat/cards/run", post(card_run))
         .route("/api/chat/cards/edit", post(card_edit))
         .route("/api/chat/cards/discard", post(card_discard))
+        .route("/api/automations", get(automations_list).post(automation_create))
+        .route("/api/automations/preview", post(automation_preview))
+        .route("/api/automations/{id}", get(automation_one).put(automation_update).delete(automation_delete))
+        .route("/api/automations/{id}/run", post(automation_run))
+        .route("/api/automations/{id}/enabled", post(automation_enabled))
         .route("/api/ws", get(ws))
         .fallback(get(static_file))
         .with_state(ctx)
@@ -887,6 +893,106 @@ fn content_type(path: &str, guessed: String) -> String {
         Some("webmanifest") => "application/manifest+json".into(),
         Some("js" | "mjs") => "text/javascript".into(),
         _ => guessed,
+    }
+}
+
+// Automations: the phone manages them like the desktop, through the same rules.
+
+async fn automations_list(State(ctx): State<Ctx>, headers: HeaderMap) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    match automations::list(&ctx.db) {
+        Ok(list) => Json(json!({ "automations": list })).into_response(),
+        Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, e),
+    }
+}
+
+async fn automation_one(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<String>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    match automations::detail(&ctx.db, &id) {
+        Ok(detail) => Json(detail).into_response(),
+        Err(e) => fail(StatusCode::NOT_FOUND, e),
+    }
+}
+
+async fn save_automation(ctx: &Ctx, id: Option<String>, draft: automations::Draft) -> Response {
+    let manager = Arc::clone(&ctx.manager);
+    off_thread(move || {
+        let saved = automations::save(manager.db(), id.as_deref(), draft, |kind| manager.resolve_exe(kind).map(|_| ()))?;
+        manager.automations_changed();
+        Ok(json!({ "automation": saved }))
+    })
+    .await
+}
+
+async fn automation_create(State(ctx): State<Ctx>, headers: HeaderMap, Json(draft): Json<automations::Draft>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    save_automation(&ctx, None, draft).await
+}
+
+async fn automation_update(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<String>, Json(draft): Json<automations::Draft>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    save_automation(&ctx, Some(id), draft).await
+}
+
+async fn automation_delete(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<String>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    match automations::delete(&ctx.db, &id) {
+        Ok(()) => {
+            ctx.manager.automations_changed();
+            Json(json!({ "ok": true })).into_response()
+        }
+        Err(e) => fail(StatusCode::NOT_FOUND, e),
+    }
+}
+
+async fn automation_run(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<String>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    let manager = Arc::clone(&ctx.manager);
+    off_thread(move || Ok(json!({ "run": automations::run_now(&manager, &id)? }))).await
+}
+
+#[derive(Deserialize)]
+struct EnabledBody {
+    enabled: bool,
+}
+
+async fn automation_enabled(State(ctx): State<Ctx>, headers: HeaderMap, UrlPath(id): UrlPath<String>, Json(body): Json<EnabledBody>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    match automations::set_enabled(&ctx.db, &id, body.enabled) {
+        Ok(saved) => {
+            ctx.manager.automations_changed();
+            Json(json!({ "automation": saved })).into_response()
+        }
+        Err(e) => fail(StatusCode::CONFLICT, e),
+    }
+}
+
+#[derive(Deserialize)]
+struct PreviewBody {
+    schedule: String,
+}
+
+async fn automation_preview(State(ctx): State<Ctx>, headers: HeaderMap, Json(body): Json<PreviewBody>) -> Response {
+    if let Err(r) = authed(&ctx, &headers) {
+        return r;
+    }
+    match automations::preview(&body.schedule, db::now_ms()) {
+        Ok(times) => Json(json!({ "times": times })).into_response(),
+        Err(e) => fail(StatusCode::UNPROCESSABLE_ENTITY, e),
     }
 }
 

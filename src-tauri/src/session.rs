@@ -34,6 +34,8 @@ pub trait Emit: Send + Sync {
     fn chat_changed(&self, _thread_id: &str) {}
     /// Settings changed from the phone (the planner's model), so the desktop reloads them.
     fn settings_changed(&self) {}
+    /// An automation was saved, deleted or ran, here or on the phone.
+    fn automations_changed(&self) {}
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -287,6 +289,15 @@ impl Manager {
         self.emit.settings_changed();
     }
 
+    pub fn automations_changed(&self) {
+        self.emit.automations_changed();
+    }
+
+    /// An OS notification about no session, such as an automation that did not start.
+    pub fn notify(&self, title: &str, body: &str) {
+        self.emit.notify(title, body, "");
+    }
+
     /// This app and the CLIs it runs now. A finished session's PID is left out: Windows hands
     /// it to new processes, which would then be hidden from the outside list.
     pub fn own_pids(&self) -> Vec<u32> {
@@ -379,7 +390,7 @@ impl Manager {
         })
     }
 
-    fn resolve_exe(&self, kind: CliKind) -> Result<PathBuf, String> {
+    pub(crate) fn resolve_exe(&self, kind: CliKind) -> Result<PathBuf, String> {
         let settings = self.db.settings()?;
         if let Some(custom) = settings.cli_paths.get(kind.bin()).filter(|p| !p.trim().is_empty()) {
             let p = PathBuf::from(custom);
