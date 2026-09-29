@@ -1,8 +1,9 @@
 import { listen } from "@tauri-apps/api/event";
-import { render, screen, within } from "@testing-library/svelte";
+import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import type { ShellInfo, TerminalInfo } from "$lib/api";
+import ContextMenu from "$lib/ContextMenu.svelte";
 import { app } from "$lib/store.svelte";
 import { setUrl } from "../../test/app-state.svelte";
 import { CLIS, backend as mockBackend, session } from "../../test/fixtures";
@@ -211,7 +212,7 @@ test("Split terminal opens a shell beside the session's own terminal, in the sam
   expect(calls.calls("terminal_open")[0]).toMatchObject({ sessionId: "sp-a", shell: "pwsh" });
   const tab = await screen.findByRole("button", { name: /^Claude Code\s*output\s*with 1 more terminal$/ });
   expect(tab).toHaveAttribute("aria-current", "true");
-  expect(screen.queryByRole("button", { name: "PowerShell" })).not.toBeInTheDocument();
+  expect(document.getElementById("shell-tab-sp-a-t1")).toBeNull();
   expect(document.getElementById("session-term")).toBeVisible();
   expect(document.getElementById("shell-panel-sp-a-t1")).toBeVisible();
   expect(screen.getByRole("button", { name: "Close terminal: PowerShell" }).closest(".pane-head")).not.toBeNull();
@@ -300,5 +301,147 @@ test("a split is still there when the session is opened again", async () => {
   listed = [term({ id: "sp-e-t1", sessionId: "sp-e" })];
   render(SessionPage);
   expect(await screen.findByRole("button", { name: /^Claude Code\s*output\s*with 1 more terminal$/ })).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "PowerShell" })).not.toBeInTheDocument();
+  expect(document.getElementById("shell-tab-sp-e-t1")).toBeNull();
+});
+
+const tabNames = () => [...document.querySelectorAll("#session-views .tab-pick b")].map((b) => b.textContent);
+const paneOrder = () => [...document.querySelectorAll("#session-panes .pane:not([hidden])")].map((p) => p.id);
+
+/** Right-clicks `target` and picks `item` from the menu that opens. */
+async function fromMenu(user: ReturnType<typeof userEvent.setup>, target: HTMLElement, item: string) {
+  await fireEvent.contextMenu(target);
+  await user.click(screen.getByRole("menuitem", { name: item }));
+}
+
+test("a tab's right-click menu moves it along the tabs, or splits a lone terminal into another tab", async () => {
+  const user = userEvent.setup();
+  splitBackend("mv-a", {
+    terminal_list: () => [term({ id: "mv-a-a", sessionId: "mv-a" }), term({ id: "mv-a-b", sessionId: "mv-a", shell: "cmd", shellLabel: "Command Prompt" })],
+  });
+  render(SessionPage);
+  render(ContextMenu);
+  const ps = await screen.findByRole("button", { name: "PowerShell" });
+
+  // Shift+F10 opens it on the focused tab, and focus comes back to that tab after the move.
+  ps.focus();
+  await fireEvent.contextMenu(ps);
+  expect(screen.getByRole("menu", { name: "Move PowerShell" })).toBeInTheDocument();
+  expect(screen.getAllByRole("menuitem").map((m) => m.textContent?.trim())).toEqual([
+    "Move tab left",
+    "Move tab right",
+    "Split with Claude Code",
+    "Split with Command Prompt",
+  ]);
+  await user.click(screen.getByRole("menuitem", { name: "Move tab right" }));
+  expect(tabNames()).toEqual(["Claude Code", "Command Prompt", "PowerShell"]);
+  expect(ps).toHaveFocus();
+
+  await fromMenu(user, ps, "Split with Claude Code");
+  expect(tabNames()).toEqual(["Claude Code", "Command Prompt"]);
+  expect(screen.getByRole("button", { name: /^Claude Code\s*output\s*with 1 more terminal$/ })).toHaveAttribute("aria-current", "true");
+  expect(paneOrder()).toEqual(["session-term", "shell-panel-mv-a-a"]);
+});
+
+test("a split terminal moves along its tab and out to a tab of its own from its header", async () => {
+  const user = userEvent.setup();
+  splitBackend("mv-b");
+  render(SessionPage);
+  render(ContextMenu);
+  await screen.findByRole("button", { name: /^Claude Code\s*output$/ });
+  await splitOnce(user);
+
+  const name = await screen.findByRole("button", { name: "PowerShell" });
+  expect(name).toHaveAttribute("aria-haspopup", "menu");
+  await user.click(name);
+  expect(screen.getByRole("menuitem", { name: "Move right" })).toHaveAttribute("aria-disabled", "true");
+  await user.click(screen.getByRole("menuitem", { name: "Move left" }));
+  expect(paneOrder()).toEqual(["shell-panel-mv-b-t1", "session-term"]);
+  expect(screen.getByRole("button", { name: /^PowerShell\s*with 1 more terminal$/ })).toHaveAttribute("aria-current", "true");
+
+  await user.click(screen.getByRole("button", { name: "PowerShell" }));
+  await user.click(screen.getByRole("menuitem", { name: "Move to a new tab" }));
+  expect(tabNames()).toEqual(["Claude Code", "PowerShell"]);
+  const own = screen.getByRole("button", { name: "PowerShell" });
+  expect(own).toHaveAttribute("aria-current", "true");
+  expect(own).toHaveFocus();
+  expect(paneOrder()).toEqual(["shell-panel-mv-b-t1"]);
+});
+
+/** Drags from `from` to a point over `over`, which `elementFromPoint` reports there; jsdom has no layout. */
+async function dragTo(from: HTMLElement, over: Element, x: number, y = 10) {
+  document.elementFromPoint = () => over;
+  await fireEvent.pointerDown(from, { button: 0, clientX: 0, clientY: 0 });
+  await fireEvent.pointerMove(window, { clientX: x, clientY: y });
+}
+
+test("a tab dragged onto another tab joins it, and one dragged to a tab's edge moves between tabs", async () => {
+  splitBackend("mv-c", {
+    terminal_list: () => [term({ id: "mv-c-a", sessionId: "mv-c" }), term({ id: "mv-c-b", sessionId: "mv-c", shell: "cmd", shellLabel: "Command Prompt" })],
+  });
+  render(SessionPage);
+  const ps = await screen.findByRole("button", { name: "PowerShell" });
+  const own = document.querySelector<HTMLElement>('[data-tab="term"]')!;
+  own.getBoundingClientRect = () => ({ left: 0, top: 0, width: 100, height: 38, right: 100, bottom: 38, x: 0, y: 0, toJSON: () => ({}) });
+
+  // The left quarter of a tab lands before it.
+  await dragTo(ps, own, 10);
+  expect(document.querySelector(".drag-ghost")).toHaveTextContent("PowerShell");
+  expect(own).toHaveClass("drop-before");
+  await fireEvent.pointerUp(window, { clientX: 10, clientY: 10 });
+  expect(tabNames()).toEqual(["PowerShell", "Claude Code", "Command Prompt"]);
+  expect(document.querySelector(".drag-ghost")).toBeNull();
+
+  // Its middle joins it.
+  const cmd = screen.getByRole("button", { name: "Command Prompt" });
+  await dragTo(cmd, own, 50);
+  expect(own).toHaveClass("drop-join");
+  await fireEvent.pointerUp(window, { clientX: 50, clientY: 10 });
+  expect(tabNames()).toEqual(["PowerShell", "Claude Code"]);
+  expect(screen.getByRole("button", { name: /^Claude Code\s*output\s*with 1 more terminal$/ })).toHaveAttribute("aria-current", "true");
+});
+
+test("a terminal dragged beside a shown one splits the tab that way, and Escape leaves everything as it was", async () => {
+  splitBackend("mv-d", { terminal_list: () => [term({ id: "mv-d-a", sessionId: "mv-d" })] });
+  render(SessionPage);
+  const ps = await screen.findByRole("button", { name: "PowerShell" });
+  const pane = document.getElementById("session-term")!;
+  pane.getBoundingClientRect = () => ({ left: 0, top: 0, width: 400, height: 400, right: 400, bottom: 400, x: 0, y: 0, toJSON: () => ({}) });
+
+  await dragTo(ps, pane, 200, 380);
+  expect(pane.querySelector(".drop-zone")).toHaveClass("bottom");
+  await fireEvent.keyDown(window, { key: "Escape" });
+  expect(pane.querySelector(".drop-zone")).toBeNull();
+  expect(tabNames()).toEqual(["Claude Code", "PowerShell"]);
+
+  await dragTo(ps, pane, 20, 200);
+  expect(pane.querySelector(".drop-zone")).toHaveClass("left");
+  await fireEvent.pointerUp(window, { clientX: 20, clientY: 200 });
+  expect(tabNames()).toEqual(["PowerShell"]);
+  expect(paneOrder()).toEqual(["shell-panel-mv-d-a", "session-term"]);
+  expect(screen.getByRole("separator")).toHaveAttribute("aria-orientation", "vertical");
+});
+
+test("the border between split terminals follows the pointer, and Escape puts it back", async () => {
+  const user = userEvent.setup();
+  splitBackend("mv-e");
+  render(SessionPage);
+  await screen.findByRole("button", { name: /^Claude Code\s*output$/ });
+  await splitOnce(user);
+  const box = document.querySelector<HTMLElement>(".panes")!;
+  box.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1000, height: 600, right: 1000, bottom: 600, x: 0, y: 0, toJSON: () => ({}) });
+  const border = await screen.findByRole("separator");
+
+  await fireEvent.pointerDown(border, { button: 0, clientX: 500, clientY: 300 });
+  await fireEvent.pointerMove(window, { clientX: 600, clientY: 300 });
+  expect(border).toHaveAttribute("aria-valuenow", "60");
+  await fireEvent.keyDown(window, { key: "Escape" });
+  expect(border).toHaveAttribute("aria-valuenow", "50");
+
+  await fireEvent.pointerDown(border, { button: 0, clientX: 500, clientY: 300 });
+  await fireEvent.pointerMove(window, { clientX: 50, clientY: 300 });
+  await fireEvent.pointerUp(window, { clientX: 50, clientY: 300 });
+  // No terminal gets narrower than 120 px.
+  expect(border).toHaveAttribute("aria-valuenow", "12");
+  await fireEvent.pointerMove(window, { clientX: 900, clientY: 300 });
+  expect(border).toHaveAttribute("aria-valuenow", "12");
 });

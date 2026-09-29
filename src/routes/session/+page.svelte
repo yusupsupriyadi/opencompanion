@@ -2,6 +2,11 @@
   import { page } from "$app/state";
   import { listen } from "@tauri-apps/api/event";
   import ArrowClockwise from "phosphor-svelte/lib/ArrowClockwise";
+  import ArrowDown from "phosphor-svelte/lib/ArrowDown";
+  import ArrowLeft from "phosphor-svelte/lib/ArrowLeft";
+  import ArrowRight from "phosphor-svelte/lib/ArrowRight";
+  import ArrowUp from "phosphor-svelte/lib/ArrowUp";
+  import CaretDown from "phosphor-svelte/lib/CaretDown";
   import Files from "phosphor-svelte/lib/Files";
   import GitBranch from "phosphor-svelte/lib/GitBranch";
   import GitDiff from "phosphor-svelte/lib/GitDiff";
@@ -19,6 +24,7 @@
   import { api, errorText, type EventRow, type GitChange, type SessionDetail, type SessionInfo, type TerminalInfo, type Usage } from "$lib/api";
   import BranchPanel from "$lib/BranchPanel.svelte";
   import ChangesPanel from "$lib/ChangesPanel.svelte";
+  import { openMenu, type MenuEntry } from "$lib/context-menu.svelte";
   import Dialog from "$lib/Dialog.svelte";
   import FilesPanel from "$lib/FilesPanel.svelte";
   import FileViewer from "$lib/FileViewer.svelte";
@@ -29,7 +35,7 @@
   import Timeline from "$lib/Timeline.svelte";
   import { CLI_LABEL, SIGNAL_TEXT, clock, duration, folderName, isLive, memory, modeLabel, runsCli, shortPath } from "$lib/format";
   import { plural, t, tb, type Key } from "$lib/i18n.svelte";
-  import { MAX_PANES, PaneLayout, TERM, type PaneTab } from "$lib/panes.svelte";
+  import { MAX_PANES, PaneLayout, TERM, type PaneDir, type PaneDrop, type PaneTab } from "$lib/panes.svelte";
   import { pasteKey } from "$lib/platform";
   import { SessionShells } from "$lib/shells.svelte";
   import { app, showToast } from "$lib/store.svelte";
@@ -220,6 +226,35 @@
     layout.resize(shownTab, i, keys[e.key], length > 0 ? MIN_PANE / length : 0.1);
   }
 
+  /**
+   * Follows the pointer on the whole window until it is let go, whatever it passes over (a terminal, the tabs).
+   * `cursor` is shown everywhere meanwhile, and no text is selected.
+   */
+  function follow(cursor: string, move: (e: PointerEvent) => void, end: (e: PointerEvent | null) => void) {
+    const root = document.documentElement;
+    const stop = (e: PointerEvent | null) => {
+      removeEventListener("pointermove", move);
+      removeEventListener("pointerup", up);
+      removeEventListener("pointercancel", cancel);
+      removeEventListener("keydown", esc, true);
+      delete root.dataset.paneDrag;
+      end(e);
+    };
+    const up = (e: PointerEvent) => stop(e);
+    const cancel = () => stop(null);
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      stop(null);
+    };
+    root.dataset.paneDrag = cursor;
+    addEventListener("pointermove", move);
+    addEventListener("pointerup", up);
+    addEventListener("pointercancel", cancel);
+    addEventListener("keydown", esc, true);
+  }
+
   function borderDrag(e: PointerEvent, i: number) {
     if (!shown || e.button !== 0) return;
     const tab = shown;
@@ -227,18 +262,147 @@
     const length = boxLength(tab);
     if (length <= 0) return;
     e.preventDefault();
-    const el = e.currentTarget as HTMLElement;
     const at = (p: PointerEvent) => (tab.dir === "row" ? p.clientX : p.clientY);
     const from = at(e);
     const start = tab.sizes[i];
-    const move = (m: PointerEvent) => layout.resize(lead, i, start + (at(m) - from) / length, MIN_PANE / length);
-    const end = () => {
-      el.removeEventListener("pointermove", move);
-      el.removeEventListener("lostpointercapture", end);
-    };
-    el.setPointerCapture(e.pointerId);
-    el.addEventListener("pointermove", move);
-    el.addEventListener("lostpointercapture", end);
+    const sizes = tab.sizes;
+    follow(
+      tab.dir === "row" ? "col-resize" : "row-resize",
+      (m) => layout.resize(lead, i, start + (at(m) - from) / length, MIN_PANE / length),
+      (u) => {
+        // Escape puts the border back where it was.
+        if (!u) layout.resize(lead, i, sizes[i], 0);
+      },
+    );
+  }
+
+  // A terminal is dragged by its tab (a split tab moves as a whole) or, in a split tab, by its header. It lands between
+  // tabs, on a tab to join it, or beside a terminal of the shown tab. The drag starts after 5 px, so a click still picks
+  // the tab; the context menu offers the same moves without dragging.
+  type Drag = { pane: string; whole: boolean; name: string; x: number; y: number };
+  let drag = $state<Drag | null>(null);
+  let drop = $state<PaneDrop | null>(null);
+  // A drag that ends over the control it started on is not a click on it.
+  let dragged = false;
+
+  function dragFrom(e: PointerEvent, pane: string, whole: boolean) {
+    if (e.button !== 0) return;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const name = whole ? (layout.tabOf(pane)?.panes.map(paneName).join(", ") ?? "") : paneName(pane);
+    follow(
+      "grabbing",
+      (m) => {
+        if (!drag && Math.hypot(m.clientX - x0, m.clientY - y0) < 5) return;
+        getSelection()?.removeAllRanges();
+        drag = { pane, whole, name, x: m.clientX, y: m.clientY };
+        drop = dropAt(drag, m.clientX, m.clientY);
+      },
+      (u) => {
+        if (!drag) return;
+        if (u && drop) {
+          if (drop.kind === "tab" && drag.whole) layout.moveTab(pane, drop.at);
+          else layout.move(pane, drop);
+          mainTab = pane;
+        }
+        drag = null;
+        drop = null;
+        dragged = true;
+        setTimeout(() => (dragged = false));
+      },
+    );
+  }
+
+  /** Where the drag would land at this point, or null when it cannot land there. */
+  function dropAt(d: Drag, x: number, y: number): PaneDrop | null {
+    const at = document.elementFromPoint(x, y);
+    const fits = (to: PaneDrop) => (d.whole && layout.tabOf(d.pane)!.panes.length > 1 ? to.kind === "tab" : layout.canMove(d.pane, to));
+    const tabs = layout.tabs;
+    const tabEl = at?.closest<HTMLElement>("[data-tab]");
+    if (tabEl) {
+      const lead = tabEl.dataset.tab ?? "";
+      const i = tabs.findIndex((t) => t.panes[0] === lead);
+      const r = tabEl.getBoundingClientRect();
+      const f = r.width > 0 ? (x - r.left) / r.width : 0.5;
+      const join: PaneDrop = { kind: "join", tab: lead };
+      if (f > 0.25 && f < 0.75 && fits(join)) return join;
+      return { kind: "tab", at: f < 0.5 ? i : i + 1 };
+    }
+    if (at?.closest("#session-views")) return { kind: "tab", at: tabs.length };
+    const paneEl = at?.closest<HTMLElement>("#session-panes [data-pane]");
+    if (!paneEl || !shown) return null;
+    const r = paneEl.getBoundingClientRect();
+    const fx = (x - r.left) / (r.width || 1) - 0.5;
+    const fy = (y - r.top) / (r.height || 1) - 0.5;
+    // Beside the only terminal of a tab, the nearer edge picks the direction; a split tab keeps its own.
+    const dir: PaneDir = shown.panes.length > 1 ? shown.dir : Math.abs(fx) >= Math.abs(fy) ? "row" : "column";
+    const to: PaneDrop = { kind: "beside", pane: paneEl.dataset.pane ?? "", after: dir === "row" ? fx > 0 : fy > 0, dir };
+    return fits(to) ? to : null;
+  }
+
+  /** The tab before which a drop puts its terminal: a mark on that tab's left edge, or on the last tab's right one. */
+  const dropBefore = $derived(drop?.kind === "tab" ? (layout.tabs[drop.at]?.panes[0] ?? null) : null);
+  const dropLast = $derived(drop?.kind === "tab" && drop.at >= layout.tabs.length);
+
+  function dropSide(p: string): string {
+    if (drop?.kind !== "beside" || drop.pane !== p) return "";
+    return drop.dir === "row" ? (drop.after ? "right" : "left") : drop.after ? "bottom" : "top";
+  }
+
+  // The same moves from the keyboard or without dragging: right-click (Shift+F10, the Menu key) on a tab, or the
+  // header of a split terminal.
+  function moved(pane: string, move: () => void) {
+    const from = document.activeElement as HTMLElement | null;
+    move();
+    mainTab = pane;
+    // Moving an element in the page takes its focus away; a control that went with the move gives way to the tab.
+    tick().then(() => {
+      if (from?.isConnected) from.focus();
+      else document.getElementById(tabButtonId(layout.tabOf(pane)?.panes[0] ?? TERM))?.focus();
+    });
+  }
+
+  function moveMenu(e: MouseEvent, pane: string, whole: boolean) {
+    const tabs = layout.tabs;
+    const ti = tabs.findIndex((t) => t.panes.includes(pane));
+    const tab = tabs[ti];
+    // One tab alone has nowhere to go.
+    if (dragged || !tab || (whole && tabs.length === 1)) {
+      e.preventDefault();
+      return;
+    }
+    const items: MenuEntry[] = [];
+    if (whole) {
+      items.push(
+        { label: t("terminal.menu.tabLeft"), icon: ArrowLeft, disabled: ti === 0, action: () => moved(pane, () => layout.moveTab(pane, ti - 1)) },
+        { label: t("terminal.menu.tabRight"), icon: ArrowRight, disabled: ti === tabs.length - 1, action: () => moved(pane, () => layout.moveTab(pane, ti + 2)) },
+      );
+    } else {
+      const i = tab.panes.indexOf(pane);
+      const row = tab.dir === "row";
+      const along = (j: number, after: boolean) => () => moved(pane, () => layout.move(pane, { kind: "beside", pane: tab.panes[j], after, dir: tab.dir }));
+      items.push(
+        { label: t(row ? "terminal.menu.left" : "terminal.menu.up"), icon: row ? ArrowLeft : ArrowUp, disabled: i === 0, action: along(i - 1, false) },
+        { label: t(row ? "terminal.menu.right" : "terminal.menu.down"), icon: row ? ArrowRight : ArrowDown, disabled: i === tab.panes.length - 1, action: along(i + 1, true) },
+        { label: t("terminal.menu.newTab"), icon: Plus, action: () => moved(pane, () => layout.move(pane, { kind: "tab", at: ti + 1 })) },
+      );
+    }
+    // A terminal on its own, or one of a split, can join another tab.
+    if (!whole || tab.panes.length === 1) {
+      const others = tabs.filter((_, j) => j !== ti);
+      if (others.length) items.push(null);
+      for (const o of others) {
+        const full = o.panes.length >= MAX_PANES;
+        items.push({
+          label: t("terminal.menu.join", { tab: paneName(o.panes[0]) }),
+          icon: SquareSplitHorizontal,
+          disabled: full,
+          hint: full ? t("terminal.splitFull", { n: MAX_PANES }) : undefined,
+          action: () => moved(pane, () => layout.move(pane, { kind: "join", tab: o.panes[0] })),
+        });
+      }
+    }
+    openMenu(e, `terminal:${pane}`, t("terminal.menu.label", { name: whole ? paneName(tab.panes[0]) : paneName(pane) }), items);
   }
 
   // A split tab shows one keyboard note below its terminals, for the one last focused.
@@ -480,15 +644,24 @@
               {@const lead = tab.panes[0]}
               {@const more = tab.panes.length - 1}
               {@const x = shells.list.find((y) => y.id === lead)}
-              <div class="tab" class:current={shownTab === lead}>
+              <div
+                class="tab"
+                class:current={shownTab === lead}
+                class:drop-before={dropBefore === lead}
+                class:drop-after={dropLast && lead === layout.tabs.at(-1)?.panes[0]}
+                class:drop-join={drop?.kind === "join" && drop.tab === lead}
+                data-tab={lead}
+              >
                 <button
                   class="tab-pick"
                   type="button"
                   id={tabButtonId(lead)}
                   aria-current={shownTab === lead ? "true" : undefined}
                   aria-controls={tab.panes.map(panelId).join(" ")}
-                  title={more ? tab.panes.map(paneName).join(", ") : undefined}
-                  onclick={() => (mainTab = lead)}
+                  title={more ? `${tab.panes.map(paneName).join(", ")}\n${t("terminal.dragHint")}` : t("terminal.dragHint")}
+                  onclick={() => dragged || (mainTab = lead)}
+                  onpointerdown={(e) => dragFrom(e, lead, true)}
+                  oncontextmenu={(e) => moveMenu(e, lead, true)}
                 >
                   <b>{paneName(lead)}</b>
                   {#if !x}
@@ -573,34 +746,25 @@
           </p>
         {/if}
         {#if shellFailure}<p class="err-text shell-note" role="alert">{tb(shellFailure)}</p>{/if}
-        <!-- Every terminal stays mounted in one dark panel; the shown tab's ones are visible, in the order they were opened. -->
-        {#snippet paneTop(p: string, x: TerminalInfo | null)}
-          {@const i = shown ? shown.panes.indexOf(p) : -1}
-          {#if shown && i > 0}
-            <!-- A focusable separator is ARIA's window splitter, a widget; Svelte's check counts every separator as static. -->
-            <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-            <div
-              class="pane-border"
-              role="separator"
-              tabindex="0"
-              aria-orientation={shown.dir === "row" ? "vertical" : "horizontal"}
-              aria-controls={panelId(shown.panes[i - 1])}
-              aria-label={t("terminal.resize", { first: paneName(shown.panes[i - 1]), second: paneName(p) })}
-              aria-valuenow={Math.round((shown.sizes[i - 1] / (shown.sizes[i - 1] + shown.sizes[i])) * 100)}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              onkeydown={(e) => borderKeys(e, i - 1)}
-              onpointerdown={(e) => borderDrag(e, i - 1)}
-            ></div>
-          {/if}
+        <!-- Every terminal stays mounted in one dark panel, in tab order, so moving one never restarts it; the shown tab's
+             terminals are the visible ones. -->
+        {#snippet paneHead(p: string, x: TerminalInfo | null)}
           {#if inSplit.has(p)}
             <div class="pane-head">
-              <b>{paneName(p)}</b>
-              {#if !x}
-                <small>{s?.mode === "interactive" ? t("workspace.viewer.terminal") : t("workspace.viewer.output")}</small>
-              {:else if !x.running}
-                <span class="chip idle">{t("terminal.exited")}</span>
-              {/if}
+              <button
+                class="pane-name"
+                type="button"
+                aria-haspopup="menu"
+                title={t("terminal.paneHint")}
+                onpointerdown={(e) => dragFrom(e, p, false)}
+                onclick={(e) => moveMenu(e, p, false)}
+                oncontextmenu={(e) => moveMenu(e, p, false)}
+              >
+                <b>{paneName(p)}</b>
+                {#if !x}<small>{s?.mode === "interactive" ? t("workspace.viewer.terminal") : t("workspace.viewer.output")}</small>{/if}
+                <CaretDown size={12} aria-hidden="true" />
+              </button>
+              {#if x && !x.running}<span class="chip idle">{t("terminal.exited")}</span>{/if}
               {#if x}
                 <button class="icon-btn pane-close" type="button" aria-label={t("terminal.closeNamed", { name: paneName(p) })} title={t("terminal.closeHint", { shell: x.shellLabel })} onclick={() => closeShell(x)}>
                   <X size={14} aria-hidden="true" />
@@ -608,61 +772,84 @@
               {/if}
             </div>
           {/if}
+          {#if dropSide(p)}<div class="drop-zone {dropSide(p)}" aria-hidden="true"></div>{/if}
         {/snippet}
         <div class="term joined" id="session-panes">
           <div class="panes" class:stacked={shown?.dir === "column"} bind:this={panesBox} onfocusin={notePane}>
-            <section class="pane" id="session-term" data-pane={TERM} hidden={!shown?.panes.includes(TERM)} style:flex-grow={grow(TERM)} aria-label={t("sessions.detail.output")}>
-              {@render paneTop(TERM, null)}
-              {#if s.mode === "interactive"}
-                {#key `${id}-${termKey}`}
-                  <Terminal id={s.id} {live} label={t("sessions.detail.terminalLabel", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) })} />
-                {/key}
-                {#if live}
-                  {#if !inSplit.has(TERM)}<div class="term-note">{liveNote(TERM)}</div>{/if}
-                {:else}
-                  <div class="term-note exit-row">
-                    <span class="grow">{t("sessions.detail.terminalClosed")}</span>
-                    <button class="btn primary sm" type="button" id="btn-open-terminal-again" disabled={resuming} onclick={resume}>
-                      <Play size={14} aria-hidden="true" />{resuming ? t("sessions.detail.opening") : t("sessions.detail.openAgain")}
-                    </button>
-                  </div>
-                {/if}
-              {:else}
-                <Timeline {events} />
-                <form class="term-in" onsubmit={sendFollowUp}>
-                  <label for="term-input">›</label>
-                  <input id="term-input" bind:value={followUp} placeholder={followUpHint} disabled={!canFollowUp || sending} autocomplete="off" spellcheck="false" />
-                  <small>{canFollowUp ? t("sessions.detail.enterToSend") : ""}</small>
-                  {#if live}
-                    <button class="btn danger sm" type="button" onclick={() => (stopOpen = true)}><Stop size={14} aria-hidden="true" />{t("sessions.detail.stop")}</button>
-                  {/if}
-                </form>
-                {#if sendError}<div class="term-note" role="alert">{tb(sendError)}</div>{/if}
+            {#each layout.tabs.flatMap((tab) => tab.panes) as p (p)}
+              {@const x = shells.list.find((y) => y.id === p) ?? null}
+              {@const i = shown ? shown.panes.indexOf(p) : -1}
+              {#if shown && i > 0}
+                <!-- A focusable separator is ARIA's window splitter, a widget; Svelte's check counts every separator as static. -->
+                <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+                <div
+                  class="pane-border"
+                  role="separator"
+                  tabindex="0"
+                  aria-orientation={shown.dir === "row" ? "vertical" : "horizontal"}
+                  aria-controls={panelId(shown.panes[i - 1])}
+                  aria-label={t("terminal.resize", { first: paneName(shown.panes[i - 1]), second: paneName(p) })}
+                  aria-valuenow={Math.round((shown.sizes[i - 1] / (shown.sizes[i - 1] + shown.sizes[i])) * 100)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  onkeydown={(e) => borderKeys(e, i - 1)}
+                  onpointerdown={(e) => borderDrag(e, i - 1)}
+                ></div>
               {/if}
-            </section>
-            {#each shells.list as x (x.id)}
-              {@const label = t("terminal.label", { shell: shells.names.get(x.id) ?? x.shellLabel, folder: folderName(s.cwd) })}
-              <section class="pane" id="shell-panel-{x.id}" data-pane={x.id} aria-label={label} hidden={!shown?.panes.includes(x.id)} style:flex-grow={grow(x.id)}>
-                {@render paneTop(x.id, x)}
-                {#key `${x.id}-${x.startedAt}`}
-                  <Terminal kind="terminal" id={x.id} live={x.running} {label} />
-                {/key}
-                {#if x.running}
-                  {#if !inSplit.has(x.id)}<div class="term-note">{liveNote(x.id)}</div>{/if}
-                {:else}
-                  <div class="term-note exit-row">
-                    <span class="grow">
-                      {x.exitCode === null ? t("terminal.exitedNoCode", { shell: x.shellLabel }) : t("terminal.exitedCode", { shell: x.shellLabel, code: x.exitCode })}
-                    </span>
-                    <button class="btn primary sm" type="button" disabled={restarting === x.id} onclick={() => restartShell(x)}>
-                      <ArrowClockwise size={14} aria-hidden="true" />{restarting === x.id ? t("terminal.restarting") : t("terminal.restart")}
-                    </button>
-                    <button class="btn secondary sm" type="button" onclick={() => closeShell(x)}>
-                      <X size={14} aria-hidden="true" />{t("shell.close")}
-                    </button>
-                  </div>
-                {/if}
-              </section>
+              {#if p === TERM}
+                <section class="pane" id="session-term" data-pane={TERM} hidden={i < 0} style:flex-grow={grow(TERM)} aria-label={t("sessions.detail.output")}>
+                  {@render paneHead(TERM, null)}
+                  {#if s.mode === "interactive"}
+                    {#key `${id}-${termKey}`}
+                      <Terminal id={s.id} {live} label={t("sessions.detail.terminalLabel", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) })} />
+                    {/key}
+                    {#if live}
+                      {#if !inSplit.has(TERM)}<div class="term-note">{liveNote(TERM)}</div>{/if}
+                    {:else}
+                      <div class="term-note exit-row">
+                        <span class="grow">{t("sessions.detail.terminalClosed")}</span>
+                        <button class="btn primary sm" type="button" id="btn-open-terminal-again" disabled={resuming} onclick={resume}>
+                          <Play size={14} aria-hidden="true" />{resuming ? t("sessions.detail.opening") : t("sessions.detail.openAgain")}
+                        </button>
+                      </div>
+                    {/if}
+                  {:else}
+                    <Timeline {events} />
+                    <form class="term-in" onsubmit={sendFollowUp}>
+                      <label for="term-input">›</label>
+                      <input id="term-input" bind:value={followUp} placeholder={followUpHint} disabled={!canFollowUp || sending} autocomplete="off" spellcheck="false" />
+                      <small>{canFollowUp ? t("sessions.detail.enterToSend") : ""}</small>
+                      {#if live}
+                        <button class="btn danger sm" type="button" onclick={() => (stopOpen = true)}><Stop size={14} aria-hidden="true" />{t("sessions.detail.stop")}</button>
+                      {/if}
+                    </form>
+                    {#if sendError}<div class="term-note" role="alert">{tb(sendError)}</div>{/if}
+                  {/if}
+                </section>
+              {:else if x}
+                {@const label = t("terminal.label", { shell: shells.names.get(x.id) ?? x.shellLabel, folder: folderName(s.cwd) })}
+                <section class="pane" id="shell-panel-{x.id}" data-pane={x.id} aria-label={label} hidden={i < 0} style:flex-grow={grow(x.id)}>
+                  {@render paneHead(x.id, x)}
+                  {#key `${x.id}-${x.startedAt}`}
+                    <Terminal kind="terminal" id={x.id} live={x.running} {label} />
+                  {/key}
+                  {#if x.running}
+                    {#if !inSplit.has(x.id)}<div class="term-note">{liveNote(x.id)}</div>{/if}
+                  {:else}
+                    <div class="term-note exit-row">
+                      <span class="grow">
+                        {x.exitCode === null ? t("terminal.exitedNoCode", { shell: x.shellLabel }) : t("terminal.exitedCode", { shell: x.shellLabel, code: x.exitCode })}
+                      </span>
+                      <button class="btn primary sm" type="button" disabled={restarting === x.id} onclick={() => restartShell(x)}>
+                        <ArrowClockwise size={14} aria-hidden="true" />{restarting === x.id ? t("terminal.restarting") : t("terminal.restart")}
+                      </button>
+                      <button class="btn secondary sm" type="button" onclick={() => closeShell(x)}>
+                        <X size={14} aria-hidden="true" />{t("shell.close")}
+                      </button>
+                    </div>
+                  {/if}
+                </section>
+              {/if}
             {/each}
             {#if viewer}
               <section class="pane" id="session-viewer" hidden={shownTab !== "viewer"}>
@@ -778,6 +965,7 @@
       </aside>
     </div>
   {/if}
+  {#if drag}<div class="drag-ghost" style:left="{drag.x}px" style:top="{drag.y}px" aria-hidden="true">{drag.name}</div>{/if}
 </main>
 
 <Dialog bind:open={newShellOpen} labelledby="nt-title">
@@ -871,37 +1059,131 @@
     min-height: 0;
     overflow: hidden;
   }
-  /* The line before a split terminal, with a 7 px grip over that terminal's padding. term-dim at 60% keeps the line
-     at 3:1 on term-bg in both themes, as a control's edge needs. */
+  /* The 1 px line between split terminals, with a 9 px grip over both sides of it. term-dim at 60% keeps the line at
+     3:1 on term-bg in both themes, as a control's edge needs. */
   .pane-border {
-    position: absolute;
-    z-index: 1;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    width: 7px;
-    border-left: 1px solid color-mix(in srgb, var(--term-dim) 60%, transparent);
+    position: relative;
+    z-index: 2;
+    flex: none;
+    width: 1px;
+    background: color-mix(in srgb, var(--term-dim) 60%, transparent);
     cursor: col-resize;
     touch-action: none;
-    transition: border-color 0.12s ease-out;
+    transition: background-color 0.12s ease-out;
   }
-  .stacked .pane-border {
-    right: 0;
-    bottom: auto;
+  .pane-border::before {
+    content: "";
+    position: absolute;
+    inset: 0 -4px;
+  }
+  .stacked > .pane-border {
     width: auto;
-    height: 7px;
-    border-left: 0;
-    border-top: 1px solid color-mix(in srgb, var(--term-dim) 60%, transparent);
+    height: 1px;
     cursor: row-resize;
+  }
+  .stacked > .pane-border::before {
+    inset: -4px 0;
   }
   .pane-border:hover,
   .pane-border:active {
-    border-color: var(--term-dim);
+    background: var(--term-dim);
   }
   .pane-border:focus-visible {
     outline: 2px solid var(--term-green);
-    outline-offset: -2px;
+    outline-offset: 1px;
     border-radius: 0;
+  }
+  /* While a border or a terminal is dragged, its cursor holds over everything it passes, and nothing gets selected. */
+  :global(html[data-pane-drag]),
+  :global(html[data-pane-drag] *) {
+    user-select: none;
+  }
+  :global(html[data-pane-drag="col-resize"] *) {
+    cursor: col-resize !important;
+  }
+  :global(html[data-pane-drag="row-resize"] *) {
+    cursor: row-resize !important;
+  }
+  :global(html[data-pane-drag="grabbing"] *) {
+    cursor: grabbing !important;
+  }
+  /* Where a dragged terminal would land: half of a terminal, lit in the cursor's green. */
+  .drop-zone {
+    position: absolute;
+    z-index: 3;
+    pointer-events: none;
+    background: color-mix(in srgb, var(--term-green) 16%, transparent);
+    border: 2px solid var(--term-green);
+  }
+  .drop-zone.left,
+  .drop-zone.right {
+    top: 0;
+    bottom: 0;
+    width: 50%;
+  }
+  .drop-zone.top,
+  .drop-zone.bottom {
+    left: 0;
+    right: 0;
+    height: 50%;
+  }
+  .drop-zone.left,
+  .drop-zone.top {
+    left: 0;
+    top: 0;
+  }
+  .drop-zone.right {
+    right: 0;
+  }
+  .drop-zone.bottom {
+    bottom: 0;
+  }
+  /* Between tabs: a bar on the edge it would land at. On a tab: a dashed ring, to join it. */
+  .tab {
+    position: relative;
+  }
+  .tab.drop-before::before,
+  .tab.drop-after::after {
+    content: "";
+    position: absolute;
+    top: 4px;
+    bottom: 0;
+    width: 3px;
+    border-radius: 2px;
+    background: var(--forest);
+  }
+  .tab.drop-before::before {
+    left: -4px;
+  }
+  .tab.drop-after::after {
+    right: -4px;
+  }
+  .tab.drop-join {
+    outline: 2px dashed var(--forest);
+    outline-offset: -2px;
+  }
+  .tab.current.drop-join {
+    outline-color: var(--term-green);
+  }
+  /* The dragged terminal's name follows the pointer, lifted above the page. */
+  .drag-ghost {
+    position: fixed;
+    z-index: 60;
+    max-width: 280px;
+    padding: 6px 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+    transform: translate(12px, 12px);
+    border-radius: var(--r-btn);
+    background: var(--glass-pop);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    box-shadow: var(--glass-rim), var(--shadow-modal);
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 600;
   }
   /* Names each terminal of a split tab. The one taking the keys is lit, underlined in the cursor's green. */
   .pane-head {
@@ -918,7 +1200,27 @@
     color: var(--term-text);
     box-shadow: inset 0 -2px 0 var(--term-green);
   }
-  .pane-head b {
+  /* The terminal's name is its handle: drag it to move the terminal, or click it for the same moves as a menu. */
+  .pane-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    min-height: 28px;
+    margin-left: -6px;
+    padding: 2px 6px;
+    border: 0;
+    border-radius: var(--r-btn);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: grab;
+  }
+  .pane-name:hover {
+    background: #ffffff1a;
+    color: var(--term-text);
+  }
+  .pane-name b {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -926,10 +1228,13 @@
     font-size: 13px;
     font-weight: 600;
   }
-  .pane-head small {
+  .pane-name small {
     flex-shrink: 0;
     font-size: 12px;
     color: var(--term-dim);
+  }
+  .pane-name :global(svg) {
+    flex-shrink: 0;
   }
   .pane-close {
     width: 28px;

@@ -8,6 +8,11 @@ export const MAX_PANES = 4;
 export type PaneDir = "row" | "column";
 /** A tab's terminals in order; the first one names the tab. `sizes` are their shares of the tab, adding up to 1. */
 export type PaneTab = { panes: string[]; dir: PaneDir; sizes: number[] };
+/** Where a moved terminal lands: in a tab of its own before tab `at`, at the end of the tab holding `tab`, or beside `pane`. */
+export type PaneDrop =
+  | { kind: "tab"; at: number }
+  | { kind: "join"; tab: string }
+  | { kind: "beside"; pane: string; after: boolean; dir: PaneDir };
 
 // Per session, for as long as the window is open: shells live that long too, and going to another screen and back
 // finds them split as they were.
@@ -80,6 +85,57 @@ export class PaneLayout {
         return { ...t, sizes };
       }),
     );
+  }
+
+  /** Moves the tab holding `pane`, with all its terminals, to before tab `at`; the tab count puts it last. */
+  moveTab(pane: string, at: number) {
+    const tabs = [...this.tabs];
+    const from = tabs.findIndex((t) => t.panes.includes(pane));
+    if (from < 0) return;
+    const [tab] = tabs.splice(from, 1);
+    tabs.splice(from < at ? at - 1 : at, 0, tab);
+    this.#save(tabs);
+  }
+
+  /** A full tab takes no terminal from another tab, and a terminal cannot land beside itself or join its own tab. */
+  canMove(pane: string, to: PaneDrop): boolean {
+    const from = this.tabOf(pane);
+    if (!from) return false;
+    if (to.kind === "tab") return true;
+    const into = this.tabOf(to.kind === "join" ? to.tab : to.pane);
+    if (!into || (to.kind === "beside" && to.pane === pane)) return false;
+    if (into.panes[0] === from.panes[0]) return to.kind === "beside";
+    return into.panes.length < MAX_PANES;
+  }
+
+  /**
+   * Takes `pane` out of its tab and puts it at `to`; a tab left empty goes away. In its own tab it keeps its share;
+   * in another it gets an equal one. Beside the only terminal of a tab, `to.dir` sets how that tab is split.
+   */
+  move(pane: string, to: PaneDrop) {
+    if (!this.canMove(pane, to)) return;
+    const tabs = this.tabs;
+    const src = tabs.findIndex((t) => t.panes.includes(pane));
+    const own = tabs[src];
+    const at = own.panes.indexOf(pane);
+    // The emptied tab stays in place until the end, so `to.at` still counts the tabs as they were.
+    const next = tabs.map((t, i) => (i === src ? { ...t, panes: t.panes.filter((p) => p !== pane), sizes: t.sizes.filter((_, j) => j !== at) } : t));
+    if (to.kind === "tab") next.splice(to.at, 0, { panes: [pane], dir: "row", sizes: [1] });
+    else {
+      const ti = next.findIndex((t) => t.panes.includes(to.kind === "join" ? to.tab : to.pane));
+      const t = next[ti];
+      const index = to.kind === "join" ? t.panes.length : t.panes.indexOf(to.pane) + (to.after ? 1 : 0);
+      const n = t.panes.length + 1;
+      const size = ti === src ? own.sizes[at] : 1 / n;
+      const rest = ti === src ? 1 : (1 - size) / t.sizes.reduce((a, b) => a + b, 0);
+      const sizes = t.sizes.map((x) => x * rest);
+      next[ti] = {
+        panes: [...t.panes.slice(0, index), pane, ...t.panes.slice(index)],
+        dir: to.kind === "beside" && t.panes.length === 1 ? to.dir : t.dir,
+        sizes: [...sizes.slice(0, index), size, ...sizes.slice(index)],
+      };
+    }
+    this.#save(next.filter((t) => t.panes.length > 0));
   }
 
   #save(next: PaneTab[]) {
