@@ -436,6 +436,8 @@ def main():
         app.click_button("Start OpenCode in e2e-project")
         app.wait_text("done: notify me", 30)
         target = app.js("return location.search")
+        # All sessions is linked from Overview only.
+        app.nav("/")
         app.nav("/history")
         app.wait(lambda: dunst("count", "displayed") not in ("", "0"), 15, "notification on screen")
         dunst("action", "0")
