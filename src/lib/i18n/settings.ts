@@ -123,7 +123,7 @@ export const en = {
 
   "settings.notify.title": "Notifications",
   "settings.notify.waiting": "A session is waiting for you",
-  "settings.notify.done": "A session is done",
+  "settings.notify.done": "A session finished working",
   "settings.notify.error": "A session stopped with an error",
   "settings.notify.byCli": "By CLI",
   "settings.notify.cli": "CLI",
@@ -140,7 +140,7 @@ export const en = {
   "settings.notify.browseLabel": "Browse for a notification folder",
   "settings.notify.dialogTitle": "Choose a project folder",
   "settings.notify.footer":
-    "A notification goes out only when the switch above, its CLI and its folder all allow it. The phone follows the same rules.",
+    "A notification goes out only when the switch above, its CLI and its folder all allow it. The phone follows the same rules. A terminal session counts as finished when its CLI goes quiet after you press Enter. The session you have open does not tell you it finished while this window is in front.",
   "settings.notify.added": "Added {folder}. Turn off what it should not send.",
   "settings.notify.removed": "{folder} sends every notification again.",
 
@@ -319,7 +319,7 @@ export const id: Record<keyof typeof en, string> = {
 
   "settings.notify.title": "Notifikasi",
   "settings.notify.waiting": "Sesi menunggu Anda",
-  "settings.notify.done": "Sesi selesai",
+  "settings.notify.done": "Sesi selesai bekerja",
   "settings.notify.error": "Sesi berhenti karena error",
   "settings.notify.byCli": "Per CLI",
   "settings.notify.cli": "CLI",
@@ -336,7 +336,7 @@ export const id: Record<keyof typeof en, string> = {
   "settings.notify.browseLabel": "Telusuri folder untuk notifikasi",
   "settings.notify.dialogTitle": "Pilih folder project",
   "settings.notify.footer":
-    "Notifikasi hanya dikirim jika pilihan di atas, CLI-nya, dan foldernya sama-sama mengizinkan. HP mengikuti aturan yang sama.",
+    "Notifikasi hanya dikirim jika pilihan di atas, CLI-nya, dan foldernya sama-sama mengizinkan. HP mengikuti aturan yang sama. Sesi terminal dianggap selesai saat CLI-nya diam setelah Anda menekan Enter. Sesi yang sedang Anda buka tidak memberi tahu bahwa ia selesai selama jendela ini aktif.",
   "settings.notify.added": "{folder} ditambahkan. Matikan yang tidak perlu dikirim.",
   "settings.notify.removed": "{folder} kembali mengirim semua notifikasi.",
 

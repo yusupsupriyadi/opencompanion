@@ -98,6 +98,9 @@ impl Emit for TauriEmit {
             c.broadcast(json!({ "type": "notify", "title": title, "body": body, "sessionId": session_id }));
         }
     }
+    fn window_focused(&self) -> bool {
+        self.app.get_webview_window("main").and_then(|w| w.is_focused().ok()).unwrap_or(false)
+    }
 }
 
 /// Forwards terminal output and state to the webview only: terminals never reach the phone.
@@ -445,6 +448,12 @@ async fn send_input(state: State<'_, AppState>, id: String, text: String) -> Res
 #[tauri::command]
 fn resize_session(state: State<'_, AppState>, id: String, cols: u16, rows: u16) -> Res<()> {
     state.manager.resize(&id, cols, rows)
+}
+
+/// The session page opened (`on`) or closed, so a session on screen does not notify that it finished.
+#[tauri::command]
+fn set_viewing(state: State<'_, AppState>, id: String, on: bool) {
+    state.manager.set_viewing(&id, on);
 }
 
 #[tauri::command]
@@ -1021,6 +1030,7 @@ pub fn run() {
             start_session,
             send_input,
             resize_session,
+            set_viewing,
             stop_session,
             mark_session_done,
             answer_session,

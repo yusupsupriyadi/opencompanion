@@ -30,6 +30,10 @@ pub trait Emit: Send + Sync {
     fn output(&self, id: &str, data: &str, seq: u64);
     fn event(&self, row: &EventRow);
     fn notify(&self, title: &str, body: &str, session_id: &str);
+    /// The desktop window is in front, so the session it shows needs no notification that it finished.
+    fn window_focused(&self) -> bool {
+        false
+    }
     /// A chat thread changed from the phone, so an open Chat screen reloads it.
     fn chat_changed(&self, _thread_id: &str) {}
     /// Settings changed from the phone (the planner's model), so the desktop reloads them.
@@ -93,6 +97,9 @@ struct Live {
     /// Claude Code's Stop hook said the turn is over. Terminal redraws do not make it Running
     /// again; the next hook report does.
     hook_idle: AtomicBool,
+    /// Enter reached the CLI, or it started with a prompt, and the end of that turn has not been
+    /// told yet. The CLI going quiet or its Stop hook ends it with a notification.
+    turn_open: AtomicBool,
     /// The process list last saw an AI CLI in this session's own terminal. Until it is read the
     /// CLI is taken to be there, so the terminal's screen and output are followed.
     own_cli: AtomicBool,
@@ -113,6 +120,8 @@ pub struct Manager {
     /// Sessions a Resume or follow-up is starting right now, so a second press from the phone
     /// or the desktop cannot start a second process.
     spawning: Mutex<HashSet<String>>,
+    /// The session whose page the desktop window shows.
+    viewing: Mutex<Option<String>>,
 }
 
 /// Holds a session's place in `Manager::spawning` until the spawn is over.
@@ -270,6 +279,7 @@ impl Manager {
             data_dir,
             live: Mutex::new(HashMap::new()),
             spawning: Mutex::new(HashSet::new()),
+            viewing: Mutex::new(None),
         })
     }
 
@@ -296,6 +306,23 @@ impl Manager {
     /// An OS notification about no session, such as an automation that did not start.
     pub fn notify(&self, title: &str, body: &str) {
         self.emit.notify(title, body, "");
+    }
+
+    /// The desktop window opened `id`'s session page (`on`) or left it. Leaving another page
+    /// keeps the one now shown.
+    pub fn set_viewing(&self, id: &str, on: bool) {
+        if let Ok(mut viewing) = self.viewing.lock() {
+            if on {
+                *viewing = Some(id.to_string());
+            } else if viewing.as_deref() == Some(id) {
+                *viewing = None;
+            }
+        }
+    }
+
+    /// You are looking at the session: the window is in front, on its page.
+    fn in_view(&self, id: &str) -> bool {
+        self.viewing.lock().is_ok_and(|v| v.as_deref() == Some(id)) && self.emit.window_focused()
     }
 
     /// This app and the CLIs it runs now. A finished session's PID is left out: Windows hands
@@ -527,6 +554,7 @@ impl Manager {
             pending_input: Mutex::new(None),
             hook_file,
             hook_idle: AtomicBool::new(false),
+            turn_open: AtomicBool::new(false),
             own_cli: AtomicBool::new(true),
             cli_seen: AtomicBool::new(false),
             cli_misses: AtomicU64::new(0),
@@ -560,13 +588,23 @@ impl Manager {
             (before, info.clone())
         };
         if before != after.status {
-            self.on_status_change(before, &after, live.stop_requested.load(Ordering::SeqCst));
+            self.on_status_change(before, &after, live);
         }
         after
     }
 
-    /// `by_you` is set when Stop or Done ended the session, which needs no notification.
-    fn on_status_change(&self, before: Status, info: &SessionInfo, by_you: bool) {
+    fn on_status_change(&self, before: Status, info: &SessionInfo, live: &Live) {
+        // Stop or Done ended the session, which needs no notification.
+        let by_you = live.stop_requested.load(Ordering::SeqCst);
+        if info.status == Status::Shell {
+            live.turn_open.store(false, Ordering::SeqCst);
+        }
+        let finished = match info.status {
+            Status::Done => !by_you && before != Status::Done,
+            // Quiet after you pressed Enter, or Claude Code's Stop hook: the turn is over.
+            Status::Idle => live.turn_open.swap(false, Ordering::SeqCst),
+            _ => false,
+        };
         let settings = self.db.settings().unwrap_or_default();
         let place = folder_name(&info.cwd);
         let who = info.cli.label();
@@ -583,7 +621,7 @@ impl Manager {
                 };
                 self.emit.notify(&what, &format!("{place} · {}", info.title), &info.id);
             }
-            Status::Done if !by_you && settings.notifies(Notice::Done, info.cli, &info.cwd) && before != Status::Done => {
+            Status::Done | Status::Idle if finished && settings.notifies(Notice::Done, info.cli, &info.cwd) && !self.in_view(&info.id) => {
                 self.emit.notify(&say(format!("{who} finished"), format!("{who} selesai")), &format!("{place} · {}", info.title), &info.id);
             }
             Status::Error if settings.notifies(Notice::Error, info.cli, &info.cwd) => {
@@ -716,6 +754,7 @@ impl Manager {
         live.own_cli.store(true, Ordering::SeqCst);
         live.cli_seen.store(false, Ordering::SeqCst);
         live.cli_misses.store(0, Ordering::SeqCst);
+        live.turn_open.store(!prompt.trim().is_empty(), Ordering::SeqCst);
         if let Ok(mut t) = live.spawned_at.lock() {
             *t = Instant::now();
         }
@@ -1167,6 +1206,8 @@ impl Manager {
             match &mut *runner {
                 Runner::Pty(p) => {
                     p.write(text.as_bytes())?;
+                    drop(runner);
+                    self.typed(&live, text);
                     return Ok(info);
                 }
                 Runner::Headless(h) if info.cli.runs_claude_code() => {
@@ -1181,6 +1222,16 @@ impl Manager {
             }
         }
         self.follow_up(id, text)
+    }
+
+    /// Enter sent to the CLI starts a turn, so its end is worth a notification. Keys typed at the
+    /// shell prompt start none, and Enter on a question the CLI asked answers it inside the turn
+    /// already open, if any.
+    fn typed(&self, live: &Live, text: &str) {
+        let status = self.info(live).status;
+        if text.contains(['\r', '\n']) && live.own_cli.load(Ordering::SeqCst) && status.runs_cli() && status != Status::Waiting {
+            live.turn_open.store(true, Ordering::SeqCst);
+        }
     }
 
     /// A message for the session as a person would send it: typed into a terminal and then
@@ -1576,6 +1627,105 @@ mod tests {
         fn output(&self, _: &str, _: &str, _: u64) {}
         fn event(&self, _: &EventRow) {}
         fn notify(&self, _: &str, _: &str, _: &str) {}
+    }
+
+    /// Keeps each notification's title and session, behind a window that is in front or not.
+    #[derive(Default)]
+    struct Notes {
+        sent: Mutex<Vec<(String, String)>>,
+        focused: AtomicBool,
+    }
+    impl Emit for Notes {
+        fn session(&self, _: &SessionInfo) {}
+        fn output(&self, _: &str, _: &str, _: u64) {}
+        fn event(&self, _: &EventRow) {}
+        fn notify(&self, title: &str, _: &str, session_id: &str) {
+            self.sent.lock().unwrap().push((title.to_string(), session_id.to_string()));
+        }
+        fn window_focused(&self) -> bool {
+            self.focused.load(Ordering::SeqCst)
+        }
+    }
+
+    fn noted_manager(name: &str) -> (PathBuf, Arc<Notes>, Arc<Manager>) {
+        let dir = std::env::temp_dir().join(format!("air-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let notes = Arc::new(Notes::default());
+        let m = Manager::new(Arc::new(Db::open_in_memory().unwrap()), Arc::clone(&notes) as Arc<dyn Emit>, dir.clone());
+        (dir, notes, m)
+    }
+
+    fn sent_to(notes: &Notes) -> Vec<String> {
+        notes.sent.lock().unwrap().iter().map(|(_, id)| id.clone()).collect()
+    }
+
+    #[test]
+    fn a_cli_that_goes_quiet_after_you_press_enter_says_once_that_it_finished() {
+        let (dir, notes, m) = noted_manager("turn");
+        let live = m.register(stored("s", Status::Running), false);
+        // Keys without Enter are typing, not a turn.
+        m.typed(&live, "fix the");
+        m.update(&live, |i| i.status = Status::Idle);
+        assert!(sent_to(&notes).is_empty());
+
+        m.update(&live, |i| i.status = Status::Running);
+        m.typed(&live, " tests\r");
+        m.update(&live, |i| i.status = Status::Idle);
+        // A redraw wakes it and it goes quiet again: that turn was already told.
+        m.update(&live, |i| i.status = Status::Running);
+        m.update(&live, |i| i.status = Status::Idle);
+        assert_eq!(*notes.sent.lock().unwrap(), vec![("Claude Code finished".to_string(), "s".to_string())]);
+
+        // Enter at the shell prompt starts no turn, and going back to the shell ends the open one.
+        m.update(&live, |i| i.status = Status::Shell);
+        m.typed(&live, "claude\r");
+        m.update(&live, |i| i.status = Status::Running);
+        m.typed(&live, "\r");
+        m.update(&live, |i| i.status = Status::Shell);
+        m.update(&live, |i| i.status = Status::Running);
+        m.update(&live, |i| i.status = Status::Idle);
+        assert_eq!(sent_to(&notes), ["s"]);
+
+        // Enter on a question the CLI asked at start, such as trusting the folder, answers it:
+        // only the question itself notified.
+        m.update(&live, |i| i.status = Status::Waiting);
+        m.typed(&live, "\r");
+        m.update(&live, |i| i.status = Status::Running);
+        m.update(&live, |i| i.status = Status::Idle);
+        let titles: Vec<String> = notes.sent.lock().unwrap().iter().map(|(t, _)| t.clone()).collect();
+        assert_eq!(titles, ["Claude Code finished", "Claude Code is waiting for you"]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_session_you_are_looking_at_does_not_say_it_finished() {
+        let (dir, notes, m) = noted_manager("in-view");
+        let a = m.register(stored("a", Status::Running), false);
+        let b = m.register(stored("b", Status::Running), false);
+        m.set_viewing("a", true);
+        notes.focused.store(true, Ordering::SeqCst);
+        m.typed(&a, "\r");
+        m.typed(&b, "\r");
+        m.apply_hook(&a, r#"{"hook_event_name":"Stop"}"#);
+        m.apply_hook(&b, r#"{"hook_event_name":"Stop"}"#);
+        assert_eq!(sent_to(&notes), ["b"]);
+
+        // With the window behind another one, the open session tells you too.
+        notes.focused.store(false, Ordering::SeqCst);
+        m.update(&a, |i| i.status = Status::Running);
+        m.typed(&a, "\r");
+        m.apply_hook(&a, r#"{"hook_event_name":"Stop"}"#);
+        assert_eq!(sent_to(&notes), ["b", "a"]);
+
+        // Leaving another session's page keeps this one on screen; leaving its own does not.
+        notes.focused.store(true, Ordering::SeqCst);
+        m.set_viewing("b", false);
+        m.finish(&a, Status::Done, Some(0), None);
+        assert_eq!(sent_to(&notes), ["b", "a"]);
+        m.set_viewing("a", false);
+        m.finish(&b, Status::Done, Some(0), None);
+        assert_eq!(sent_to(&notes), ["b", "a", "b"]);
+        let _ = fs::remove_dir_all(&dir);
     }
 
     fn stored(id: &str, status: Status) -> SessionInfo {

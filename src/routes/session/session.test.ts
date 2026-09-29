@@ -34,6 +34,20 @@ test("a running session shows the CPU and memory of its CLI and what it started"
   expect(calls.calls("session_usage")[0]).toEqual({ id: "s1" });
 });
 
+test("the page tells the app which session is on screen, and when it leaves", async () => {
+  const s = session({ status: "running" });
+  app.sessions = [s];
+  const calls = backend({ get_session: () => ({ session: s, events: [], output: "" }) });
+  const { unmount } = render(SessionPage);
+
+  await vi.waitFor(() => expect(calls.calls("set_viewing")).toEqual([{ id: "s1", on: true }]));
+  unmount();
+  expect(calls.calls("set_viewing")).toEqual([
+    { id: "s1", on: true },
+    { id: "s1", on: false },
+  ]);
+});
+
 test("a finished session is not measured", async () => {
   const s = session({ status: "done", endedAt: Date.now() });
   app.sessions = [s];

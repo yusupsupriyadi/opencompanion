@@ -666,6 +666,14 @@
     load(id);
   });
 
+  // The session on screen does not notify that it finished while the window is in front.
+  $effect(() => {
+    const shown = id;
+    if (!shown) return;
+    api.setViewing(shown, true).catch(() => undefined);
+    return () => void api.setViewing(shown, false).catch(() => undefined);
+  });
+
   onMount(() => {
     const un = listen<EventRow>("session-event", (e) => {
       if (e.payload.sessionId === id && !events.some((x) => x.id === e.payload.id)) {

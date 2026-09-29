@@ -533,6 +533,8 @@ export const api = {
   startSession: (req: StartRequest) => invoke<SessionInfo>("start_session", { req }),
   sendInput: (id: string, text: string) => invoke<SessionInfo>("send_input", { id, text }),
   resizeSession: (id: string, cols: number, rows: number) => invoke<void>("resize_session", { id, cols, rows }),
+  /** The session page opened (`on`) or closed, so a session on screen does not notify that it finished. */
+  setViewing: (id: string, on: boolean) => invoke<void>("set_viewing", { id, on }),
   stopSession: (id: string) => invoke<void>("stop_session", { id }),
   /** Closes the CLI like Stop, but the session ends Done. */
   markSessionDone: (id: string) => invoke<void>("mark_session_done", { id }),
