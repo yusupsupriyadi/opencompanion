@@ -86,7 +86,10 @@ test("a terminal session has no header buttons: its shell starts the CLI again, 
     expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
   }
   expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).not.toBeInTheDocument();
-  expect(document.querySelector("#session-term .term-note")).toHaveTextContent("When Claude Code exits, type claude to start it again, or exit to close the terminal.");
+  // No note under a running terminal; its keys are read to screen readers only.
+  expect(document.querySelector("#session-term .term-note")).toBeNull();
+  expect(document.getElementById("session-term-keys")).toHaveClass("sr-only");
+  expect(document.getElementById("session-term-keys")).toHaveTextContent("When Claude Code exits, type claude to start it again, or exit to close the terminal.");
   unmount();
 
   app.sessions = [{ ...s, status: "done", endedAt: Date.now() }];

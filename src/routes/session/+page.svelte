@@ -464,12 +464,12 @@
   }
   const notedPane = $derived(shown && split ? (shown.panes.includes(focusedPane) ? focusedPane : shown.panes[0]) : "");
 
-  /** The note under a running terminal; a closed one has its own row instead. */
+  /**
+   * The note under a running shell; a closed one has its own row instead. The session's own terminal shows none (the
+   * owner's call, 2026-09-30): its keys are only read to screen readers.
+   */
   function liveNote(p: string): string {
-    if (p === TERM) {
-      if (!s || s.mode !== "interactive" || !live) return "";
-      return t("sessions.detail.terminalLive", { paste: pasteKey(), cli: CLI_LABEL[s.cli], command: s.cli });
-    }
+    if (p === TERM) return "";
     return shells.list.find((x) => x.id === p)?.running ? t("terminal.live", { paste: pasteKey() }) : "";
   }
 
@@ -865,7 +865,7 @@
                       />
                     {/key}
                     {#if live}
-                      {#if !inSplit.has(TERM)}<div class="term-note">{liveNote(TERM)}</div>{/if}
+                      <p class="sr-only" id="session-term-keys">{t("sessions.detail.terminalLive", { paste: pasteKey(), cli: CLI_LABEL[s.cli], command: s.cli })}</p>
                     {:else}
                       <div class="term-note" role="status">
                         {reopening ? t("sessions.detail.reopening", { cli: CLI_LABEL[s.cli] }) : t("sessions.detail.terminalClosed", { cli: CLI_LABEL[s.cli] })}
