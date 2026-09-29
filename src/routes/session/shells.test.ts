@@ -245,14 +245,17 @@ test("the border between split terminals moves with the arrow keys along it, and
   expect(stack).toHaveAttribute("aria-pressed", "false");
   await user.click(stack);
   expect(stack).toHaveAttribute("aria-pressed", "true");
-  expect(document.querySelector(".panes")).toHaveClass("stacked");
+  const shell = document.getElementById("shell-panel-sp-b-t1")!;
+  expect(shell.style.top).toBe("10%");
+  expect(shell.style.left).toBe("0%");
   expect(border).toHaveAttribute("aria-orientation", "horizontal");
   border.focus();
   await user.keyboard("{ArrowDown}");
   expect(border).toHaveAttribute("aria-valuenow", "15");
   await user.click(stack);
   expect(stack).toHaveAttribute("aria-pressed", "false");
-  expect(document.querySelector(".panes")).not.toHaveClass("stacked");
+  expect(shell.style.left).toBe("15%");
+  expect(shell.style.top).toBe("0%");
 });
 
 test("closing a split terminal from its header gives the tab back to the session's own terminal", async () => {
@@ -342,7 +345,7 @@ test("a tab's right-click menu moves it along the tabs, or splits a lone termina
   expect(paneOrder()).toEqual(["session-term", "shell-panel-mv-a-a"]);
 });
 
-test("a split terminal moves along its tab and out to a tab of its own from its header", async () => {
+test("a split terminal swaps, docks along an edge and moves out to a tab of its own from its header", async () => {
   const user = userEvent.setup();
   splitBackend("mv-b");
   render(SessionPage);
@@ -353,10 +356,22 @@ test("a split terminal moves along its tab and out to a tab of its own from its 
   const name = await screen.findByRole("button", { name: "PowerShell" });
   expect(name).toHaveAttribute("aria-haspopup", "menu");
   await user.click(name);
-  expect(screen.getByRole("menuitem", { name: "Move right" })).toHaveAttribute("aria-disabled", "true");
-  await user.click(screen.getByRole("menuitem", { name: "Move left" }));
+  expect(screen.getAllByRole("menuitem").map((m) => m.textContent?.trim())).toEqual([
+    "Swap with Claude Code",
+    "Move to the left edge",
+    "Move to the right edge",
+    "Move to the top edge",
+    "Move to the bottom edge",
+    "Move to a new tab",
+  ]);
+  await user.click(screen.getByRole("menuitem", { name: "Swap with Claude Code" }));
   expect(paneOrder()).toEqual(["shell-panel-mv-b-t1", "session-term"]);
   expect(screen.getByRole("button", { name: /^PowerShell\s*with 1 more terminal$/ })).toHaveAttribute("aria-current", "true");
+
+  await user.click(screen.getByRole("button", { name: "PowerShell" }));
+  await user.click(screen.getByRole("menuitem", { name: "Move to the bottom edge" }));
+  expect(paneOrder()).toEqual(["session-term", "shell-panel-mv-b-t1"]);
+  expect(screen.getByRole("separator")).toHaveAttribute("aria-orientation", "horizontal");
 
   await user.click(screen.getByRole("button", { name: "PowerShell" }));
   await user.click(screen.getByRole("menuitem", { name: "Move to a new tab" }));
@@ -444,4 +459,30 @@ test("the border between split terminals follows the pointer, and Escape puts it
   expect(border).toHaveAttribute("aria-valuenow", "12");
   await fireEvent.pointerMove(window, { clientX: 900, clientY: 300 });
   expect(border).toHaveAttribute("aria-valuenow", "12");
+});
+
+test("terminals dropped on different sides nest splits: one beside, then one under it", async () => {
+  splitBackend("mv-f", {
+    terminal_list: () => [term({ id: "mv-f-a", sessionId: "mv-f" }), term({ id: "mv-f-b", sessionId: "mv-f", shell: "cmd", shellLabel: "Command Prompt" })],
+  });
+  render(SessionPage);
+  const ps = await screen.findByRole("button", { name: "PowerShell" });
+  const box = { left: 0, top: 0, width: 400, height: 400, right: 400, bottom: 400, x: 0, y: 0, toJSON: () => ({}) };
+  const own = document.getElementById("session-term")!;
+  own.getBoundingClientRect = () => box;
+  await dragTo(ps, own, 380, 200);
+  await fireEvent.pointerUp(window, { clientX: 380, clientY: 200 });
+
+  const a = document.getElementById("shell-panel-mv-f-a")!;
+  a.getBoundingClientRect = () => box;
+  await dragTo(screen.getByRole("button", { name: "Command Prompt" }), a, 200, 390);
+  expect(a.querySelector(".drop-zone")).toHaveClass("bottom");
+  await fireEvent.pointerUp(window, { clientX: 200, clientY: 390 });
+
+  expect(tabNames()).toEqual(["Claude Code"]);
+  expect(paneOrder()).toEqual(["session-term", "shell-panel-mv-f-a", "shell-panel-mv-f-b"]);
+  const b = document.getElementById("shell-panel-mv-f-b")!;
+  expect([b.style.left, b.style.top, b.style.width, b.style.height]).toEqual(["50%", "50%", "50%", "50%"]);
+  expect(screen.getAllByRole("separator").map((s) => s.getAttribute("aria-orientation"))).toEqual(["vertical", "horizontal"]);
+  expect(screen.getByRole("separator", { name: "Resize PowerShell and Command Prompt" })).toBeInTheDocument();
 });

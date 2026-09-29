@@ -5,6 +5,7 @@
   import ArrowDown from "phosphor-svelte/lib/ArrowDown";
   import ArrowLeft from "phosphor-svelte/lib/ArrowLeft";
   import ArrowRight from "phosphor-svelte/lib/ArrowRight";
+  import ArrowsLeftRight from "phosphor-svelte/lib/ArrowsLeftRight";
   import ArrowUp from "phosphor-svelte/lib/ArrowUp";
   import CaretDown from "phosphor-svelte/lib/CaretDown";
   import Files from "phosphor-svelte/lib/Files";
@@ -35,7 +36,7 @@
   import Timeline from "$lib/Timeline.svelte";
   import { CLI_LABEL, SIGNAL_TEXT, clock, duration, folderName, isLive, memory, modeLabel, runsCli, shortPath } from "$lib/format";
   import { plural, t, tb, type Key } from "$lib/i18n.svelte";
-  import { MAX_PANES, PaneLayout, TERM, type PaneDir, type PaneDrop, type PaneTab } from "$lib/panes.svelte";
+  import { MAX_PANES, PaneLayout, TERM, borders, rects, type PaneBorder, type PaneDir, type PaneDrop, type PaneRect, type PaneSide, type PaneTab } from "$lib/panes.svelte";
   import { pasteKey } from "$lib/platform";
   import { SessionShells } from "$lib/shells.svelte";
   import { app, showToast } from "$lib/store.svelte";
@@ -157,6 +158,19 @@
   const split = $derived((shown?.panes.length ?? 0) > 1);
   const inSplit = $derived(new Set(layout.tabs.filter((x) => x.panes.length > 1).flatMap((x) => x.panes)));
   const canSplit = $derived(shells.state === "ready" && shown !== null && shown.panes.length < MAX_PANES);
+  // The way the shown tab's outer split runs; Split adds a terminal that way.
+  const shownDir: PaneDir = $derived(shown?.root.kind === "split" ? shown.root.dir : "row");
+  // Each terminal's place in the shown tab, and the borders between them, each after the terminals before it.
+  const places = $derived(shown ? rects(shown.root) : new Map<string, PaneRect>());
+  const bordersAfter = $derived.by(() => {
+    const out = new Map<string, PaneBorder[]>();
+    for (const b of shown ? borders(shown.root) : []) {
+      const last = b.before[b.before.length - 1];
+      out.set(last, [...(out.get(last) ?? []), b]);
+    }
+    return out;
+  });
+  const pct = (n: number) => `${+(n * 100).toFixed(4)}%`;
   let newShellOpen = $state(false);
   // The tab a New terminal dialog opened from Split puts its shell in.
   let splitInto = $state<string | null>(null);
@@ -166,7 +180,6 @@
   const paneName = (p: string) => (p === TERM ? (s ? CLI_LABEL[s.cli] : "") : (shells.names.get(p) ?? ""));
   const panelId = (p: string) => (p === TERM ? "session-term" : `shell-panel-${p}`);
   const tabButtonId = (p: string) => (p === TERM ? "view-tab-term" : `shell-tab-${p}`);
-  const grow = (p: string) => (shown ? (shown.sizes[shown.panes.indexOf(p)] ?? 1) : 1);
 
   function newShell(into: string | null) {
     splitInto = into;
@@ -199,21 +212,28 @@
     document.getElementById(tabButtonId(next))?.focus();
   }
 
-  // The border between two split terminals moves with the pointer, or with the arrow keys along it (Home and End go
-  // as far as they can). Neither terminal gets narrower, or lower, than MIN_PANE.
+  // A border between split terminals moves with the pointer, or with the arrow keys along it (Home and End go as far
+  // as they can). No terminal gets narrower, or lower, than MIN_PANE.
   const MIN_PANE = 120;
   const STEP = 0.05;
   let panesBox: HTMLDivElement | undefined = $state();
 
-  function boxLength(tab: PaneTab) {
+  /** The length in pixels of the split a border belongs to, along its direction. */
+  function splitLength(b: PaneBorder) {
     const r = panesBox?.getBoundingClientRect();
-    return r ? (tab.dir === "row" ? r.width : r.height) : 0;
+    return r ? (b.dir === "row" ? r.width * b.box.w : r.height * b.box.h) : 0;
   }
 
-  function borderKeys(e: KeyboardEvent, i: number) {
-    if (!shown) return;
-    const row = shown.dir === "row";
-    const size = shown.sizes[i];
+  /** The share of its split that the part before border `b` has now. */
+  function partSize(b: PaneBorder) {
+    let node = shown?.root;
+    for (const j of b.path) node = node?.kind === "split" ? node.children[j] : node;
+    return node?.kind === "split" ? node.sizes[b.i] : 0;
+  }
+
+  function borderKeys(e: KeyboardEvent, b: PaneBorder) {
+    const row = b.dir === "row";
+    const size = partSize(b);
     const keys: Record<string, number> = {
       [row ? "ArrowLeft" : "ArrowUp"]: size - STEP,
       [row ? "ArrowRight" : "ArrowDown"]: size + STEP,
@@ -222,8 +242,8 @@
     };
     if (!(e.key in keys)) return;
     e.preventDefault();
-    const length = boxLength(shown);
-    layout.resize(shownTab, i, keys[e.key], length > 0 ? MIN_PANE / length : 0.1);
+    const length = splitLength(b);
+    layout.resize(shownTab, b.path, b.i, keys[e.key], length > 0 ? MIN_PANE / length : 0.1);
   }
 
   /**
@@ -255,23 +275,21 @@
     addEventListener("keydown", esc, true);
   }
 
-  function borderDrag(e: PointerEvent, i: number) {
-    if (!shown || e.button !== 0) return;
-    const tab = shown;
+  function borderDrag(e: PointerEvent, b: PaneBorder) {
+    if (e.button !== 0) return;
     const lead = shownTab;
-    const length = boxLength(tab);
+    const length = splitLength(b);
     if (length <= 0) return;
     e.preventDefault();
-    const at = (p: PointerEvent) => (tab.dir === "row" ? p.clientX : p.clientY);
+    const at = (p: PointerEvent) => (b.dir === "row" ? p.clientX : p.clientY);
     const from = at(e);
-    const start = tab.sizes[i];
-    const sizes = tab.sizes;
+    const start = partSize(b);
     follow(
-      tab.dir === "row" ? "col-resize" : "row-resize",
-      (m) => layout.resize(lead, i, start + (at(m) - from) / length, MIN_PANE / length),
+      b.dir === "row" ? "col-resize" : "row-resize",
+      (m) => layout.resize(lead, b.path, b.i, start + (at(m) - from) / length, MIN_PANE / length),
       (u) => {
         // Escape puts the border back where it was.
-        if (!u) layout.resize(lead, i, sizes[i], 0);
+        if (!u) layout.resize(lead, b.path, b.i, start, 0);
       },
     );
   }
@@ -334,20 +352,16 @@
     const r = paneEl.getBoundingClientRect();
     const fx = (x - r.left) / (r.width || 1) - 0.5;
     const fy = (y - r.top) / (r.height || 1) - 0.5;
-    // Beside the only terminal of a tab, the nearer edge picks the direction; a split tab keeps its own.
-    const dir: PaneDir = shown.panes.length > 1 ? shown.dir : Math.abs(fx) >= Math.abs(fy) ? "row" : "column";
-    const to: PaneDrop = { kind: "beside", pane: paneEl.dataset.pane ?? "", after: dir === "row" ? fx > 0 : fy > 0, dir };
+    // The terminal's nearest edge is the side it lands on.
+    const side: PaneSide = Math.abs(fx) >= Math.abs(fy) ? (fx < 0 ? "left" : "right") : fy < 0 ? "top" : "bottom";
+    const to: PaneDrop = { kind: "beside", pane: paneEl.dataset.pane ?? "", side };
     return fits(to) ? to : null;
   }
 
   /** The tab before which a drop puts its terminal: a mark on that tab's left edge, or on the last tab's right one. */
   const dropBefore = $derived(drop?.kind === "tab" ? (layout.tabs[drop.at]?.panes[0] ?? null) : null);
   const dropLast = $derived(drop?.kind === "tab" && drop.at >= layout.tabs.length);
-
-  function dropSide(p: string): string {
-    if (drop?.kind !== "beside" || drop.pane !== p) return "";
-    return drop.dir === "row" ? (drop.after ? "right" : "left") : drop.after ? "bottom" : "top";
-  }
+  const dropSide = (p: string) => (drop?.kind === "beside" && drop.pane === p ? drop.side : "");
 
   // The same moves from the keyboard or without dragging: right-click (Shift+F10, the Menu key) on a tab, or the
   // header of a split terminal.
@@ -378,14 +392,17 @@
         { label: t("terminal.menu.tabRight"), icon: ArrowRight, disabled: ti === tabs.length - 1, action: () => moved(pane, () => layout.moveTab(pane, ti + 2)) },
       );
     } else {
-      const i = tab.panes.indexOf(pane);
-      const row = tab.dir === "row";
-      const along = (j: number, after: boolean) => () => moved(pane, () => layout.move(pane, { kind: "beside", pane: tab.panes[j], after, dir: tab.dir }));
-      items.push(
-        { label: t(row ? "terminal.menu.left" : "terminal.menu.up"), icon: row ? ArrowLeft : ArrowUp, disabled: i === 0, action: along(i - 1, false) },
-        { label: t(row ? "terminal.menu.right" : "terminal.menu.down"), icon: row ? ArrowRight : ArrowDown, disabled: i === tab.panes.length - 1, action: along(i + 1, true) },
-        { label: t("terminal.menu.newTab"), icon: Plus, action: () => moved(pane, () => layout.move(pane, { kind: "tab", at: ti + 1 })) },
-      );
+      for (const o of tab.panes) {
+        if (o !== pane) items.push({ label: t("terminal.menu.swap", { name: paneName(o) }), icon: ArrowsLeftRight, action: () => moved(pane, () => layout.swap(pane, o)) });
+      }
+      const edges: [PaneSide, Key, typeof ArrowLeft][] = [
+        ["left", "terminal.menu.left", ArrowLeft],
+        ["right", "terminal.menu.right", ArrowRight],
+        ["top", "terminal.menu.up", ArrowUp],
+        ["bottom", "terminal.menu.down", ArrowDown],
+      ];
+      for (const [side, label, icon] of edges) items.push({ label: t(label), icon, action: () => moved(pane, () => layout.dock(pane, side)) });
+      items.push({ label: t("terminal.menu.newTab"), icon: Plus, action: () => moved(pane, () => layout.move(pane, { kind: "tab", at: ti + 1 })) });
     }
     // A terminal on its own, or one of a split, can join another tab.
     if (!whole || tab.panes.length === 1) {
@@ -705,11 +722,11 @@
               type="button"
               id="btn-split-terminal"
               aria-label={t("terminal.split")}
-              title={shown.panes.length >= MAX_PANES ? t("terminal.splitFull", { n: MAX_PANES }) : shown.dir === "column" ? t("terminal.splitBelow") : t("terminal.splitBeside")}
+              title={shown.panes.length >= MAX_PANES ? t("terminal.splitFull", { n: MAX_PANES }) : shownDir === "column" ? t("terminal.splitBelow") : t("terminal.splitBeside")}
               disabled={!canSplit}
               onclick={() => newShell(shownTab)}
             >
-              {#if shown.dir === "column"}<SquareSplitVertical size={20} aria-hidden="true" />{:else}<SquareSplitHorizontal size={20} aria-hidden="true" />{/if}
+              {#if shownDir === "column"}<SquareSplitVertical size={20} aria-hidden="true" />{:else}<SquareSplitHorizontal size={20} aria-hidden="true" />{/if}
             </button>
             {#if split}
               <button
@@ -717,11 +734,11 @@
                 type="button"
                 id="btn-stack-terminals"
                 aria-label={t("terminal.stack")}
-                aria-pressed={shown.dir === "column"}
-                title={shown.dir === "column" ? t("terminal.sideHint") : t("terminal.stackHint")}
+                aria-pressed={shownDir === "column"}
+                title={shownDir === "column" ? t("terminal.sideHint") : t("terminal.stackHint")}
                 onclick={() => layout.flip(shownTab)}
               >
-                <Rows size={20} weight={shown.dir === "column" ? "fill" : "regular"} aria-hidden="true" />
+                <Rows size={20} weight={shownDir === "column" ? "fill" : "regular"} aria-hidden="true" />
               </button>
             {/if}
           {/if}
@@ -775,29 +792,22 @@
           {#if dropSide(p)}<div class="drop-zone {dropSide(p)}" aria-hidden="true"></div>{/if}
         {/snippet}
         <div class="term joined" id="session-panes">
-          <div class="panes" class:stacked={shown?.dir === "column"} bind:this={panesBox} onfocusin={notePane}>
+          <div class="panes" bind:this={panesBox} onfocusin={notePane}>
             {#each layout.tabs.flatMap((tab) => tab.panes) as p (p)}
               {@const x = shells.list.find((y) => y.id === p) ?? null}
-              {@const i = shown ? shown.panes.indexOf(p) : -1}
-              {#if shown && i > 0}
-                <!-- A focusable separator is ARIA's window splitter, a widget; Svelte's check counts every separator as static. -->
-                <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-                <div
-                  class="pane-border"
-                  role="separator"
-                  tabindex="0"
-                  aria-orientation={shown.dir === "row" ? "vertical" : "horizontal"}
-                  aria-controls={panelId(shown.panes[i - 1])}
-                  aria-label={t("terminal.resize", { first: paneName(shown.panes[i - 1]), second: paneName(p) })}
-                  aria-valuenow={Math.round((shown.sizes[i - 1] / (shown.sizes[i - 1] + shown.sizes[i])) * 100)}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  onkeydown={(e) => borderKeys(e, i - 1)}
-                  onpointerdown={(e) => borderDrag(e, i - 1)}
-                ></div>
-              {/if}
+              {@const r = places.get(p)}
               {#if p === TERM}
-                <section class="pane" id="session-term" data-pane={TERM} hidden={i < 0} style:flex-grow={grow(TERM)} aria-label={t("sessions.detail.output")}>
+                <section
+                  class="pane"
+                  id="session-term"
+                  data-pane={TERM}
+                  hidden={!r}
+                  style:left={pct(r?.x ?? 0)}
+                  style:top={pct(r?.y ?? 0)}
+                  style:width={pct(r?.w ?? 1)}
+                  style:height={pct(r?.h ?? 1)}
+                  aria-label={t("sessions.detail.output")}
+                >
                   {@render paneHead(TERM, null)}
                   {#if s.mode === "interactive"}
                     {#key `${id}-${termKey}`}
@@ -828,7 +838,17 @@
                 </section>
               {:else if x}
                 {@const label = t("terminal.label", { shell: shells.names.get(x.id) ?? x.shellLabel, folder: folderName(s.cwd) })}
-                <section class="pane" id="shell-panel-{x.id}" data-pane={x.id} aria-label={label} hidden={i < 0} style:flex-grow={grow(x.id)}>
+                <section
+                  class="pane"
+                  id="shell-panel-{x.id}"
+                  data-pane={x.id}
+                  aria-label={label}
+                  hidden={!r}
+                  style:left={pct(r?.x ?? 0)}
+                  style:top={pct(r?.y ?? 0)}
+                  style:width={pct(r?.w ?? 1)}
+                  style:height={pct(r?.h ?? 1)}
+                >
                   {@render paneHead(x.id, x)}
                   {#key `${x.id}-${x.startedAt}`}
                     <Terminal kind="terminal" id={x.id} live={x.running} {label} />
@@ -850,9 +870,32 @@
                   {/if}
                 </section>
               {/if}
+              {#each bordersAfter.get(p) ?? [] as b (`${b.path.join(".")}:${b.i}`)}
+                {@const row = b.dir === "row"}
+                <!-- A focusable separator is ARIA's window splitter, a widget; Svelte's check counts every separator as static. -->
+                <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+                <div
+                  class="pane-border"
+                  class:across={!row}
+                  role="separator"
+                  tabindex="0"
+                  style:left={pct(row ? b.at : b.box.x)}
+                  style:top={pct(row ? b.box.y : b.at)}
+                  style:width={row ? undefined : pct(b.box.w)}
+                  style:height={row ? pct(b.box.h) : undefined}
+                  aria-orientation={row ? "vertical" : "horizontal"}
+                  aria-controls={b.before.map(panelId).join(" ")}
+                  aria-label={t("terminal.resize", { first: b.before.map(paneName).join(", "), second: b.after.map(paneName).join(", ") })}
+                  aria-valuenow={Math.round(b.share * 100)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  onkeydown={(e) => borderKeys(e, b)}
+                  onpointerdown={(e) => borderDrag(e, b)}
+                ></div>
+              {/each}
             {/each}
             {#if viewer}
-              <section class="pane" id="session-viewer" hidden={shownTab !== "viewer"}>
+              <section class="pane whole" id="session-viewer" hidden={shownTab !== "viewer"}>
                 <FileViewer
                   {id}
                   target={viewer}
@@ -1040,57 +1083,64 @@
       height: 44px;
     }
   }
-  /* The shown tab's terminals share one dark panel, side by side or stacked, each by its share of the tab. */
+  /* The shown tab's terminals share one dark panel, each placed by its share of the splits holding it. Placing them
+     rather than nesting them keeps every terminal where it is in the page, so no move restarts one. */
   .panes {
+    position: relative;
     flex: 1;
-    display: flex;
     min-width: 0;
     min-height: 0;
-  }
-  .panes.stacked {
-    flex-direction: column;
   }
   .pane {
-    position: relative;
-    flex: 1 1 0;
+    position: absolute;
     display: flex;
     flex-direction: column;
-    min-width: 0;
-    min-height: 0;
     overflow: hidden;
   }
-  /* The 1 px line between split terminals, with a 9 px grip over both sides of it. term-dim at 60% keeps the line at
-     3:1 on term-bg in both themes, as a control's edge needs. */
+  .pane.whole {
+    inset: 0;
+  }
+  /* The 1 px line between split terminals, in the middle of a 9 px grip over both of them. term-dim at 60% keeps the
+     line at 3:1 on term-bg in both themes, as a control's edge needs. */
   .pane-border {
-    position: relative;
+    position: absolute;
     z-index: 2;
-    flex: none;
-    width: 1px;
-    background: color-mix(in srgb, var(--term-dim) 60%, transparent);
+    width: 9px;
+    margin-left: -4px;
     cursor: col-resize;
     touch-action: none;
-    transition: background-color 0.12s ease-out;
   }
-  .pane-border::before {
-    content: "";
-    position: absolute;
-    inset: 0 -4px;
-  }
-  .stacked > .pane-border {
-    width: auto;
-    height: 1px;
+  .pane-border.across {
+    height: 9px;
+    margin-left: 0;
+    margin-top: -4px;
     cursor: row-resize;
   }
-  .stacked > .pane-border::before {
-    inset: -4px 0;
+  .pane-border::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 4px;
+    width: 1px;
+    background: color-mix(in srgb, var(--term-dim) 60%, transparent);
+    transition: background-color 0.12s ease-out;
   }
-  .pane-border:hover,
-  .pane-border:active {
+  .pane-border.across::after {
+    top: 4px;
+    bottom: auto;
+    left: 0;
+    right: 0;
+    width: auto;
+    height: 1px;
+  }
+  .pane-border:hover::after,
+  .pane-border:active::after {
     background: var(--term-dim);
   }
   .pane-border:focus-visible {
     outline: 2px solid var(--term-green);
-    outline-offset: 1px;
+    outline-offset: -2px;
     border-radius: 0;
   }
   /* While a border or a terminal is dragged, its cursor holds over everything it passes, and nothing gets selected. */

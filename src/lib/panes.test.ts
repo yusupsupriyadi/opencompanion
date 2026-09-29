@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { TerminalInfo } from "./api";
-import { MAX_PANES, PaneLayout, TERM } from "./panes.svelte";
+import { MAX_PANES, PaneLayout, TERM, borders, rects, type PaneNode } from "./panes.svelte";
 import { SessionShells } from "./shells.svelte";
 
 // The layout of each session is kept for the life of the window, so every test uses a session of its own.
@@ -14,11 +14,18 @@ function setup(session: string, ids: string[]) {
 }
 
 const panes = (layout: PaneLayout) => layout.tabs.map((t) => t.panes);
+/** A tab's splits written out: `row(a, column(b, c))`. */
+const shape = (node: PaneNode): string => (node.kind === "leaf" ? node.pane : `${node.dir}(${node.children.map(shape).join(", ")})`);
+const shapeOf = (layout: PaneLayout, pane: string) => shape(layout.tabOf(pane)!.root);
+const sizesOf = (layout: PaneLayout, pane: string) => {
+  const root = layout.tabOf(pane)!.root;
+  return root.kind === "split" ? root.sizes : [1];
+};
 
 test("the session's own terminal leads the first tab, and every shell gets a tab of its own", () => {
   const { layout } = setup("fresh", ["a", "b"]);
   expect(panes(layout)).toEqual([[TERM], ["a"], ["b"]]);
-  expect(layout.tabOf("b")).toEqual({ panes: ["b"], dir: "row", sizes: [1] });
+  expect(shapeOf(layout, "b")).toBe("b");
 });
 
 test("a split shell joins the end of the tab, and the tab's terminals share it equally", () => {
@@ -26,12 +33,13 @@ test("a split shell joins the end of the tab, and the tab's terminals share it e
   layout.split(TERM, "b");
   open(["a", "b"]);
   expect(panes(layout)).toEqual([[TERM, "b"], ["a"]]);
-  expect(layout.tabOf("b")?.sizes).toEqual([0.5, 0.5]);
+  expect(shapeOf(layout, "b")).toBe("row(term, b)");
+  expect(sizesOf(layout, "b")).toEqual([0.5, 0.5]);
 
   layout.split("b", "c");
   open(["a", "b", "c"]);
-  expect(layout.tabOf(TERM)?.panes).toEqual([TERM, "b", "c"]);
-  expect(layout.tabOf(TERM)?.sizes).toEqual([1 / 3, 1 / 3, 1 / 3]);
+  expect(shapeOf(layout, TERM)).toBe("row(term, b, c)");
+  sizesOf(layout, TERM).forEach((s) => expect(s).toBeCloseTo(1 / 3));
 });
 
 test("a full tab takes no more terminals", () => {
@@ -46,55 +54,104 @@ test("a full tab takes no more terminals", () => {
   expect(panes(layout).at(-1)).toEqual([`s${MAX_PANES}`]);
 });
 
-test("a closed terminal leaves its tab where it was, led by the next one, and the others take its share", () => {
-  const { layout, open } = setup("close", ["a", "b"]);
-  layout.split("a", "c");
-  open(["a", "b", "c"]);
-  layout.resize("a", 0, 0.7, 0.1);
-  expect(panes(layout)).toEqual([[TERM], ["a", "c"], ["b"]]);
+test("a terminal lands on any side of any terminal, one split inside another", () => {
+  const { layout } = setup("free", ["a", "b", "c"]);
+  layout.move("a", { kind: "beside", pane: TERM, side: "right" });
+  layout.move("b", { kind: "beside", pane: "a", side: "bottom" });
+  expect(shapeOf(layout, TERM)).toBe("row(term, column(a, b))");
+  layout.move("c", { kind: "beside", pane: TERM, side: "top" });
+  expect(shapeOf(layout, TERM)).toBe("row(column(c, term), column(a, b))");
+  expect(layout.tabOf(TERM)?.panes).toEqual(["c", TERM, "a", "b"]);
 
-  open(["b", "c"]);
-  expect(panes(layout)).toEqual([[TERM], ["c"], ["b"]]);
-  expect(layout.tabOf("c")?.sizes).toEqual([1]);
+  // Each terminal's place follows: the left half is split top and bottom, and so is the right one.
+  const at = rects(layout.tabOf(TERM)!.root);
+  expect(at.get("c")).toEqual({ x: 0, y: 0, w: 0.5, h: 0.5 });
+  expect(at.get(TERM)).toEqual({ x: 0, y: 0.5, w: 0.5, h: 0.5 });
+  expect(at.get("b")).toEqual({ x: 0.5, y: 0.5, w: 0.5, h: 0.5 });
 });
 
-test("a border moves only the two terminals beside it, and neither gets less than the minimum", () => {
-  const { layout, open } = setup("resize", []);
-  layout.split(TERM, "a");
-  open(["a"]);
-  layout.split(TERM, "b");
-  open(["a", "b"]);
-
-  layout.resize(TERM, 1, 0.5, 0.1);
-  const [x, y, z] = layout.tabOf(TERM)!.sizes;
-  expect(x).toBeCloseTo(1 / 3);
-  expect(y).toBeCloseTo(0.5);
-  expect(z).toBeCloseTo(1 / 6);
-
-  layout.resize(TERM, 0, 0, 0.1);
-  expect(layout.tabOf(TERM)!.sizes[0]).toBeCloseTo(0.1);
-  expect(layout.tabOf(TERM)!.sizes[1]).toBeCloseTo(0.5 + 1 / 3 - 0.1);
+test("beside a terminal of a split running the same way, it takes half of that terminal's share", () => {
+  const { layout } = setup("half", ["a", "b"]);
+  layout.move("a", { kind: "join", tab: TERM });
+  layout.move("b", { kind: "beside", pane: "a", side: "left" });
+  expect(shapeOf(layout, TERM)).toBe("row(term, b, a)");
+  expect(sizesOf(layout, TERM)).toEqual([0.5, 0.25, 0.25]);
 });
 
-test("a tab switches between side by side and stacked", () => {
-  const { layout, open } = setup("flip", []);
-  layout.split(TERM, "a");
-  open(["a"]);
+test("a closed terminal leaves its tab where it was, and a split left with one part folds away", () => {
+  const { layout, open } = setup("close", ["a", "b", "c"]);
+  layout.move("b", { kind: "beside", pane: "a", side: "right" });
+  layout.move("c", { kind: "beside", pane: "b", side: "bottom" });
+  expect(panes(layout)).toEqual([[TERM], ["a", "b", "c"]]);
+  expect(shapeOf(layout, "a")).toBe("row(a, column(b, c))");
+
+  open(["a", "c"]);
+  expect(shapeOf(layout, "a")).toBe("row(a, c)");
+  open(["c"]);
+  expect(panes(layout)).toEqual([[TERM], ["c"]]);
+});
+
+test("a border moves only the two parts beside it, and keeps room for every terminal they line up", () => {
+  const { layout } = setup("resize", ["a", "b", "c"]);
+  layout.move("a", { kind: "beside", pane: TERM, side: "right" });
+  layout.move("b", { kind: "beside", pane: TERM, side: "bottom" });
+  layout.move("c", { kind: "beside", pane: TERM, side: "right" });
+  expect(shapeOf(layout, TERM)).toBe("row(column(row(term, c), b), a)");
+
+  // The left part lines up two terminals side by side, so it keeps two units.
+  layout.resize(TERM, [], 0, 0, 0.1);
+  expect(sizesOf(layout, TERM).map((s) => Number(s.toFixed(6)))).toEqual([0.2, 0.8]);
+  layout.resize(TERM, [], 0, 1, 0.1);
+  expect(sizesOf(layout, TERM).map((s) => Number(s.toFixed(6)))).toEqual([0.9, 0.1]);
+
+  // A border inside a split moves only that split's parts.
+  layout.resize(TERM, [0, 0], 0, 0.7, 0.1);
+  const inner = borders(layout.tabOf(TERM)!.root).find((b) => b.path.join() === "0,0")!;
+  expect(inner.share).toBeCloseTo(0.7);
+  expect(sizesOf(layout, TERM).map((s) => Number(s.toFixed(6)))).toEqual([0.9, 0.1]);
+});
+
+test("borders sit between the parts of each split, each after the terminals before it", () => {
+  const { layout } = setup("borders", ["a", "b"]);
+  layout.move("a", { kind: "beside", pane: TERM, side: "right" });
+  layout.move("b", { kind: "beside", pane: "a", side: "bottom" });
+  const [outer, inner] = borders(layout.tabOf(TERM)!.root);
+  expect(outer).toMatchObject({ path: [], i: 0, dir: "row", at: 0.5, share: 0.5, before: [TERM], after: ["a", "b"] });
+  expect(inner).toMatchObject({ path: [1], i: 0, dir: "column", at: 0.5, box: { x: 0.5, y: 0, w: 0.5, h: 1 }, before: ["a"], after: ["b"] });
+});
+
+test("a tab turns side by side into top to bottom all the way down, and back", () => {
+  const { layout } = setup("flip", ["a", "b"]);
+  layout.move("a", { kind: "beside", pane: TERM, side: "right" });
+  layout.move("b", { kind: "beside", pane: "a", side: "bottom" });
   layout.flip("a");
-  expect(layout.tabOf(TERM)?.dir).toBe("column");
+  expect(shapeOf(layout, TERM)).toBe("column(term, row(a, b))");
   layout.flip(TERM);
-  expect(layout.tabOf(TERM)?.dir).toBe("row");
+  expect(shapeOf(layout, TERM)).toBe("row(term, column(a, b))");
+});
+
+test("two terminals of a tab swap places, and one docks along a whole edge of it", () => {
+  const { layout } = setup("swap", ["a", "b"]);
+  layout.move("a", { kind: "beside", pane: TERM, side: "right" });
+  layout.move("b", { kind: "beside", pane: "a", side: "bottom" });
+  layout.swap(TERM, "b");
+  expect(shapeOf(layout, TERM)).toBe("row(b, column(a, term))");
+
+  layout.dock(TERM, "top");
+  expect(shapeOf(layout, TERM)).toBe("column(term, row(b, a))");
+  expect(sizesOf(layout, TERM)[0]).toBeCloseTo(1 / 3);
+  layout.dock(TERM, "left");
+  expect(shapeOf(layout, TERM)).toBe("row(term, b, a)");
+  sizesOf(layout, TERM).forEach((s) => expect(s).toBeCloseTo(1 / 3));
 });
 
 test("the session's layout is there again when its screen opens again, and other sessions start plain", () => {
-  const first = setup("again", ["a"]);
-  first.layout.split("a", "b");
-  first.open(["a", "b"]);
-  first.layout.flip("a");
+  const first = setup("again", ["a", "b"]);
+  first.layout.move("b", { kind: "beside", pane: "a", side: "bottom" });
 
   const back = setup("again", ["a", "b"]);
   expect(panes(back.layout)).toEqual([[TERM], ["a", "b"]]);
-  expect(back.layout.tabOf("a")?.dir).toBe("column");
+  expect(shapeOf(back.layout, "a")).toBe("column(a, b)");
   expect(panes(setup("other", ["x"]).layout)).toEqual([[TERM], ["x"]]);
 });
 
@@ -114,45 +171,10 @@ test("a terminal moves to a tab of its own, and the tab it leaves goes away when
   open(["a", "b", "c"]);
   layout.move("c", { kind: "tab", at: 1 });
   expect(panes(layout)).toEqual([[TERM], ["c"], ["a"], ["b"]]);
-  expect(layout.tabOf(TERM)?.sizes).toEqual([1]);
+  expect(shapeOf(layout, TERM)).toBe(TERM);
 
   layout.move("a", { kind: "tab", at: 4 });
   expect(panes(layout)).toEqual([[TERM], ["c"], ["b"], ["a"]]);
-});
-
-test("a terminal joins the end of another tab or lands beside a terminal, with an equal share there", () => {
-  const { layout, open } = setup("move-in", ["a", "b"]);
-  layout.move("a", { kind: "join", tab: TERM });
-  expect(panes(layout)).toEqual([[TERM, "a"], ["b"]]);
-  expect(layout.tabOf(TERM)?.dir).toBe("row");
-
-  layout.resize(TERM, 0, 0.8, 0.1);
-  layout.move("b", { kind: "beside", pane: TERM, after: false, dir: "column" });
-  const tab = layout.tabOf(TERM)!;
-  expect(tab.panes).toEqual(["b", TERM, "a"]);
-  // A split tab keeps its direction; the others keep their proportions in what is left.
-  expect(tab.dir).toBe("row");
-  expect(tab.sizes[0]).toBeCloseTo(1 / 3);
-  expect(tab.sizes[1]).toBeCloseTo(0.8 * (2 / 3));
-  expect(tab.sizes[2]).toBeCloseTo(0.2 * (2 / 3));
-});
-
-test("beside the only terminal of a tab, the side picked sets how the tab is split", () => {
-  const { layout } = setup("move-dir", ["a", "b"]);
-  layout.move("b", { kind: "beside", pane: "a", after: true, dir: "column" });
-  expect(layout.tabOf("a")).toEqual({ panes: ["a", "b"], dir: "column", sizes: [0.5, 0.5] });
-});
-
-test("a terminal moves along its own tab and keeps its share", () => {
-  const { layout, open } = setup("move-along", []);
-  layout.split(TERM, "a");
-  open(["a"]);
-  layout.resize(TERM, 0, 0.7, 0.1);
-  layout.move(TERM, { kind: "beside", pane: "a", after: true, dir: "row" });
-  const tab = layout.tabOf("a")!;
-  expect(tab.panes).toEqual(["a", TERM]);
-  expect(tab.sizes[0]).toBeCloseTo(0.3);
-  expect(tab.sizes[1]).toBeCloseTo(0.7);
 });
 
 test("a full tab takes nothing from elsewhere, and a terminal never lands beside itself or joins its own tab", () => {
@@ -162,9 +184,9 @@ test("a full tab takes nothing from elsewhere, and a terminal never lands beside
   open(ids);
   expect(layout.tabOf(TERM)?.panes).toHaveLength(MAX_PANES);
   expect(layout.canMove("x", { kind: "join", tab: TERM })).toBe(false);
-  expect(layout.canMove("x", { kind: "beside", pane: "a", after: true, dir: "row" })).toBe(false);
-  expect(layout.canMove("a", { kind: "beside", pane: "b", after: true, dir: "row" })).toBe(true);
-  expect(layout.canMove("a", { kind: "beside", pane: "a", after: true, dir: "row" })).toBe(false);
+  expect(layout.canMove("x", { kind: "beside", pane: "a", side: "right" })).toBe(false);
+  expect(layout.canMove("a", { kind: "beside", pane: "b", side: "top" })).toBe(true);
+  expect(layout.canMove("a", { kind: "beside", pane: "a", side: "right" })).toBe(false);
   expect(layout.canMove("a", { kind: "join", tab: TERM })).toBe(false);
   layout.move("x", { kind: "join", tab: TERM });
   expect(panes(layout).at(-1)).toEqual(["x"]);
