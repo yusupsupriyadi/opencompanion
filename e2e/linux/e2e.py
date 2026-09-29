@@ -156,6 +156,19 @@ class App:
 # The shell tab shown on a session's screen.
 SHELL_TAB = "section[id^=shell-panel-]:not([hidden])"
 
+# Keeps the page's errors in the webview, so a failed step can print what broke on screen.
+WATCH_ERRORS = """if (!window.__ocErrors) {
+  window.__ocErrors = [];
+  const keep = (m) => window.__ocErrors.push(String(m).slice(0, 800));
+  const text = (x) => (x && x.stack) || String(x);
+  addEventListener('error', (e) => keep(`${e.message} @ ${e.filename}:${e.lineno}\\n${text(e.error)}`));
+  addEventListener('unhandledrejection', (e) => keep(`unhandled rejection: ${text(e.reason)}`));
+  const error = console.error;
+  console.error = (...a) => { keep(`console.error: ${a.map(text).join(' ')}`); error(...a); };
+}"""
+PAGE_STATE = """return {url: location.href, errors: window.__ocErrors || [],
+  main: (document.querySelector('main') || {outerHTML: ''}).outerHTML.slice(0, 600)}"""
+
 
 def xq(s):
     return "'" + s + "'" if "'" not in s else 'concat("' + s.replace('"', '') + '")'
@@ -171,6 +184,11 @@ def step(name, app=None):
             status = "FAIL"
             detail = f"{type(e).__name__}: {e}"
             traceback.print_exc()
+            if app:
+                try:
+                    print("page:", json.dumps(app.js(PAGE_STATE), indent=1), flush=True)
+                except Exception as page:
+                    print("page: unavailable:", page, flush=True)
         shot = app.shot(re.sub(r"[^a-z0-9]+", "-", name.lower())) if app else ""
         results.append({"step": name, "status": status, "detail": str(detail)[:600],
                         "seconds": round(time.time() - t0, 1), "shot": os.path.basename(shot)})
@@ -195,6 +213,7 @@ def main():
     @step("launch: window loads the SvelteKit shell", app)
     def _():
         app.wait(lambda: app.js("return document.readyState") == "complete", 30, "document ready")
+        app.js(WATCH_ERRORS)
         app.wait(lambda: app.find_all("#onboarding, #overview-main, #titlebar"), 30, "app shell")
         return f"url={app.url()} title={app.title()!r}"
 
@@ -368,6 +387,8 @@ def main():
         entry = "/root/.config/autostart/opencompanion.desktop"
         app.nav("/settings?s=window")
         box = "//label[contains(normalize-space(.), 'Start in the tray when I sign in')]//input[@type='checkbox']"
+        # The checkbox shows once the app has said it can start at sign-in, a moment after the route.
+        app.wait(lambda: app.xfind(box), 15, "start at login checkbox")
         app.js("arguments[0].scrollIntoView({block: 'center'})", {ELEMENT: app.xfind(box)})
         app.click(app.xfind(box))
         app.wait(lambda: os.path.isfile(entry), 10, "autostart entry written")
