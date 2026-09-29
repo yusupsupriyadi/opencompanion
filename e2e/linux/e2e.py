@@ -156,7 +156,7 @@ class App:
 # The shell tab shown on a session's screen.
 SHELL_TAB = "section[id^=shell-panel-]:not([hidden])"
 
-# Keeps the page's errors in the webview, so a failed step can print what broke on screen.
+# Keeps the page's errors in the webview; each step prints and clears the ones raised during it.
 WATCH_ERRORS = """if (!window.__ocErrors) {
   window.__ocErrors = [];
   const keep = (m) => window.__ocErrors.push(String(m).slice(0, 800));
@@ -166,7 +166,7 @@ WATCH_ERRORS = """if (!window.__ocErrors) {
   const error = console.error;
   console.error = (...a) => { keep(`console.error: ${a.map(text).join(' ')}`); error(...a); };
 }"""
-PAGE_STATE = """return {url: location.href, errors: window.__ocErrors || [],
+PAGE_STATE = """return {url: location.href, errors: (window.__ocErrors || []).splice(0),
   main: (document.querySelector('main') || {outerHTML: ''}).outerHTML.slice(0, 600)}"""
 
 
@@ -184,12 +184,16 @@ def step(name, app=None):
             status = "FAIL"
             detail = f"{type(e).__name__}: {e}"
             traceback.print_exc()
-            if app:
-                try:
-                    print("page:", json.dumps(app.js(PAGE_STATE), indent=1), flush=True)
-                except Exception as page:
-                    print("page: unavailable:", page, flush=True)
-        shot = app.shot(re.sub(r"[^a-z0-9]+", "-", name.lower())) if app else ""
+        if app:
+            try:
+                page = app.js(PAGE_STATE)
+                if status == "FAIL":
+                    print("page:", json.dumps(page, indent=1), flush=True)
+                elif page["errors"]:
+                    print("page errors:", json.dumps(page["errors"], indent=1), flush=True)
+            except Exception as e:
+                print("page: unavailable:", e, flush=True)
+        shot =app.shot(re.sub(r"[^a-z0-9]+", "-", name.lower())) if app else ""
         results.append({"step": name, "status": status, "detail": str(detail)[:600],
                         "seconds": round(time.time() - t0, 1), "shot": os.path.basename(shot)})
         print(f"[{status}] {name} ({results[-1]['seconds']}s) {detail}", flush=True)
@@ -453,6 +457,7 @@ def main():
     @step("restart: data survives (onboarding skipped, sessions, device)", app2)
     def _():
         app2.wait(lambda: app2.find_all("#overview-main, #onboarding"), 30, "shell")
+        app2.js(WATCH_ERRORS)
         assert not app2.find_all("#onboarding"), "onboarding shown again after restart"
         app2.nav("/history")
         app2.wait_text("e2e-project", 15)
