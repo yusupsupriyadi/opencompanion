@@ -118,6 +118,12 @@ button.btn.secondary:hover, a.btn.secondary:hover { background: var(--surface-2)
 .links a { display: inline-flex; align-items: center; min-height: 44px; padding: 6px 12px; border-radius: 8px; font-size: 14px; font-weight: 700; text-decoration: none; }
 .links a:not(.btn):hover { background: rgba(255, 255, 255, .22); }
 .links .btn { min-height: 44px; }
+/* The repository link, with its live star count split off by a thin line, as GitHub's own star button does. */
+.links .gh { gap: 8px; }
+.gh .ic { width: 18px; height: 18px; }
+.gh-stars { display: inline-flex; align-items: center; gap: 4px; padding-left: 8px; border-left: 1px solid var(--p-mark); font-variant-numeric: tabular-nums; }
+.gh-stars[hidden] { display: none; }
+.gh-stars .ic { width: 14px; height: 14px; }
 .plate :focus-visible, .plate:focus-visible { outline-color: var(--p-ink); }
 
 /* ---------- Story beats (static layout first: a plain page for reduced motion or no script) ---------- */
@@ -514,8 +520,15 @@ html:not(.motion) .m-only { display: none !important; }
 .reqs { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 16px; line-height: 1.5; }
 .foot-in .tm { flex-basis: 100%; font-size: 13px; line-height: 1.45; }
 
+/* The nav stays on one line at every width. Below 880px the GitHub link keeps its mark and count, as docs sites show
+   them, with the name in its label; below 700px the section links go; below 400px the brand keeps its logo alone. */
+@media (max-width: 879px) {
+  .links .gh { gap: 6px; padding-inline: 10px; }
+  .gh-word, .gh-stars .ic { display: none; }
+  .gh-stars { padding-left: 0; border-left: 0; }
+}
+@media (max-width: 699px) { .links .opt { display: none; } }
 @media (max-width: 599px) {
-  .links .opt { display: none; }
   .brand { font-size: 16px; padding: 8px 12px; }
   .get-card { padding: 22px 18px; }
   .get-acts .btn { width: 100%; }
@@ -524,6 +537,10 @@ html:not(.motion) .m-only { display: none !important; }
   #get { padding-bottom: 88px; }
   .privacy { padding: 22px 18px; }
   .feat, .steps { padding-inline: 16px; }
+}
+@media (max-width: 399px) {
+  .brand { padding-inline: 10px; }
+  .brand-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
@@ -552,6 +569,7 @@ html:not(.motion) .m-only { display: none !important; }
   <symbol id="i-brain" viewBox="0 0 256 256"><path d="M248,124a56.11,56.11,0,0,0-32-50.61V72a48,48,0,0,0-88-26.49A48,48,0,0,0,40,72v1.39a56,56,0,0,0,0,101.2V176a48,48,0,0,0,88,26.49A48,48,0,0,0,216,176v-1.41A56.09,56.09,0,0,0,248,124ZM88,208a32,32,0,0,1-31.81-28.560A55.87,55.87,0,0,0,64,180h8a8,8,0,0,0,0-16H64A40,40,0,0,1,50.67,86.27,8,8,0,0,0,56,78.73V72a32,32,0,0,1,64,0v68.26A47.8,47.8,0,0,0,88,128a8,8,0,0,0,0,16,32,32,0,0,1,0,64Zm104-44h-8a8,8,0,0,0,0,16h8a55.87,55.87,0,0,0,7.810-.56A32,32,0,1,1,168,144a8,8,0,0,0,0-16,47.8,47.8,0,0,0-32,12.26V72a32,32,0,0,1,64,0v6.73a8,8,0,0,0,5.33,7.54A40,40,0,0,1,192,164Zm16-52a8,8,0,0,1-8,8h-4a36,36,0,0,1-36-36V80a8,8,0,0,1,16,0v4a20,20,0,0,0,20,20h4A8,8,0,0,1,208,112ZM60,120H56a8,8,0,0,1,0-16h4A20,20,0,0,0,80,84V80a8,8,0,0,1,16,0v4A36,36,0,0,1,60,120Z"/></symbol>
   <symbol id="i-caret" viewBox="0 0 256 256"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></symbol>
   <symbol id="i-plus" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></symbol>
+  <symbol id="i-star" viewBox="0 0 256 256"><path d="M239.18,97.26A16.38,16.38,0,0,0,224.92,86l-59-4.76L143.14,26.15a16.36,16.36,0,0,0-30.27,0L90.11,81.23,31.08,86a16.46,16.46,0,0,0-9.37,28.86l45,38.83L53,211.75a16.38,16.38,0,0,0,24.5,17.82L128,198.49l50.53,31.08A16.4,16.4,0,0,0,203,211.75l-13.76-58.07,45-38.83A16.43,16.43,0,0,0,239.18,97.26Zm-15.34,5.47-48.7,42a8,8,0,0,0-2.56,7.91l14.88,62.8a.37.37,0,0,1-.17.48c-.18.14-.23.11-.38,0l-54.72-33.65a8,8,0,0,0-8.38,0L69.09,215.94c-.15.09-.19.12-.38,0a.37.37,0,0,1-.17-.48l14.88-62.8a8,8,0,0,0-2.56-7.91l-48.7-42c-.12-.1-.23-.19-.13-.5s.18-.27.33-.29l63.92-5.16A8,8,0,0,0,103,91.86l24.62-59.61c.08-.17.11-.25.35-.25s.27.08.35.25L153,91.86a8,8,0,0,0,6.75,4.92l63.92,5.16c.15,0,.24,0,.33.29S224,102.63,223.84,102.73Z"/></symbol>
   <symbol id="i-calendar" viewBox="0 0 256 256"><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM72,48v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24V80H48V48ZM208,208H48V96H208V208Zm-38.34-85.66a8,8,0,0,1,0,11.32l-48,48a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L116,164.69l42.34-42.35A8,8,0,0,1,169.66,122.34Z"/></symbol>
   <symbol id="i-split" viewBox="0 0 256 256"><path d="M200,40H56A16,16,0,0,0,40,56V200a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40ZM56,56h64V200H56ZM200,200H136V56h64V200Z"/></symbol>
   <symbol id="i-sidebar" viewBox="0 0 256 256"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,160H88V56H216V200Z"/></symbol>
@@ -599,11 +617,12 @@ html:not(.motion) .m-only { display: none !important; }
 <div id="fore" aria-hidden="true"><svg id="grass" viewBox="0 0 1600 420" preserveAspectRatio="xMidYMax slice"></svg></div>
 
 <header id="site-nav">
-  <a class="plate brand" href="#top"><svg class="ic" aria-hidden="true"><use href="#i-logo"/></svg>OpenCompanion</a>
+  <a class="plate brand" href="#top"><svg class="ic" aria-hidden="true"><use href="#i-logo"/></svg><span class="brand-word">OpenCompanion</span></a>
   <nav class="plate links" aria-label="Page">
     <a class="opt" href="#how">How it works</a>
     <a class="opt" href="#clis">CLIs</a>
     <a class="opt" href="#privacy">Privacy</a>
+    <a class="gh" id="nav-github" href="https://github.com/yusupsupriyadi/opencompanion" aria-label="OpenCompanion on GitHub" title="OpenCompanion on GitHub"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg><span class="gh-word">GitHub</span><span class="gh-stars" id="gh-stars" hidden><svg class="ic" aria-hidden="true"><use href="#i-star"/></svg><span id="gh-count"></span></span></a>
     <a class="btn primary" href="#get">Build it</a>
   </nav>
 </header>
@@ -1070,6 +1089,32 @@ bun run tauri build</pre>
     clearTimeout(copyTimer);
     copyTimer = setTimeout(() => { copyStatus.textContent = ""; }, 4000);
   });
+
+  /* The star count in the nav comes live from GitHub's API and is kept for 10 minutes in this tab.
+     No number shows until a real one arrives; offline or rate-limited, the link just opens the repository. */
+  (function stars() {
+    const link = $("#nav-github"), box = $("#gh-stars"), count = $("#gh-count"), KEY = "oc-stars";
+    if (!window.fetch) return;
+    const show = (n) => {
+      count.textContent = n < 1000 ? String(n) : (n / 1000).toFixed(n < 10000 ? 1 : 0).replace(/\.0$/, "") + "k";
+      box.hidden = false;
+      const label = `OpenCompanion on GitHub, ${n.toLocaleString("en")} ${n === 1 ? "star" : "stars"}`;
+      link.setAttribute("aria-label", label);
+      link.title = label;
+    };
+    try {
+      const kept = JSON.parse(sessionStorage.getItem(KEY));
+      if (kept && typeof kept.n === "number" && Date.now() - kept.at < 600000) return show(kept.n);
+    } catch (e) { /* No storage here: ask GitHub instead. */ }
+    fetch("https://api.github.com/repos/yusupsupriyadi/opencompanion", { headers: { Accept: "application/vnd.github+json" } })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("GitHub answered " + r.status))))
+      .then((repo) => {
+        if (typeof repo.stargazers_count !== "number") return;
+        show(repo.stargazers_count);
+        try { sessionStorage.setItem(KEY, JSON.stringify({ n: repo.stargazers_count, at: Date.now() })); } catch (e) { /* Not kept; the next visit asks again. */ }
+      })
+      .catch(() => {});
+  })();
 
   /* Horizon tracks inside the mockups: ground specks plus one mark per event. */
   const HZ = {
