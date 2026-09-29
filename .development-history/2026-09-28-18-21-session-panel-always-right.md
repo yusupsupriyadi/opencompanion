@@ -14,7 +14,7 @@ The owner asked for the Files, Changes, Branch and Details panel of a session to
 
 ## Decisions
 
-- The text button became an icon button to match Chat's Live rail toggle, which already hides and shows a right column. With the session header gone on main (681069d), it ends the tab row, where it sits right above the panel it controls.
+- The text button became an icon button to match Chat's Live rail toggle, which already hides and shows a right column. With the session header gone on main (ed52792), it ends the tab row, where it sits right above the panel it controls.
 - Below 720 the panel opens over the terminal instead of squeezing it: the desktop window cannot get that narrow (minimum 1100), so this only keeps the page usable if it ever does. It starts under the tab row, since covering the row hid the button that closes it.
 
 ## Verification

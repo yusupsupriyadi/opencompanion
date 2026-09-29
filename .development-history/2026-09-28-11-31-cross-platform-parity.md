@@ -25,7 +25,7 @@ A Docker run on Ubuntu 24.04 found Linux-only failures and a code audit found ma
 
 ## Limitations
 
-- macOS is proven in CircleCI only (build and tests on macOS 26 / M4 Pro, pipeline 4 on `28089be`); the window has not been opened on a Mac.
+- macOS is proven in CircleCI only (build and tests on macOS 26 / M4 Pro, pipeline 4 on `f7410f3`); the window has not been opened on a Mac.
 
 ## Follow-up
 

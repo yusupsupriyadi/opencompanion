@@ -4,7 +4,7 @@ Approved in chat on 2026-09-28.
 
 ## Goal
 
-OpenCompanion works the same on Windows, Linux and macOS, and a CI run proves it. Until now only Windows 11 was tested. A Linux run in Docker (2026-09-28, commit 26fe436) passed an 18-step end-to-end test on the installed `.deb`, and an audit of the code found the gaps below.
+OpenCompanion works the same on Windows, Linux and macOS, and a CI run proves it. Until now only Windows 11 was tested. A Linux run in Docker (2026-09-28, commit 441ab82) passed an 18-step end-to-end test on the installed `.deb`, and an audit of the code found the gaps below.
 
 ## Decisions
 
