@@ -12,8 +12,11 @@ export type PaneSide = "left" | "right" | "top" | "bottom";
  * A part never runs the same way as the split holding it: such a part is folded into it.
  */
 export type PaneNode = { kind: "leaf"; pane: string } | { kind: "split"; dir: PaneDir; children: PaneNode[]; sizes: number[] };
-/** `panes` are the tab's terminals in reading order; the first one names the tab. Pinned tabs come first. */
-export type PaneTab = { root: PaneNode; panes: string[]; pinned?: boolean };
+/**
+ * `panes` are the tab's terminals in reading order; the first one names the tab unless it was given a `title`.
+ * Pinned tabs come first.
+ */
+export type PaneTab = { root: PaneNode; panes: string[]; pinned?: boolean; title?: string };
 /** Where a moved terminal lands: in a tab of its own before tab `at`, at the end of the tab holding `tab`, or beside `pane`. */
 export type PaneDrop = { kind: "tab"; at: number } | { kind: "join"; tab: string } | { kind: "beside"; pane: string; side: PaneSide };
 /** A terminal's place in its tab, as fractions of the tab's width and height. */
@@ -156,7 +159,7 @@ export class PaneLayout {
       if (!root) continue;
       const panes = leaves(root);
       panes.forEach((p) => placed.add(p));
-      out.push({ root, panes, pinned: tab.pinned });
+      out.push({ ...tab, root, panes });
     }
     if (!placed.has(TERM)) out.unshift({ root: leaf(TERM), panes: [TERM] });
     for (const id of ids) if (!placed.has(id)) out.push({ root: leaf(id), panes: [id] });
@@ -250,17 +253,30 @@ export class PaneLayout {
   move(pane: string, to: PaneDrop) {
     if (!this.canMove(pane, to)) return;
     // The emptied tab stays in place until the end, so `to.at` still counts the tabs as they were.
-    const next: { root: PaneNode | null; pinned?: boolean }[] = this.tabs.map((t) =>
+    const next: (Omit<PaneTab, "root"> & { root: PaneNode | null })[] = this.tabs.map((t) =>
       t.panes.includes(pane) ? { ...t, root: prune(t.root, (p) => p !== pane) } : t,
     );
-    if (to.kind === "tab") next.splice(to.at, 0, { root: leaf(pane) });
+    if (to.kind === "tab") next.splice(to.at, 0, { root: leaf(pane), panes: [pane] });
     else {
       const target = to.kind === "join" ? to.tab : to.pane;
       const ti = next.findIndex((t) => t.root !== null && leaves(t.root).includes(target));
       const root = next[ti].root!;
       next[ti] = { ...next[ti], root: to.kind === "join" ? append(root, pane) : beside(root, target, pane, to.side) };
     }
-    this.#save(next.flatMap((t) => (t.root ? [{ root: t.root, panes: leaves(t.root), pinned: t.pinned }] : [])));
+    this.#save(next.flatMap((t) => (t.root ? [{ ...t, root: t.root, panes: leaves(t.root) }] : [])));
+  }
+
+  /** Opens a new shell in a tab of its own before tab `at`; `id` is placed before the shell is listed. */
+  insertTab(id: string, at: number) {
+    const tabs = [...this.tabs];
+    tabs.splice(at, 0, { root: leaf(id), panes: [id] });
+    this.#save(tabs);
+  }
+
+  /** Names the tab holding `pane`; an empty name gives it back its first terminal's. */
+  rename(pane: string, title: string) {
+    const name = title.trim();
+    this.#save(this.tabs.map((t) => (t.panes.includes(pane) ? { ...t, title: name || undefined } : t)));
   }
 
   /** Pins the tab holding `pane` at the end of the pinned tabs, or unpins it to the start of the others. */

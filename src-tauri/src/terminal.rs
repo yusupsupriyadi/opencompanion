@@ -354,6 +354,14 @@ impl Terminals {
     }
 
     /// Starts the same shell again in the same folder, on a clean screen.
+    /// Forgets the output so far, so the terminal opens empty next time; the count carries on, so what the shell
+    /// prints after this still shows.
+    pub fn clear_output(&self, id: &str) -> Result<(), String> {
+        let term = self.get(id)?;
+        lock(&term.output).clear();
+        Ok(())
+    }
+
     pub fn restart(self: &Arc<Self>, id: &str, cols: Option<u16>, rows: Option<u16>) -> Result<TerminalInfo, String> {
         let term = self.get(id)?;
         end(&term);
@@ -481,6 +489,12 @@ mod tests {
         let (snap, seq) = terms.output_snapshot(&info.id);
         assert!(snap.contains("oc-term-ok"));
         assert!(seq > 0);
+
+        terms.clear_output(&info.id).unwrap();
+        let (cleared, after) = terms.output_snapshot(&info.id);
+        assert!(!cleared.contains("oc-term-ok"));
+        assert!(after >= seq, "the count carries on after a clear");
+        assert_eq!(terms.clear_output("no-such-terminal").unwrap_err(), "Terminal not found.");
 
         terms.write(&info.id, "exit\r").unwrap();
         wait_for("the exit", || terms.list()[0].exit_code.is_some());

@@ -570,6 +570,8 @@ export const api = {
   /** Like `sessionOutput`, for a terminal. */
   terminalOutput: (id: string) => invoke<{ data: string; seq: number }>("terminal_output", { id }),
   terminalRestart: (id: string) => invoke<TerminalInfo>("terminal_restart", { id }),
+  /** Forgets a terminal's output so far, so it opens empty next time. */
+  terminalClear: (id: string) => invoke<void>("terminal_clear", { id }),
   /** Ends the shell and what it started, such as a dev server. */
   terminalClose: (id: string) => invoke<void>("terminal_close", { id }),
   /** Saves an image pasted into a session or terminal to a temporary file and returns its path. */

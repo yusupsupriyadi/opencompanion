@@ -329,16 +329,25 @@ test("a tab's right-click menu moves it along the tabs, or splits a lone termina
   ps.focus();
   await fireEvent.contextMenu(ps);
   expect(screen.getByRole("menu", { name: "PowerShell tab" })).toBeInTheDocument();
-  expect(screen.getAllByRole("menuitem").map((m) => m.textContent?.trim())).toEqual([
-    "Close tab",
+  const items = screen.getAllByRole("menuitem").map((m) => m.textContent?.trim());
+  expect(items.slice(0, 13)).toEqual([
+    "Close tab Ctrl+Shift+W",
     "Close other tabs",
+    "Close tabs to the right",
     "Close all tabs",
+    "Rename tab",
     "Pin tab",
+    "Duplicate tab",
+    "Clear terminal",
+    "Restart terminal",
     "Move tab left",
     "Move tab right",
     "Split with Claude Code",
     "Split with Command Prompt",
   ]);
+  // Then the session folder's own entries, as in the sidebar.
+  expect(items.slice(13)).toHaveLength(2);
+  expect(items[13]).toBe("Copy folder path");
   await user.click(screen.getByRole("menuitem", { name: "Move tab right" }));
   expect(tabNames()).toEqual(["Claude Code", "Command Prompt", "PowerShell"]);
   expect(ps).toHaveFocus();
@@ -501,7 +510,16 @@ test("right-click in a terminal offers copy, paste, a new tab and a split on thr
 
   await fireEvent.contextMenu(host());
   expect(screen.getByRole("menu", { name: "PowerShell" })).toBeInTheDocument();
-  expect(screen.getAllByRole("menuitem").map((m) => m.textContent?.trim())).toEqual(["Copy", "Paste", "New terminal tab", "Split right", "Split left", "Split down"]);
+  expect(screen.getAllByRole("menuitem").map((m) => m.textContent?.trim())).toEqual([
+    "Copy",
+    "Paste",
+    "Clear terminal",
+    "New terminal tab",
+    "Split right",
+    "Split left",
+    "Split down",
+    "Restart terminal",
+  ]);
   // Nothing is selected, so there is nothing to copy.
   expect(screen.getByRole("menuitem", { name: "Copy" })).toHaveAttribute("aria-disabled", "true");
 
@@ -583,7 +601,7 @@ test("the session's own tab has nothing of its own to close, and Close all tabs 
   await screen.findByRole("button", { name: "Git Bash" });
 
   await fireEvent.contextMenu(own);
-  const close = screen.getByRole("menuitem", { name: /^Close tab/ });
+  const close = screen.getByRole("menuitem", { name: /^Close tab(\s|$)/ });
   expect(close).toHaveAttribute("aria-disabled", "true");
   expect(close).toHaveTextContent("The session's own terminal closes with exit");
   await user.click(screen.getByRole("menuitem", { name: "Close all tabs" }));
@@ -618,6 +636,90 @@ test("a pinned tab moves first, shows a pin for its close, and the bulk closes l
   expect(tabNames()).toEqual(["Git Bash", "Claude Code"]);
   expect(screen.getByRole("button", { name: "Close terminal: Git Bash" })).toBeInTheDocument();
   // Its own menu still closes it, pinned or not.
-  await fromMenu(user, screen.getByRole("button", { name: "Git Bash" }), "Close tab");
+  await fromMenu(user, screen.getByRole("button", { name: "Git Bash" }), "Close tab Ctrl+Shift+W");
   expect(calls.calls("terminal_close").map((c) => c.id)).toEqual(["cl-c-a", "cl-c-b", "cl-c-c"]);
+});
+
+test("a tab is renamed in place: Enter keeps the name, Escape drops it, and an empty one gives the shell's back", async () => {
+  const user = userEvent.setup();
+  threeShells("tb-a");
+  render(SessionPage);
+  render(ContextMenu);
+  const ps = await screen.findByRole("button", { name: "PowerShell" });
+
+  await fromMenu(user, ps, "Rename tab");
+  const field = screen.getByRole("textbox", { name: "Tab name" });
+  expect(field).toHaveFocus();
+  await user.type(field, "dev server{Enter}");
+  const renamed = screen.getByRole("button", { name: "dev server" });
+  expect(renamed).toHaveFocus();
+  expect(tabNames()).toEqual(["Claude Code", "dev server", "Command Prompt", "Git Bash"]);
+
+  // Double-click also renames; Escape leaves it as it was.
+  await user.dblClick(renamed);
+  await user.type(screen.getByRole("textbox", { name: "Tab name" }), " 2{Escape}");
+  expect(screen.getByRole("button", { name: "dev server" })).toBeInTheDocument();
+
+  await user.dblClick(screen.getByRole("button", { name: "dev server" }));
+  await user.clear(screen.getByRole("textbox", { name: "Tab name" }));
+  await user.keyboard("{Enter}");
+  expect(screen.getByRole("button", { name: "PowerShell" })).toBeInTheDocument();
+});
+
+test("Close tabs to the right ends the shells after the tab, and Duplicate opens the same shell beside it", async () => {
+  const user = userEvent.setup();
+  const calls = threeShells("tb-b");
+  render(SessionPage);
+  render(ContextMenu);
+  const cmd = await screen.findByRole("button", { name: "Command Prompt" });
+
+  await fromMenu(user, cmd, "Duplicate tab");
+  expect(calls.calls("terminal_open")[0]).toMatchObject({ sessionId: "tb-b", shell: "cmd" });
+  await vi.waitFor(() => expect(tabNames()).toEqual(["Claude Code", "PowerShell", "Command Prompt", "PowerShell 2", "Git Bash"]));
+
+  await fromMenu(user, screen.getByRole("button", { name: "Command Prompt" }), "Close tabs to the right");
+  await user.click(await screen.findByRole("button", { name: "Close 2 terminals" }));
+  expect(calls.calls("terminal_close").map((c) => c.id)).toEqual(["tb-b-t1", "tb-b-c"]);
+  expect(tabNames()).toEqual(["Claude Code", "PowerShell", "Command Prompt"]);
+});
+
+test("Clear forgets a shell's output and Restart starts it again, from the tab or the terminal", async () => {
+  const user = userEvent.setup();
+  const calls = splitBackend("tb-c", {
+    terminal_list: () => [term({ id: "tb-c-a", sessionId: "tb-c" })],
+    terminal_clear: () => undefined,
+    terminal_restart: () => term({ id: "tb-c-a", sessionId: "tb-c", startedAt: 2000 }),
+  });
+  render(SessionPage);
+  render(ContextMenu);
+  const ps = await screen.findByRole("button", { name: "PowerShell" });
+
+  await fromMenu(user, ps, "Clear terminal");
+  expect(calls.calls("terminal_clear")).toEqual([{ id: "tb-c-a" }]);
+  await user.click(ps);
+  await fireEvent.contextMenu(document.querySelector<HTMLElement>("#shell-panel-tb-c-a .xterm-host")!);
+  await user.click(screen.getByRole("menuitem", { name: "Restart terminal" }));
+  expect(calls.calls("terminal_restart")).toEqual([{ id: "tb-c-a" }]);
+});
+
+test("Ctrl+PageDown and Ctrl+PageUp switch tabs from anywhere, and Ctrl+Shift+W closes the shown one", async () => {
+  const user = userEvent.setup();
+  const calls = threeShells("tb-d");
+  render(SessionPage);
+  const own = await screen.findByRole("button", { name: /^Claude Code\s*output$/ });
+  await screen.findByRole("button", { name: "Git Bash" });
+
+  await user.keyboard("{Control>}{PageDown}{/Control}");
+  expect(screen.getByRole("button", { name: "PowerShell" })).toHaveAttribute("aria-current", "true");
+  expect(document.activeElement?.closest("#shell-panel-tb-d-a")).not.toBeNull();
+  await user.keyboard("{Control>}{PageUp}{PageUp}{/Control}");
+  expect(screen.getByRole("button", { name: "Git Bash" })).toHaveAttribute("aria-current", "true");
+
+  await user.keyboard("{Control>}{Shift>}W{/Shift}{/Control}");
+  expect(calls.calls("terminal_close")).toEqual([{ id: "tb-d-c" }]);
+  expect(tabNames()).toEqual(["Claude Code", "PowerShell", "Command Prompt"]);
+  // The session's own tab has nothing to close.
+  own.click();
+  await user.keyboard("{Control>}{Shift>}W{/Shift}{/Control}");
+  expect(calls.calls("terminal_close")).toHaveLength(1);
 });

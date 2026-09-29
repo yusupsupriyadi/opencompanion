@@ -7,15 +7,18 @@
   import ArrowRight from "phosphor-svelte/lib/ArrowRight";
   import ArrowsLeftRight from "phosphor-svelte/lib/ArrowsLeftRight";
   import ArrowUp from "phosphor-svelte/lib/ArrowUp";
+  import Broom from "phosphor-svelte/lib/Broom";
   import CaretDown from "phosphor-svelte/lib/CaretDown";
   import ClipboardText from "phosphor-svelte/lib/ClipboardText";
   import ColumnsPlusLeft from "phosphor-svelte/lib/ColumnsPlusLeft";
   import ColumnsPlusRight from "phosphor-svelte/lib/ColumnsPlusRight";
   import Copy from "phosphor-svelte/lib/Copy";
+  import CopySimple from "phosphor-svelte/lib/CopySimple";
   import Files from "phosphor-svelte/lib/Files";
   import GitBranch from "phosphor-svelte/lib/GitBranch";
   import GitDiff from "phosphor-svelte/lib/GitDiff";
   import Info from "phosphor-svelte/lib/Info";
+  import PencilSimple from "phosphor-svelte/lib/PencilSimple";
   import Plus from "phosphor-svelte/lib/Plus";
   import PushPin from "phosphor-svelte/lib/PushPin";
   import PushPinSlash from "phosphor-svelte/lib/PushPinSlash";
@@ -31,14 +34,14 @@
   import { api, errorText, type EventRow, type GitChange, type SessionDetail, type SessionInfo, type TerminalInfo, type Usage } from "$lib/api";
   import BranchPanel from "$lib/BranchPanel.svelte";
   import ChangesPanel from "$lib/ChangesPanel.svelte";
-  import { openMenu, type MenuEntry } from "$lib/context-menu.svelte";
+  import { folderEntries, openMenu, type MenuEntry } from "$lib/context-menu.svelte";
   import Dialog from "$lib/Dialog.svelte";
   import FilesPanel from "$lib/FilesPanel.svelte";
   import FileIcon from "$lib/FileIcon.svelte";
   import FileViewer from "$lib/FileViewer.svelte";
   import { refocus } from "$lib/focus";
   import NeedsYou from "$lib/NeedsYou.svelte";
-  import Terminal, { type TermMenu } from "$lib/Terminal.svelte";
+  import Terminal, { clearTerminal, tabKey, type TermMenu } from "$lib/Terminal.svelte";
   import TerminalForm from "$lib/TerminalForm.svelte";
   import Timeline from "$lib/Timeline.svelte";
   import { CLI_LABEL, SIGNAL_TEXT, clock, duration, folderName, isLive, memory, modeLabel, runsCli, shortPath } from "$lib/format";
@@ -188,6 +191,69 @@
   const paneName = (p: string) => (p === TERM ? (s ? CLI_LABEL[s.cli] : "") : (shells.names.get(p) ?? ""));
   const panelId = (p: string) => (p === TERM ? "session-term" : `shell-panel-${p}`);
   const tabButtonId = (p: string) => (p === TERM ? "view-tab-term" : `shell-tab-${p}`);
+  const tabName = (tab: PaneTab) => tab.title || paneName(tab.panes[0]);
+  /** A terminal's name as its tab shows it: the tab's own name when it is the tab's only terminal. */
+  const termName = (p: string) => {
+    const tab = layout.tabOf(p);
+    return tab && tab.panes.length === 1 ? tabName(tab) : paneName(p);
+  };
+
+  /** Empties a terminal's screen; a shell also forgets its output, so it opens empty next time. */
+  function clearTerm(p: string) {
+    if (!s) return;
+    clearTerminal(p === TERM ? s.id : p);
+    if (p !== TERM) api.terminalClear(p).catch((e) => (shellFailure = errorText(e)));
+  }
+
+  /** Opens another shell of the same kind in a tab of its own, right after this one. */
+  async function duplicate(x: TerminalInfo) {
+    shellFailure = "";
+    const at = layout.tabs.findIndex((tab) => tab.panes.includes(x.id)) + 1;
+    try {
+      mainTab = (await shells.open(x.shell, (id) => layout.insertTab(id, at))).id;
+    } catch (e) {
+      shellFailure = errorText(e);
+    }
+  }
+
+  // A tab's name is edited in place of its button: Enter or leaving the field keeps it, Escape drops it, and an empty
+  // name gives the tab back its first terminal's.
+  let renaming = $state<string | null>(null);
+
+  function endRename(name: string | null) {
+    const lead = renaming;
+    if (!lead) return;
+    renaming = null;
+    if (name !== null) layout.rename(lead, name);
+    tick().then(() => document.getElementById(tabButtonId(layout.tabOf(lead)?.panes[0] ?? TERM))?.focus());
+  }
+
+  function renameKeys(e: KeyboardEvent) {
+    if (e.key !== "Enter" && e.key !== "Escape") return;
+    e.preventDefault();
+    e.stopPropagation();
+    endRename(e.key === "Enter" ? (e.currentTarget as HTMLInputElement).value : null);
+  }
+
+  // Ctrl+PageDown and Ctrl+PageUp go to the next and previous tab, Ctrl+Shift+W closes the shown one, also from inside
+  // a terminal. Not while a dialog or the name field has the keys.
+  function tabShortcut(e: KeyboardEvent) {
+    if (!tabKey(e) || e.defaultPrevented || loadState !== "ready" || renaming || document.querySelector("dialog[open]")) return;
+    e.preventDefault();
+    if (e.key.toLowerCase() === "w") {
+      if (shownTab === "viewer") return closeViewer();
+      const own = (layout.tabOf(shownTab)?.panes ?? []).filter((p) => p !== TERM);
+      if (own.length) askClose(own);
+      return;
+    }
+    const order = [...layout.tabs.map((tab) => tab.panes[0]), ...(viewer ? ["viewer"] : [])];
+    const next = order[(order.indexOf(shownTab) + (e.key === "PageDown" ? 1 : -1) + order.length) % order.length];
+    mainTab = next;
+    tick().then(() => {
+      const into = next === "viewer" ? null : document.getElementById(panelId(next))?.querySelector<HTMLElement>(".xterm-helper-textarea");
+      (into ?? document.getElementById(next === "viewer" ? "view-tab-file" : tabButtonId(next)))?.focus();
+    });
+  }
 
   function newShell(at: { pane: string; side?: PaneSide } | null) {
     splitAt = at;
@@ -212,7 +278,8 @@
       ["left", "terminal.menu.splitLeft", ColumnsPlusLeft],
       ["bottom", "terminal.menu.splitDown", RowsPlusBottom],
     ];
-    openMenu(e, `terminal:${pane}`, paneName(pane), [
+    const x = shells.list.find((y) => y.id === pane);
+    openMenu(e, `terminal:${pane}`, termName(pane), [
       { label: t("terminal.menu.copy"), icon: Copy, disabled: !m.selection, action: () => navigator.clipboard?.writeText(m.selection).catch(() => undefined) },
       {
         label: t("terminal.menu.paste"),
@@ -224,9 +291,11 @@
           read.then(m.paste).catch(() => showToast(t("terminal.pasteFailed", { paste: pasteKey() })));
         },
       },
+      { label: t("terminal.menu.clear"), icon: Broom, action: () => clearTerm(pane) },
       null,
       { label: t("terminal.menu.newTerminal"), icon: Plus, action: () => newShell(null) },
       ...sides.map(([side, label, icon]) => ({ label: t(label), icon, disabled: full || shells.state !== "ready", hint, action: splitTo(side) })),
+      ...(x ? [null, { label: t("terminal.menu.restart"), icon: ArrowClockwise, action: () => restartShell(x) }] : []),
     ]);
   }
 
@@ -427,18 +496,31 @@
       const shellsIn = (o: PaneTab) => o.panes.filter((p) => p !== TERM);
       const own = shellsIn(tab);
       const others = tabs.filter((o, j) => j !== ti && !o.pinned).flatMap(shellsIn);
+      const right = tabs.filter((o, j) => j > ti && !o.pinned).flatMap(shellsIn);
       const all = tabs.filter((o) => !o.pinned).flatMap(shellsIn);
       // Pinned tabs come first, and a tab moves only among its own kind.
       const first = tab.pinned ? 0 : tabs.filter((o) => o.pinned).length;
       const last = tab.pinned ? tabs.filter((o) => o.pinned).length - 1 : tabs.length - 1;
+      // A tab of one terminal also offers what can be done to that terminal.
+      const lone = tab.panes.length === 1 ? tab.panes[0] : null;
+      const x = lone ? shells.list.find((y) => y.id === lone) : undefined;
       items.push(
-        { label: t("terminal.menu.close"), icon: X, disabled: !own.length, hint: own.length ? undefined : t("terminal.menu.ownStays"), action: () => askClose(own) },
+        { label: t("terminal.menu.close"), icon: X, disabled: !own.length, hint: own.length ? CLOSE_KEY : t("terminal.menu.ownStays"), action: () => askClose(own) },
         { label: t("terminal.menu.closeOthers"), icon: X, disabled: !others.length, action: () => askClose(others) },
+        { label: t("terminal.menu.closeRight"), icon: X, disabled: !right.length, action: () => askClose(right) },
         { label: t("terminal.menu.closeAll"), icon: X, disabled: !all.length, action: () => askClose(all) },
         null,
+        { label: t("terminal.menu.rename"), icon: PencilSimple, action: () => (renaming = tab.panes[0]) },
         tab.pinned
           ? { label: t("terminal.menu.unpin"), icon: PushPinSlash, action: () => moved(pane, () => layout.pin(pane, false)) }
           : { label: t("terminal.menu.pin"), icon: PushPin, action: () => moved(pane, () => layout.pin(pane, true)) },
+        ...(x ? [{ label: t("terminal.menu.duplicate"), icon: CopySimple, action: () => duplicate(x) }] : []),
+      );
+      if (lone) {
+        items.push(null, { label: t("terminal.menu.clear"), icon: Broom, action: () => clearTerm(lone) });
+        if (x) items.push({ label: t("terminal.menu.restart"), icon: ArrowClockwise, action: () => restartShell(x) });
+      }
+      items.push(
         null,
         { label: t("terminal.menu.tabLeft"), icon: ArrowLeft, disabled: ti <= first, action: () => moved(pane, () => layout.moveTab(pane, ti - 1)) },
         { label: t("terminal.menu.tabRight"), icon: ArrowRight, disabled: ti >= last, action: () => moved(pane, () => layout.moveTab(pane, ti + 2)) },
@@ -463,7 +545,7 @@
       for (const o of others) {
         const full = o.panes.length >= MAX_PANES;
         items.push({
-          label: t("terminal.menu.join", { tab: paneName(o.panes[0]) }),
+          label: t("terminal.menu.join", { tab: tabName(o) }),
           icon: SquareSplitHorizontal,
           disabled: full,
           hint: full ? t("terminal.splitFull", { n: MAX_PANES }) : undefined,
@@ -471,8 +553,12 @@
         });
       }
     }
-    openMenu(e, `terminal:${pane}`, whole ? t("terminal.menu.tabLabel", { name: paneName(tab.panes[0]) }) : t("terminal.menu.label", { name: paneName(pane) }), items);
+    // Every terminal of the session runs in its folder.
+    if (whole && s) items.push(null, ...folderEntries(s.cwd));
+    openMenu(e, `terminal:${pane}`, whole ? t("terminal.menu.tabLabel", { name: tabName(tab) }) : t("terminal.menu.label", { name: paneName(pane) }), items);
   }
+
+  const CLOSE_KEY = "Ctrl+Shift+W";
 
   // Closing several shells at once asks first: a dev server or a test run stops with its shell. One closes at once,
   // as its tab's `x` does.
@@ -716,7 +802,12 @@
 </script>
 
 <svelte:head><title>{s ? s.title : t("sessions.detail.pageTitle")} · OpenCompanion</title></svelte:head>
-<svelte:window onkeydown={closePeek} />
+<svelte:window
+  onkeydown={(e) => {
+    closePeek(e);
+    tabShortcut(e);
+  }}
+/>
 
 <main class="main detail" id="session-main">
   {#if loadState === "loading"}
@@ -758,35 +849,56 @@
                 class:drop-join={drop?.kind === "join" && drop.tab === lead}
                 data-tab={lead}
               >
-                <button
-                  class="tab-pick"
-                  type="button"
-                  id={tabButtonId(lead)}
-                  aria-current={shownTab === lead ? "true" : undefined}
-                  aria-controls={tab.panes.map(panelId).join(" ")}
-                  title={more ? `${tab.panes.map(paneName).join(", ")}\n${t("terminal.dragHint")}` : t("terminal.dragHint")}
-                  onclick={() => dragged || (mainTab = lead)}
-                  onpointerdown={(e) => dragFrom(e, lead, true)}
-                  oncontextmenu={(e) => moveMenu(e, lead, true)}
-                >
-                  <b>{paneName(lead)}</b>
-                  {#if !x}
-                    <small>{s.mode === "interactive" ? t("workspace.viewer.terminal") : t("workspace.viewer.output")}</small>
-                  {:else if !x.running}
-                    <span class="chip idle">{t("terminal.exited")}</span>
-                  {/if}
-                  {#if more}
-                    <small class="tab-more" aria-hidden="true">+{more}</small>
-                    <span class="sr-only">{" "}{plural(more, "terminal.moreOne", "terminal.moreMany")}</span>
-                  {/if}
-                  {#if tab.pinned}<span class="sr-only">{", "}{t("terminal.pinned")}</span>{/if}
-                </button>
+                {#if renaming === lead}
+                  <input
+                    class="tab-rename"
+                    type="text"
+                    id="tab-rename"
+                    value={tab.title ?? ""}
+                    placeholder={paneName(lead)}
+                    maxlength="40"
+                    aria-label={t("terminal.renameLabel")}
+                    spellcheck="false"
+                    autocomplete="off"
+                    {@attach (el: HTMLInputElement) => {
+                      el.focus();
+                      el.select();
+                    }}
+                    onkeydown={renameKeys}
+                    onblur={(e) => endRename(e.currentTarget.value)}
+                  />
+                {:else}
+                  <button
+                    class="tab-pick"
+                    type="button"
+                    id={tabButtonId(lead)}
+                    aria-current={shownTab === lead ? "true" : undefined}
+                    aria-controls={tab.panes.map(panelId).join(" ")}
+                    title={more || tab.title ? `${tab.panes.map(paneName).join(", ")}\n${t("terminal.dragHint")}` : t("terminal.dragHint")}
+                    onclick={() => dragged || (mainTab = lead)}
+                    ondblclick={() => (renaming = lead)}
+                    onpointerdown={(e) => dragFrom(e, lead, true)}
+                    oncontextmenu={(e) => moveMenu(e, lead, true)}
+                  >
+                    <b>{tabName(tab)}</b>
+                    {#if !x}
+                      <small>{s.mode === "interactive" ? t("workspace.viewer.terminal") : t("workspace.viewer.output")}</small>
+                    {:else if !x.running}
+                      <span class="chip idle">{t("terminal.exited")}</span>
+                    {/if}
+                    {#if more}
+                      <small class="tab-more" aria-hidden="true">+{more}</small>
+                      <span class="sr-only">{" "}{plural(more, "terminal.moreOne", "terminal.moreMany")}</span>
+                    {/if}
+                    {#if tab.pinned}<span class="sr-only">{", "}{t("terminal.pinned")}</span>{/if}
+                  </button>
+                {/if}
                 <!-- A split tab has no close of its own: each of its terminals closes from its header. -->
                 <!-- A pinned tab shows its pin where the close was, so a stray click does not end it; its menu still closes it. -->
                 {#if tab.pinned}
                   <span class="tab-pin" title={t("terminal.pinnedHint")}><PushPin size={14} weight="fill" aria-hidden="true" /></span>
                 {:else if x && !more}
-                  <button class="icon-btn tab-close" type="button" aria-label={t("terminal.closeNamed", { name: paneName(lead) })} title={t("terminal.closeHint", { shell: x.shellLabel })} onclick={() => closeShell(x)}>
+                  <button class="icon-btn tab-close" type="button" aria-label={t("terminal.closeNamed", { name: tabName(tab) })} title={t("terminal.closeHint", { shell: x.shellLabel })} onclick={() => closeShell(x)}>
                     <X size={14} aria-hidden="true" />
                   </button>
                 {/if}
@@ -1117,7 +1229,7 @@
 <Dialog bind:open={closeOpen} labelledby="close-many-title">
   <div class="d-body">
     <h2 id="close-many-title">{t("terminal.closeManyTitle", { n: closing.length })}</h2>
-    <p class="meta" style="margin:0;font-size:14px">{t("terminal.closeManyBody", { names: closing.map(paneName).join(", ") })}</p>
+    <p class="meta" style="margin:0;font-size:14px">{t("terminal.closeManyBody", { names: closing.map(termName).join(", ") })}</p>
     <div class="d-foot">
       <span class="grow"></span>
       <button class="btn secondary" type="button" onclick={() => (closeOpen = false)}>{t("terminal.keepOpen")}</button>
@@ -1300,6 +1412,29 @@
   /* Between tabs: a bar on the edge it would land at. On a tab: a dashed ring, to join it. */
   .tab {
     position: relative;
+  }
+  /* A tab's name being edited sits where its button was, at the same size, as a field on the tab's own plate. */
+  .tab-rename {
+    width: 180px;
+    min-height: 30px;
+    margin: 4px 4px 4px 6px;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: var(--r-btn);
+    background: var(--surface-2);
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .tab-rename::placeholder {
+    color: var(--ink-2);
+  }
+  .tab.current .tab-rename {
+    background: #ffffff1a;
+  }
+  .tab.current .tab-rename::placeholder {
+    color: var(--term-dim);
   }
   /* A pinned tab's mark, the same pin as a pinned session in the sidebar, where its close would be. */
   .tab-pin {

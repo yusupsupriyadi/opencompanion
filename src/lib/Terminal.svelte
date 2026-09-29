@@ -1,6 +1,21 @@
 <script module lang="ts">
   /** What a right-click menu over the terminal can do with it. `paste` types the text in while the terminal runs. */
   export type TermMenu = { selection: string; live: boolean; paste: (text: string) => void };
+
+  // The mounted terminals, by session or shell id, so a menu elsewhere (a tab's) can clear one.
+  const clearers = new Map<string, () => void>();
+
+  /** Empties the screen and scrollback of the terminal shown for `id`. */
+  export function clearTerminal(id: string) {
+    clearers.get(id)?.();
+  }
+
+  /** Keys the session screen keeps for its tabs, so the terminal does not send them on. */
+  export function tabKey(e: KeyboardEvent): boolean {
+    if (!e.ctrlKey || e.altKey || e.metaKey) return false;
+    if (!e.shiftKey && (e.key === "PageUp" || e.key === "PageDown")) return true;
+    return e.shiftKey && e.key.toLowerCase() === "w";
+  }
 </script>
 
 <script lang="ts">
@@ -134,6 +149,8 @@
     // Tab belongs to the CLI while it runs, so Ctrl+Tab and Ctrl+Shift+Tab leave the terminal
     // instead. A closed terminal takes no keys, and Tab moves on as everywhere else.
     term.attachCustomKeyEventHandler((e) => {
+      // Switching and closing tabs work from inside a terminal too; the page hears the key.
+      if (tabKey(e)) return false;
       if (e.ctrlKey && !e.altKey && !e.metaKey) {
         const key = e.key.toLowerCase();
         // Ctrl+V lets the browser paste, as in Windows Terminal. The AI CLIs expect that on Windows
@@ -240,6 +257,8 @@
       onmenu?.(e, { selection: term.getSelection(), live: acceptInput, paste: (text) => acceptInput && term.paste(text) });
     };
     box.addEventListener("contextmenu", onContext);
+    const clear = () => term.clear();
+    clearers.set(id, clear);
 
     const ro = new ResizeObserver(() => {
       try {
@@ -254,6 +273,8 @@
     return () => {
       gone = true;
       fitProcess = null;
+      // A remount for the same id may have taken the slot already.
+      if (clearers.get(id) === clear) clearers.delete(id);
       box.removeEventListener("paste", onPaste, true);
       box.removeEventListener("contextmenu", onContext);
       ro.disconnect();

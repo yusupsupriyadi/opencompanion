@@ -651,6 +651,11 @@ fn terminal_output(state: State<'_, AppState>, id: String) -> OutputSnapshot {
 }
 
 #[tauri::command]
+fn terminal_clear(state: State<'_, AppState>, id: String) -> Res<()> {
+    state.terminals.clear_output(&id)
+}
+
+#[tauri::command]
 async fn terminal_restart(state: State<'_, AppState>, id: String, cols: Option<u16>, rows: Option<u16>) -> Res<terminal::TerminalInfo> {
     let terminals = Arc::clone(&state.terminals);
     blocking(move || terminals.restart(&id, cols, rows)).await
@@ -1041,6 +1046,7 @@ pub fn run() {
             terminal_resize,
             terminal_output,
             terminal_restart,
+            terminal_clear,
             terminal_close,
             save_pasted_image,
             chat_threads,

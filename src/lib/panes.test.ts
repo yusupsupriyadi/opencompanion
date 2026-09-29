@@ -208,3 +208,19 @@ test("pinned tabs come first in the order they were pinned, and nothing moves ac
   layout.pin("c", false);
   expect(panes(layout)).toEqual([["a", "b"], ["c"], [TERM]]);
 });
+
+test("a tab keeps its name through moves and when its first terminal closes, and a new tab goes where it is put", () => {
+  const { layout, open } = setup("name", ["a", "b"]);
+  layout.move("b", { kind: "join", tab: "a" });
+  layout.rename("a", "  dev  ");
+  expect(layout.tabOf("b")?.title).toBe("dev");
+  layout.moveTab("a", 0);
+  open(["b"]);
+  expect(layout.tabOf("b")?.title).toBe("dev");
+  layout.rename("b", "   ");
+  expect(layout.tabOf("b")?.title).toBeUndefined();
+
+  layout.insertTab("c", 1);
+  open(["b", "c"]);
+  expect(panes(layout)).toEqual([["b"], ["c"], [TERM]]);
+});
