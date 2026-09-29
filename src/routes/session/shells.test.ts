@@ -486,3 +486,57 @@ test("terminals dropped on different sides nest splits: one beside, then one und
   expect(screen.getAllByRole("separator").map((s) => s.getAttribute("aria-orientation"))).toEqual(["vertical", "horizontal"]);
   expect(screen.getByRole("separator", { name: "Resize PowerShell and Command Prompt" })).toBeInTheDocument();
 });
+
+test("right-click in a terminal offers copy, paste, a new tab and a split on three sides", async () => {
+  const user = userEvent.setup();
+  const calls = splitBackend("rc-a", { terminal_list: () => [term({ id: "rc-a-a", sessionId: "rc-a" })], terminal_write: () => undefined });
+  render(SessionPage);
+  render(ContextMenu);
+  await user.click(await screen.findByRole("button", { name: "PowerShell" }));
+  const host = () => document.querySelector<HTMLElement>("#shell-panel-rc-a-a .xterm-host")!;
+
+  await fireEvent.contextMenu(host());
+  expect(screen.getByRole("menu", { name: "PowerShell" })).toBeInTheDocument();
+  expect(screen.getAllByRole("menuitem").map((m) => m.textContent?.trim())).toEqual(["Copy", "Paste", "New terminal tab", "Split right", "Split left", "Split down"]);
+  // Nothing is selected, so there is nothing to copy.
+  expect(screen.getByRole("menuitem", { name: "Copy" })).toHaveAttribute("aria-disabled", "true");
+
+  // Paste types the clipboard's text into the shell.
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { readText: async () => "npm test", writeText: async () => undefined } });
+  await user.click(screen.getByRole("menuitem", { name: "Paste" }));
+  await vi.waitFor(() => expect(calls.calls("terminal_write").map((c) => c.data).join("")).toContain("npm test"));
+
+  await fireEvent.contextMenu(host());
+  await user.click(screen.getByRole("menuitem", { name: "Split left" }));
+  const dialog = await screen.findByRole("dialog", { name: "Split terminal" });
+  await within(dialog).findByRole("combobox", { name: "Shell" });
+  await user.click(within(dialog).getByRole("button", { name: "Open in uninote" }));
+
+  expect(await screen.findByRole("button", { name: /^PowerShell 2\s*with 1 more terminal$/ })).toHaveAttribute("aria-current", "true");
+  expect(paneOrder()).toEqual(["shell-panel-rc-a-t1", "shell-panel-rc-a-a"]);
+  expect(screen.getByRole("separator")).toHaveAttribute("aria-orientation", "vertical");
+
+  await fireEvent.contextMenu(host());
+  await user.click(screen.getByRole("menuitem", { name: "New terminal tab" }));
+  expect(await screen.findByRole("dialog", { name: "New terminal" })).toBeInTheDocument();
+});
+
+test("a split down from the right-click menu opens under that terminal, in the tab it is in", async () => {
+  const user = userEvent.setup();
+  splitBackend("rc-b");
+  render(SessionPage);
+  render(ContextMenu);
+  await screen.findByRole("button", { name: /^Claude Code\s*output$/ });
+  await splitOnce(user);
+  // The session's own output has no xterm; its shell does.
+  await fireEvent.contextMenu(document.querySelector<HTMLElement>("#shell-panel-rc-b-t1 .xterm-host")!);
+  await user.click(screen.getByRole("menuitem", { name: "Split down" }));
+  const dialog = await screen.findByRole("dialog", { name: "Split terminal" });
+  await within(dialog).findByRole("combobox", { name: "Shell" });
+  await user.click(within(dialog).getByRole("button", { name: "Open in uninote" }));
+
+  await screen.findByRole("button", { name: /with 2 more terminals$/ });
+  const under = document.getElementById("shell-panel-rc-b-t2")!;
+  expect([under.style.left, under.style.top, under.style.width, under.style.height]).toEqual(["50%", "50%", "50%", "50%"]);
+  expect(screen.getAllByRole("separator").map((s) => s.getAttribute("aria-orientation"))).toEqual(["vertical", "horizontal"]);
+});

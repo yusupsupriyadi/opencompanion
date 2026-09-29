@@ -8,6 +8,10 @@
   import ArrowsLeftRight from "phosphor-svelte/lib/ArrowsLeftRight";
   import ArrowUp from "phosphor-svelte/lib/ArrowUp";
   import CaretDown from "phosphor-svelte/lib/CaretDown";
+  import ClipboardText from "phosphor-svelte/lib/ClipboardText";
+  import ColumnsPlusLeft from "phosphor-svelte/lib/ColumnsPlusLeft";
+  import ColumnsPlusRight from "phosphor-svelte/lib/ColumnsPlusRight";
+  import Copy from "phosphor-svelte/lib/Copy";
   import Files from "phosphor-svelte/lib/Files";
   import GitBranch from "phosphor-svelte/lib/GitBranch";
   import GitDiff from "phosphor-svelte/lib/GitDiff";
@@ -15,6 +19,7 @@
   import Play from "phosphor-svelte/lib/Play";
   import Plus from "phosphor-svelte/lib/Plus";
   import Rows from "phosphor-svelte/lib/Rows";
+  import RowsPlusBottom from "phosphor-svelte/lib/RowsPlusBottom";
   import SidebarSimple from "phosphor-svelte/lib/SidebarSimple";
   import SquareSplitHorizontal from "phosphor-svelte/lib/SquareSplitHorizontal";
   import SquareSplitVertical from "phosphor-svelte/lib/SquareSplitVertical";
@@ -31,7 +36,7 @@
   import FileViewer from "$lib/FileViewer.svelte";
   import { refocus } from "$lib/focus";
   import NeedsYou from "$lib/NeedsYou.svelte";
-  import Terminal from "$lib/Terminal.svelte";
+  import Terminal, { type TermMenu } from "$lib/Terminal.svelte";
   import TerminalForm from "$lib/TerminalForm.svelte";
   import Timeline from "$lib/Timeline.svelte";
   import { CLI_LABEL, SIGNAL_TEXT, clock, duration, folderName, isLive, memory, modeLabel, runsCli, shortPath } from "$lib/format";
@@ -172,8 +177,9 @@
   });
   const pct = (n: number) => `${+(n * 100).toFixed(4)}%`;
   let newShellOpen = $state(false);
-  // The tab a New terminal dialog opened from Split puts its shell in.
-  let splitInto = $state<string | null>(null);
+  // Where a New terminal dialog opened from a split puts its shell: on one side of a terminal, or with no side at the
+  // end of that terminal's tab. Null opens a tab of its own.
+  let splitAt = $state<{ pane: string; side?: PaneSide } | null>(null);
   let restarting = $state("");
   let shellFailure = $state("");
 
@@ -181,16 +187,45 @@
   const panelId = (p: string) => (p === TERM ? "session-term" : `shell-panel-${p}`);
   const tabButtonId = (p: string) => (p === TERM ? "view-tab-term" : `shell-tab-${p}`);
 
-  function newShell(into: string | null) {
-    splitInto = into;
+  function newShell(at: { pane: string; side?: PaneSide } | null) {
+    splitAt = at;
     newShellOpen = true;
   }
 
   async function openShell(shell: string) {
-    const into = splitInto;
-    const info = await shells.open(shell, into ? (x) => layout.split(into, x) : undefined);
+    const at = splitAt;
+    const info = await shells.open(shell, at ? (x) => layout.split(at.pane, x, at.side) : undefined);
     mainTab = info.id;
     newShellOpen = false;
+  }
+
+  // Right-click in a terminal: copy and paste, as the webview's own menu did there, then a new tab or a split on one
+  // side of that terminal.
+  function termMenu(e: MouseEvent, pane: string, m: TermMenu) {
+    const full = (layout.tabOf(pane)?.panes.length ?? 0) >= MAX_PANES;
+    const hint = full ? t("terminal.splitFull", { n: MAX_PANES }) : undefined;
+    const splitTo = (side: PaneSide) => () => newShell({ pane, side });
+    const sides: [PaneSide, Key, typeof Plus][] = [
+      ["right", "terminal.menu.splitRight", ColumnsPlusRight],
+      ["left", "terminal.menu.splitLeft", ColumnsPlusLeft],
+      ["bottom", "terminal.menu.splitDown", RowsPlusBottom],
+    ];
+    openMenu(e, `terminal:${pane}`, paneName(pane), [
+      { label: t("terminal.menu.copy"), icon: Copy, disabled: !m.selection, action: () => navigator.clipboard?.writeText(m.selection).catch(() => undefined) },
+      {
+        label: t("terminal.menu.paste"),
+        icon: ClipboardText,
+        disabled: !m.live,
+        action: () => {
+          const read = navigator.clipboard?.readText();
+          if (!read) return showToast(t("terminal.pasteFailed", { paste: pasteKey() }));
+          read.then(m.paste).catch(() => showToast(t("terminal.pasteFailed", { paste: pasteKey() })));
+        },
+      },
+      null,
+      { label: t("terminal.menu.newTerminal"), icon: Plus, action: () => newShell(null) },
+      ...sides.map(([side, label, icon]) => ({ label: t(label), icon, disabled: full || shells.state !== "ready", hint, action: splitTo(side) })),
+    ]);
   }
 
   async function closeShell(x: TerminalInfo) {
@@ -724,7 +759,7 @@
               aria-label={t("terminal.split")}
               title={shown.panes.length >= MAX_PANES ? t("terminal.splitFull", { n: MAX_PANES }) : shownDir === "column" ? t("terminal.splitBelow") : t("terminal.splitBeside")}
               disabled={!canSplit}
-              onclick={() => newShell(shownTab)}
+              onclick={() => newShell({ pane: shownTab })}
             >
               {#if shownDir === "column"}<SquareSplitVertical size={20} aria-hidden="true" />{:else}<SquareSplitHorizontal size={20} aria-hidden="true" />{/if}
             </button>
@@ -811,7 +846,7 @@
                   {@render paneHead(TERM, null)}
                   {#if s.mode === "interactive"}
                     {#key `${id}-${termKey}`}
-                      <Terminal id={s.id} {live} label={t("sessions.detail.terminalLabel", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) })} />
+                      <Terminal id={s.id} {live} label={t("sessions.detail.terminalLabel", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) })} onmenu={(e, m) => termMenu(e, TERM, m)} />
                     {/key}
                     {#if live}
                       {#if !inSplit.has(TERM)}<div class="term-note">{liveNote(TERM)}</div>{/if}
@@ -851,7 +886,7 @@
                 >
                   {@render paneHead(x.id, x)}
                   {#key `${x.id}-${x.startedAt}`}
-                    <Terminal kind="terminal" id={x.id} live={x.running} {label} />
+                    <Terminal kind="terminal" id={x.id} live={x.running} {label} onmenu={(e, m) => termMenu(e, x.id, m)} />
                   {/key}
                   {#if x.running}
                     {#if !inSplit.has(x.id)}<div class="term-note">{liveNote(x.id)}</div>{/if}
@@ -1013,7 +1048,7 @@
 
 <Dialog bind:open={newShellOpen} labelledby="nt-title">
   {#if s}
-    <TerminalForm folder={s.cwd} split={splitInto !== null} onsubmit={openShell} oncancel={() => (newShellOpen = false)} />
+    <TerminalForm folder={s.cwd} split={splitAt !== null} onsubmit={openShell} oncancel={() => (newShellOpen = false)} />
   {/if}
 </Dialog>
 

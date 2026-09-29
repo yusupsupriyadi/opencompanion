@@ -1,3 +1,8 @@
+<script module lang="ts">
+  /** What a right-click menu over the terminal can do with it. `paste` types the text in while the terminal runs. */
+  export type TermMenu = { selection: string; live: boolean; paste: (text: string) => void };
+</script>
+
 <script lang="ts">
   import { listen } from "@tauri-apps/api/event";
   import { FitAddon } from "@xterm/addon-fit";
@@ -9,8 +14,15 @@
   import { currentPlatform } from "./platform";
   import { pastedImage, pathForPaste, shiftEnter } from "./term-input";
 
-  // `session` is an AI CLI session; `terminal` a plain shell opened in a tab beside it.
-  let { id, live, label, kind = "session" }: { id: string; live: boolean; label: string; kind?: "session" | "terminal" } = $props();
+  // `session` is an AI CLI session; `terminal` a plain shell opened in a tab beside it. `onmenu` takes the right-click
+  // in place of the webview's own menu.
+  let {
+    id,
+    live,
+    label,
+    kind = "session",
+    onmenu,
+  }: { id: string; live: boolean; label: string; kind?: "session" | "terminal"; onmenu?: (e: MouseEvent, menu: TermMenu) => void } = $props();
 
   let host: HTMLDivElement | undefined = $state();
   // Read inside the xterm callbacks, which outlive the first render.
@@ -199,6 +211,11 @@
     };
     box.addEventListener("paste", onPaste, true);
 
+    const onContext = (e: MouseEvent) => {
+      onmenu?.(e, { selection: term.getSelection(), live: acceptInput, paste: (text) => acceptInput && term.paste(text) });
+    };
+    box.addEventListener("contextmenu", onContext);
+
     const ro = new ResizeObserver(() => {
       try {
         fit.fit();
@@ -212,6 +229,7 @@
     return () => {
       gone = true;
       box.removeEventListener("paste", onPaste, true);
+      box.removeEventListener("contextmenu", onContext);
       ro.disconnect();
       unlisten.then((f) => f());
       term.dispose();

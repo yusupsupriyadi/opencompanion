@@ -175,9 +175,9 @@ export class PaneLayout {
     return this.tabs.find((t) => t.panes.includes(pane));
   }
 
-  /** Puts a new shell at the end of `pane`'s tab, with an equal share. */
-  split(pane: string, id: string) {
-    this.#edit(pane, (root, tab) => (tab.panes.length >= MAX_PANES ? root : append(root, id)));
+  /** Puts a new shell on `side` of `pane`, or with no side at the end of `pane`'s tab with an equal share. */
+  split(pane: string, id: string, side?: PaneSide) {
+    this.#edit(pane, (root, tab) => (tab.panes.length >= MAX_PANES ? root : side ? beside(root, pane, id, side) : append(root, id)));
   }
 
   /** Turns a tab's splits between side by side and top to bottom. */
