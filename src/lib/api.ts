@@ -420,6 +420,60 @@ export interface StartRequest {
   rows?: number;
 }
 
+/** Mirrors `db::Automation`: a session started by itself on a cron schedule, in local time. */
+export interface Automation {
+  id: string;
+  name: string;
+  cli: CliKind;
+  cwd: string;
+  mode: Mode;
+  prompt: string;
+  permissionMode: PermMode;
+  /** Five cron fields: minute, hour, day of month, month, day of week. */
+  schedule: string;
+  enabled: boolean;
+  /** `null` while paused. */
+  nextRunAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type RunOutcome = "started" | "late" | "skipped" | "failed";
+
+/** Mirrors `db::AutomationRun`. `sessionId` is null when nothing started or the session was deleted. */
+export interface AutomationRun {
+  id: string;
+  automationId: string;
+  dueAt: number;
+  ranAt: number;
+  outcome: RunOutcome;
+  sessionId: string | null;
+  error: string | null;
+}
+
+/** Mirrors `automations::View`: a list row. */
+export interface AutomationView extends Automation {
+  lastRun: AutomationRun | null;
+}
+
+/** Mirrors `automations::Detail`. */
+export interface AutomationDetail {
+  automation: Automation;
+  runs: AutomationRun[];
+}
+
+/** Mirrors `automations::Draft`: what the form saves. */
+export interface AutomationDraft {
+  name: string;
+  cli: CliKind;
+  cwd: string;
+  mode: Mode;
+  prompt: string;
+  permissionMode: PermMode;
+  schedule: string;
+  enabled: boolean;
+}
+
 /** Mirrors `terminal::Shell`: a shell found on this computer. */
 export interface ShellInfo {
   id: string;
@@ -531,6 +585,16 @@ export const api = {
   chatRunCard: (messageId: string, cardId: string) => invoke<ChatMessage>("chat_run_card", { messageId, cardId }),
   chatModels: (cli: CliKind) => invoke<ModelList>("chat_models", { cli }),
   chatSetModel: (cli: CliKind, model: string, effort: string) => invoke<Settings>("chat_set_model", { cli, model, effort }),
+
+  listAutomations: () => invoke<AutomationView[]>("list_automations"),
+  getAutomation: (id: string) => invoke<AutomationDetail>("get_automation", { id }),
+  /** `id` null creates one. */
+  saveAutomation: (id: string | null, draft: AutomationDraft) => invoke<Automation>("save_automation", { id, draft }),
+  setAutomationEnabled: (id: string, enabled: boolean) => invoke<Automation>("set_automation_enabled", { id, enabled }),
+  deleteAutomation: (id: string) => invoke<void>("delete_automation", { id }),
+  runAutomation: (id: string) => invoke<AutomationRun>("run_automation", { id }),
+  /** The next three times the schedule comes round, in ms. */
+  previewSchedule: (schedule: string) => invoke<number[]>("preview_schedule", { schedule }),
 
   getSettings: () => invoke<Settings>("get_settings"),
   saveSettings: (settings: Settings) => invoke<Settings>("save_settings", { settings }),

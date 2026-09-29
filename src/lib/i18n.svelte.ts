@@ -1,6 +1,7 @@
 // UI language, English or Indonesian (PRD FR-63). Each screen area keeps its own strings in
 // `./i18n/<area>.ts`; the Indonesian dictionary is typed against the English one, so a missing
 // translation is a type error, not a blank label.
+import * as automations from "./i18n/automations";
 import { translateBackend } from "./i18n/backend";
 import * as chat from "./i18n/chat";
 import * as phone from "./i18n/phone";
@@ -13,9 +14,9 @@ import * as workspace from "./i18n/workspace";
 
 export type Lang = "en" | "id";
 
-const en = { ...shell.en, ...sessions.en, ...chat.en, ...work.en, ...settings.en, ...phone.en, ...terminal.en, ...workspace.en };
+const en = { ...shell.en, ...sessions.en, ...chat.en, ...work.en, ...settings.en, ...phone.en, ...terminal.en, ...workspace.en, ...automations.en };
 export type Key = keyof typeof en;
-const id: Record<Key, string> = { ...shell.id, ...sessions.id, ...chat.id, ...work.id, ...settings.id, ...phone.id, ...terminal.id, ...workspace.id };
+const id: Record<Key, string> = { ...shell.id, ...sessions.id, ...chat.id, ...work.id, ...settings.id, ...phone.id, ...terminal.id, ...workspace.id, ...automations.id };
 const DICTS: Record<Lang, Record<Key, string>> = { en, id };
 
 export const LANGS: { id: Lang; label: string }[] = [

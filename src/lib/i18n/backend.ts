@@ -38,6 +38,18 @@ const RULES: Rule[] = [
   [/^(.+) is not installed or not on PATH\.$/, "$1 tidak terpasang atau tidak ada di PATH."],
   [/^The custom path for (.+) does not exist: (.+)$/, "Path kustom untuk $1 tidak ada: $2"],
   [/^The custom path does not exist: (.+)$/, "Path kustom tidak ada: $1"],
+
+  // Automations
+  [/^Give the automation a name\.$/, "Beri nama otomasi ini."],
+  [/^Choose when it runs\.$/, "Pilih kapan otomasi ini jalan."],
+  [/^Use five fields: minute, hour, day of month, month and day of week\.$/, "Pakai lima kolom: menit, jam, tanggal, bulan, dan hari."],
+  [
+    /^This schedule is not valid\. Minutes go from 0 to 59, hours 0 to 23, days 1 to 31, months 1 to 12 and weekdays 0 to 7 \(0 and 7 are Sunday\)\.$/,
+    "Jadwal ini tidak valid. Menit dari 0 sampai 59, jam 0 sampai 23, tanggal 1 sampai 31, bulan 1 sampai 12, dan hari 0 sampai 7 (0 dan 7 adalah Minggu).",
+  ],
+  [/^This schedule never comes round\.$/, "Jadwal ini tidak pernah tiba."],
+  [/^This automation was deleted\.$/, "Otomasi ini sudah dihapus."],
+  [/^This time does not exist here\.$/, "Waktu ini tidak ada di zona waktu komputer ini."],
   [/^Stopped by you$/, "Dihentikan oleh Anda"],
   [/^Stopped on (.+)$/, "Dihentikan dari $1"],
   [/^Marked done by you$/, "Ditandai selesai oleh Anda"],

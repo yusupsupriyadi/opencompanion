@@ -26,8 +26,15 @@ test("every nav item points at a screen that exists", () => {
   render(Sidebar);
   const nav = within(screen.getByRole("navigation", { name: "Main" }));
   const hrefs = nav.getAllByRole("link").map((a) => a.getAttribute("href"));
-  expect(hrefs).toEqual(["/", "/chat", "/settings"]);
+  expect(hrefs).toEqual(["/", "/chat", "/automations", "/settings"]);
   expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
+});
+
+test("Automations is its own nav item and stays lit on one automation", () => {
+  setUrl("/automations?id=a1");
+  render(Sidebar);
+  expect(screen.getByRole("link", { name: "Automations" })).toHaveAttribute("aria-current", "page");
+  expect(screen.getByRole("link", { name: "Overview" })).not.toHaveAttribute("aria-current");
 });
 
 test("CLIs, Skills, Phone access and the theme are under Settings, not in the sidebar", () => {

@@ -44,3 +44,14 @@ test("English and text the backend did not write pass through", () => {
   expect(translateBackend("Running bun run test", "id")).toBe("Running bun run test");
   expect(translateBackend("", "id")).toBe("");
 });
+
+test("automation errors read in Indonesian", () => {
+  expect(translateBackend("Give the automation a name.", "id")).toBe("Beri nama otomasi ini.");
+  expect(translateBackend("This schedule never comes round.", "id")).toBe("Jadwal ini tidak pernah tiba.");
+  expect(
+    translateBackend(
+      "This schedule is not valid. Minutes go from 0 to 59, hours 0 to 23, days 1 to 31, months 1 to 12 and weekdays 0 to 7 (0 and 7 are Sunday).",
+      "id",
+    ),
+  ).toBe("Jadwal ini tidak valid. Menit dari 0 sampai 59, jam 0 sampai 23, tanggal 1 sampai 31, bulan 1 sampai 12, dan hari 0 sampai 7 (0 dan 7 adalah Minggu).");
+});

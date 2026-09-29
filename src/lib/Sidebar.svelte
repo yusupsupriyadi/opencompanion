@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from "$app/state";
+  import CalendarCheck from "phosphor-svelte/lib/CalendarCheck";
   import CaretDown from "phosphor-svelte/lib/CaretDown";
   import CaretRight from "phosphor-svelte/lib/CaretRight";
   import ChatsCircle from "phosphor-svelte/lib/ChatsCircle";
@@ -22,6 +23,7 @@
   const NAV = [
     { href: "/", key: "shell.nav.overview", icon: House },
     { href: "/chat", key: "shell.nav.chat", icon: ChatsCircle },
+    { href: "/automations", key: "auto.nav", icon: CalendarCheck },
     { href: "/settings", key: "shell.nav.settings", icon: GearSix },
   ] as const;
 

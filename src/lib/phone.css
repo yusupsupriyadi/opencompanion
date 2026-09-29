@@ -50,7 +50,7 @@ dialog.sheet .btn { min-height: 48px; }
 
 /* Bottom tabs: Sessions and Chat are one thumb tap apart. Hidden on detail screens, which own the bottom edge. */
 .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; justify-content: center; background: var(--bg); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
-.tabs > div { width: 100%; max-width: 480px; display: grid; grid-template-columns: repeat(2, 1fr); }
+.tabs > div { width: 100%; max-width: 480px; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; }
 .tabs a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 52px; font-size: 12px; font-weight: 700; color: var(--ink-2); transition: color .12s ease-out; }
 .tabs a[aria-current="page"] { color: var(--ink); }
 .tabs a[aria-current="page"] svg { color: var(--forest); }
