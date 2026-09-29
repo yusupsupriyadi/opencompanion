@@ -12,8 +12,8 @@ export type PaneSide = "left" | "right" | "top" | "bottom";
  * A part never runs the same way as the split holding it: such a part is folded into it.
  */
 export type PaneNode = { kind: "leaf"; pane: string } | { kind: "split"; dir: PaneDir; children: PaneNode[]; sizes: number[] };
-/** `panes` are the tab's terminals in reading order; the first one names the tab. */
-export type PaneTab = { root: PaneNode; panes: string[] };
+/** `panes` are the tab's terminals in reading order; the first one names the tab. Pinned tabs come first. */
+export type PaneTab = { root: PaneNode; panes: string[]; pinned?: boolean };
 /** Where a moved terminal lands: in a tab of its own before tab `at`, at the end of the tab holding `tab`, or beside `pane`. */
 export type PaneDrop = { kind: "tab"; at: number } | { kind: "join"; tab: string } | { kind: "beside"; pane: string; side: PaneSide };
 /** A terminal's place in its tab, as fractions of the tab's width and height. */
@@ -156,7 +156,7 @@ export class PaneLayout {
       if (!root) continue;
       const panes = leaves(root);
       panes.forEach((p) => placed.add(p));
-      out.push({ root, panes });
+      out.push({ root, panes, pinned: tab.pinned });
     }
     if (!placed.has(TERM)) out.unshift({ root: leaf(TERM), panes: [TERM] });
     for (const id of ids) if (!placed.has(id)) out.push({ root: leaf(id), panes: [id] });
@@ -250,15 +250,22 @@ export class PaneLayout {
   move(pane: string, to: PaneDrop) {
     if (!this.canMove(pane, to)) return;
     // The emptied tab stays in place until the end, so `to.at` still counts the tabs as they were.
-    const next: (PaneNode | null)[] = this.tabs.map((t) => (t.panes.includes(pane) ? prune(t.root, (p) => p !== pane) : t.root));
-    if (to.kind === "tab") next.splice(to.at, 0, leaf(pane));
+    const next: { root: PaneNode | null; pinned?: boolean }[] = this.tabs.map((t) =>
+      t.panes.includes(pane) ? { ...t, root: prune(t.root, (p) => p !== pane) } : t,
+    );
+    if (to.kind === "tab") next.splice(to.at, 0, { root: leaf(pane) });
     else {
       const target = to.kind === "join" ? to.tab : to.pane;
-      const ti = next.findIndex((r) => r !== null && leaves(r).includes(target));
-      const root = next[ti]!;
-      next[ti] = to.kind === "join" ? append(root, pane) : beside(root, target, pane, to.side);
+      const ti = next.findIndex((t) => t.root !== null && leaves(t.root).includes(target));
+      const root = next[ti].root!;
+      next[ti] = { ...next[ti], root: to.kind === "join" ? append(root, pane) : beside(root, target, pane, to.side) };
     }
-    this.#save(next.filter((r): r is PaneNode => r !== null).map((root) => ({ root, panes: leaves(root) })));
+    this.#save(next.flatMap((t) => (t.root ? [{ root: t.root, panes: leaves(t.root), pinned: t.pinned }] : [])));
+  }
+
+  /** Pins the tab holding `pane` at the end of the pinned tabs, or unpins it to the start of the others. */
+  pin(pane: string, on: boolean) {
+    this.#save(this.tabs.map((t) => (t.panes.includes(pane) ? { ...t, pinned: on } : t)));
   }
 
   #edit(pane: string, change: (root: PaneNode, tab: PaneTab) => PaneNode) {
@@ -266,13 +273,15 @@ export class PaneLayout {
       this.tabs.map((t) => {
         if (!t.panes.includes(pane)) return t;
         const root = tidy(change(t.root, t));
-        return { root, panes: leaves(root) };
+        return { ...t, root, panes: leaves(root) };
       }),
     );
   }
 
+  /** Keeps the pinned tabs first, each group in its own order, so nothing moves across that line. */
   #save(next: PaneTab[]) {
-    this.#tabs = next;
-    kept.set(this.sessionId, next);
+    const sorted = [...next.filter((t) => t.pinned), ...next.filter((t) => !t.pinned)];
+    this.#tabs = sorted;
+    kept.set(this.sessionId, sorted);
   }
 }

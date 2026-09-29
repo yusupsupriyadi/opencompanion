@@ -328,8 +328,12 @@ test("a tab's right-click menu moves it along the tabs, or splits a lone termina
   // Shift+F10 opens it on the focused tab, and focus comes back to that tab after the move.
   ps.focus();
   await fireEvent.contextMenu(ps);
-  expect(screen.getByRole("menu", { name: "Move PowerShell" })).toBeInTheDocument();
+  expect(screen.getByRole("menu", { name: "PowerShell tab" })).toBeInTheDocument();
   expect(screen.getAllByRole("menuitem").map((m) => m.textContent?.trim())).toEqual([
+    "Close tab",
+    "Close other tabs",
+    "Close all tabs",
+    "Pin tab",
     "Move tab left",
     "Move tab right",
     "Split with Claude Code",
@@ -539,4 +543,81 @@ test("a split down from the right-click menu opens under that terminal, in the t
   const under = document.getElementById("shell-panel-rc-b-t2")!;
   expect([under.style.left, under.style.top, under.style.width, under.style.height]).toEqual(["50%", "50%", "50%", "50%"]);
   expect(screen.getAllByRole("separator").map((s) => s.getAttribute("aria-orientation"))).toEqual(["vertical", "horizontal"]);
+});
+
+function threeShells(sid: string) {
+  return splitBackend(sid, {
+    terminal_list: () => [
+      term({ id: `${sid}-a`, sessionId: sid }),
+      term({ id: `${sid}-b`, sessionId: sid, shell: "cmd", shellLabel: "Command Prompt" }),
+      term({ id: `${sid}-c`, sessionId: sid, shell: "bash", shellLabel: "Git Bash" }),
+    ],
+  });
+}
+
+test("Close other tabs asks first, then ends every shell outside the tab, and the session's own terminal stays", async () => {
+  const user = userEvent.setup();
+  const calls = threeShells("cl-a");
+  render(SessionPage);
+  render(ContextMenu);
+  const cmd = await screen.findByRole("button", { name: "Command Prompt" });
+
+  await fromMenu(user, cmd, "Close other tabs");
+  const dialog = await screen.findByRole("dialog", { name: "Close 2 terminals?" });
+  expect(within(dialog).getByText("PowerShell, Git Bash stop, with everything started in them.")).toBeInTheDocument();
+  await user.click(within(dialog).getByRole("button", { name: "Keep them open" }));
+  expect(calls.calls("terminal_close")).toEqual([]);
+
+  await fromMenu(user, cmd, "Close other tabs");
+  await user.click(await screen.findByRole("button", { name: "Close 2 terminals" }));
+  expect(calls.calls("terminal_close")).toEqual([{ id: "cl-a-a" }, { id: "cl-a-c" }]);
+  expect(tabNames()).toEqual(["Claude Code", "Command Prompt"]);
+});
+
+test("the session's own tab has nothing of its own to close, and Close all tabs ends every shell", async () => {
+  const user = userEvent.setup();
+  const calls = threeShells("cl-b");
+  render(SessionPage);
+  render(ContextMenu);
+  const own = await screen.findByRole("button", { name: /^Claude Code\s*output$/ });
+  await screen.findByRole("button", { name: "Git Bash" });
+
+  await fireEvent.contextMenu(own);
+  const close = screen.getByRole("menuitem", { name: /^Close tab/ });
+  expect(close).toHaveAttribute("aria-disabled", "true");
+  expect(close).toHaveTextContent("The session's own terminal closes with exit");
+  await user.click(screen.getByRole("menuitem", { name: "Close all tabs" }));
+  await user.click(await screen.findByRole("button", { name: "Close 3 terminals" }));
+  expect(calls.calls("terminal_close").map((c) => c.id)).toEqual(["cl-b-a", "cl-b-b", "cl-b-c"]);
+  expect(tabNames()).toEqual(["Claude Code"]);
+  expect(screen.getByRole("button", { name: /^Claude Code\s*output$/ })).toHaveFocus();
+});
+
+test("a pinned tab moves first, shows a pin for its close, and the bulk closes leave it open", async () => {
+  const user = userEvent.setup();
+  const calls = threeShells("cl-c");
+  render(SessionPage);
+  render(ContextMenu);
+  const bash = await screen.findByRole("button", { name: "Git Bash" });
+
+  await fromMenu(user, bash, "Pin tab");
+  expect(tabNames()).toEqual(["Git Bash", "Claude Code", "PowerShell", "Command Prompt"]);
+  const pinned = screen.getByRole("button", { name: /^Git Bash\s*, pinned$/ });
+  expect(screen.queryByRole("button", { name: "Close terminal: Git Bash" })).not.toBeInTheDocument();
+  expect(pinned.closest(".tab")?.querySelector(".tab-pin")).not.toBeNull();
+
+  // It moves only among the pinned tabs.
+  await fireEvent.contextMenu(pinned);
+  expect(screen.getByRole("menuitem", { name: "Move tab right" })).toHaveAttribute("aria-disabled", "true");
+  await user.click(screen.getByRole("menuitem", { name: "Close all tabs" }));
+  await user.click(await screen.findByRole("button", { name: "Close 2 terminals" }));
+  expect(calls.calls("terminal_close").map((c) => c.id)).toEqual(["cl-c-a", "cl-c-b"]);
+  expect(tabNames()).toEqual(["Git Bash", "Claude Code"]);
+
+  await fromMenu(user, pinned, "Unpin tab");
+  expect(tabNames()).toEqual(["Git Bash", "Claude Code"]);
+  expect(screen.getByRole("button", { name: "Close terminal: Git Bash" })).toBeInTheDocument();
+  // Its own menu still closes it, pinned or not.
+  await fromMenu(user, screen.getByRole("button", { name: "Git Bash" }), "Close tab");
+  expect(calls.calls("terminal_close").map((c) => c.id)).toEqual(["cl-c-a", "cl-c-b", "cl-c-c"]);
 });

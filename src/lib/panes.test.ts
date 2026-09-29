@@ -191,3 +191,20 @@ test("a full tab takes nothing from elsewhere, and a terminal never lands beside
   layout.move("x", { kind: "join", tab: TERM });
   expect(panes(layout).at(-1)).toEqual(["x"]);
 });
+
+test("pinned tabs come first in the order they were pinned, and nothing moves across that line", () => {
+  const { layout } = setup("pin", ["a", "b", "c"]);
+  layout.pin("c", true);
+  layout.pin("a", true);
+  expect(panes(layout)).toEqual([["c"], ["a"], [TERM], ["b"]]);
+  expect(layout.tabOf("a")?.pinned).toBe(true);
+
+  layout.moveTab("b", 0);
+  expect(panes(layout)).toEqual([["c"], ["a"], ["b"], [TERM]]);
+  layout.move("b", { kind: "beside", pane: "a", side: "right" });
+  expect(panes(layout)).toEqual([["c"], ["a", "b"], [TERM]]);
+  expect(layout.tabOf("b")?.pinned).toBe(true);
+
+  layout.pin("c", false);
+  expect(panes(layout)).toEqual([["a", "b"], ["c"], [TERM]]);
+});

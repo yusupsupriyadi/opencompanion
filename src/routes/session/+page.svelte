@@ -17,6 +17,8 @@
   import GitDiff from "phosphor-svelte/lib/GitDiff";
   import Info from "phosphor-svelte/lib/Info";
   import Plus from "phosphor-svelte/lib/Plus";
+  import PushPin from "phosphor-svelte/lib/PushPin";
+  import PushPinSlash from "phosphor-svelte/lib/PushPinSlash";
   import Rows from "phosphor-svelte/lib/Rows";
   import RowsPlusBottom from "phosphor-svelte/lib/RowsPlusBottom";
   import SidebarSimple from "phosphor-svelte/lib/SidebarSimple";
@@ -415,16 +417,31 @@
     const tabs = layout.tabs;
     const ti = tabs.findIndex((t) => t.panes.includes(pane));
     const tab = tabs[ti];
-    // One tab alone has nowhere to go.
-    if (dragged || !tab || (whole && tabs.length === 1)) {
+    if (dragged || !tab) {
       e.preventDefault();
       return;
     }
     const items: MenuEntry[] = [];
     if (whole) {
+      // Closing ends shells only: the session's own terminal closes with `exit`. Pinned tabs stay out of the bulk closes.
+      const shellsIn = (o: PaneTab) => o.panes.filter((p) => p !== TERM);
+      const own = shellsIn(tab);
+      const others = tabs.filter((o, j) => j !== ti && !o.pinned).flatMap(shellsIn);
+      const all = tabs.filter((o) => !o.pinned).flatMap(shellsIn);
+      // Pinned tabs come first, and a tab moves only among its own kind.
+      const first = tab.pinned ? 0 : tabs.filter((o) => o.pinned).length;
+      const last = tab.pinned ? tabs.filter((o) => o.pinned).length - 1 : tabs.length - 1;
       items.push(
-        { label: t("terminal.menu.tabLeft"), icon: ArrowLeft, disabled: ti === 0, action: () => moved(pane, () => layout.moveTab(pane, ti - 1)) },
-        { label: t("terminal.menu.tabRight"), icon: ArrowRight, disabled: ti === tabs.length - 1, action: () => moved(pane, () => layout.moveTab(pane, ti + 2)) },
+        { label: t("terminal.menu.close"), icon: X, disabled: !own.length, hint: own.length ? undefined : t("terminal.menu.ownStays"), action: () => askClose(own) },
+        { label: t("terminal.menu.closeOthers"), icon: X, disabled: !others.length, action: () => askClose(others) },
+        { label: t("terminal.menu.closeAll"), icon: X, disabled: !all.length, action: () => askClose(all) },
+        null,
+        tab.pinned
+          ? { label: t("terminal.menu.unpin"), icon: PushPinSlash, action: () => moved(pane, () => layout.pin(pane, false)) }
+          : { label: t("terminal.menu.pin"), icon: PushPin, action: () => moved(pane, () => layout.pin(pane, true)) },
+        null,
+        { label: t("terminal.menu.tabLeft"), icon: ArrowLeft, disabled: ti <= first, action: () => moved(pane, () => layout.moveTab(pane, ti - 1)) },
+        { label: t("terminal.menu.tabRight"), icon: ArrowRight, disabled: ti >= last, action: () => moved(pane, () => layout.moveTab(pane, ti + 2)) },
       );
     } else {
       for (const o of tab.panes) {
@@ -454,7 +471,33 @@
         });
       }
     }
-    openMenu(e, `terminal:${pane}`, t("terminal.menu.label", { name: whole ? paneName(tab.panes[0]) : paneName(pane) }), items);
+    openMenu(e, `terminal:${pane}`, whole ? t("terminal.menu.tabLabel", { name: paneName(tab.panes[0]) }) : t("terminal.menu.label", { name: paneName(pane) }), items);
+  }
+
+  // Closing several shells at once asks first: a dev server or a test run stops with its shell. One closes at once,
+  // as its tab's `x` does.
+  let closing = $state<string[]>([]);
+  let closeOpen = $state(false);
+
+  function askClose(ids: string[]) {
+    const one = ids.length === 1 ? shells.list.find((x) => x.id === ids[0]) : undefined;
+    if (one) closeShell(one);
+    else if (ids.length) {
+      closing = ids;
+      closeOpen = true;
+    }
+  }
+
+  async function confirmClose() {
+    const ids = closing;
+    closeOpen = false;
+    shellFailure = "";
+    const done = await Promise.allSettled(ids.map((x) => shells.close(x)));
+    const failed = done.find((r): r is PromiseRejectedResult => r.status === "rejected");
+    if (failed) shellFailure = errorText(failed.reason);
+    // The tab shown may be gone: the one shown now takes the focus.
+    await tick();
+    document.getElementById(shownTab === "viewer" ? "view-tab-file" : tabButtonId(shownTab))?.focus();
   }
 
   // A split tab shows one keyboard note below its terminals, for the one last focused.
@@ -736,9 +779,13 @@
                     <small class="tab-more" aria-hidden="true">+{more}</small>
                     <span class="sr-only">{" "}{plural(more, "terminal.moreOne", "terminal.moreMany")}</span>
                   {/if}
+                  {#if tab.pinned}<span class="sr-only">{", "}{t("terminal.pinned")}</span>{/if}
                 </button>
                 <!-- A split tab has no close of its own: each of its terminals closes from its header. -->
-                {#if x && !more}
+                <!-- A pinned tab shows its pin where the close was, so a stray click does not end it; its menu still closes it. -->
+                {#if tab.pinned}
+                  <span class="tab-pin" title={t("terminal.pinnedHint")}><PushPin size={14} weight="fill" aria-hidden="true" /></span>
+                {:else if x && !more}
                   <button class="icon-btn tab-close" type="button" aria-label={t("terminal.closeNamed", { name: paneName(lead) })} title={t("terminal.closeHint", { shell: x.shellLabel })} onclick={() => closeShell(x)}>
                     <X size={14} aria-hidden="true" />
                   </button>
@@ -1067,6 +1114,18 @@
   {/if}
 </Dialog>
 
+<Dialog bind:open={closeOpen} labelledby="close-many-title">
+  <div class="d-body">
+    <h2 id="close-many-title">{t("terminal.closeManyTitle", { n: closing.length })}</h2>
+    <p class="meta" style="margin:0;font-size:14px">{t("terminal.closeManyBody", { names: closing.map(paneName).join(", ") })}</p>
+    <div class="d-foot">
+      <span class="grow"></span>
+      <button class="btn secondary" type="button" onclick={() => (closeOpen = false)}>{t("terminal.keepOpen")}</button>
+      <button class="btn danger" type="button" id="btn-close-terminals" onclick={confirmClose}><X size={16} aria-hidden="true" />{t("terminal.closeManyConfirm", { n: closing.length })}</button>
+    </div>
+  </div>
+</Dialog>
+
 <Dialog bind:open={stopOpen} labelledby="stop-title">
   <div class="d-body">
     <h2 id="stop-title">{t("sessions.detail.stopTitle")}</h2>
@@ -1241,6 +1300,18 @@
   /* Between tabs: a bar on the edge it would land at. On a tab: a dashed ring, to join it. */
   .tab {
     position: relative;
+  }
+  /* A pinned tab's mark, the same pin as a pinned session in the sidebar, where its close would be. */
+  .tab-pin {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    color: var(--ink-2);
+  }
+  .tab.current .tab-pin {
+    color: var(--term-dim);
   }
   .tab.drop-before::before,
   .tab.drop-after::after {
