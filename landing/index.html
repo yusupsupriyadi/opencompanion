@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OpenCompanion</title>
-<meta name="description" content="OpenCompanion is a desktop app that starts and watches Claude Code, Codex CLI and OpenCode on your computer, tells you when a session needs you, and lets you answer from your phone. Open source, MIT licensed.">
+<meta name="description" content="OpenCompanion is a desktop app that starts and watches Claude Code, Codex CLI, OpenCode and other AI coding CLIs on your computer, runs your own shells beside them, starts sessions on a schedule, tells you when one needs you, and lets you answer from your phone. Open source, MIT licensed.">
 <meta name="theme-color" content="#2F5A36">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Crect width='256' height='256' rx='56' fill='%23FBF3CF'/%3E%3Cpath fill='%232F5A36' d='M0 196C64 136 148 118 256 146V200A56 56 0 0 1 200 256H56A56 56 0 0 1 0 200Z'/%3E%3Cpath fill='%2333361F' d='M160 96h16v16h-16z'/%3E%3Cpath fill='%232C5A8C' d='M144 112h48v32h-48z'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,7 +25,7 @@
   --bg: #FBF3CF; --surface: #FFFAE6; --surface-2: #F4E7B0; --line: #E4D69E; --line-strong: #8C8A5E;
   --ink: #33361F; --ink-2: #5B5D3E; --forest: #2F5A36; --on-forest: #FBF3CF; --accent: #2C5A8C; --on-accent: #FFF8E1;
   --st-run: #B5D07A; --st-run-ink: #33361F; --st-wait: #F2C94C; --st-wait-ink: #33361F; --st-idle: #EFE3AE; --st-idle-ink: #5B5D3E;
-  --term-bg: #1E2B1F; --term-text: #EDE6C4; --term-dim: #A9B38F; --term-green: #A6CF6A;
+  --term-bg: #1E2B1F; --term-text: #EDE6C4; --term-dim: #A9B38F; --term-green: #A6CF6A; --term-red: #E88B6B;
   --glass: #FFFAE6D1; --glass-2: #F4E7B0E6; --glass-bg: #FBF3CFD9; --glass-toast: #33361FD9;
   --glass-rim: inset 0 1px 0 #FFFFFFB3, inset 0 0 0 1px #FFFFFF4D; --glass-blur: blur(24px) saturate(1.4);
   --font-ui: "Nunito", system-ui, sans-serif; --font-mono: "IBM Plex Mono", ui-monospace, monospace; --font-pixel: "Pixelify Sans", "Nunito", sans-serif;
@@ -139,11 +139,13 @@ html:not(.motion) .m-only { display: none !important; }
   .beat.flip:not(#beat-hero) { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
   .beat.flip .txt { order: 2; }
   .beat[data-b="phone"] .mockbox { justify-self: center; }
+  /* The session screen is the widest mockup, so on the plain page it takes the full row under its text. */
+  .beat[data-b="work"]:not(#beat-hero) { grid-template-columns: minmax(0, 1fr); }
 }
 #beat-hero { min-height: 100vh; min-height: 100svh; align-content: center; justify-items: start; }
 
 /* ---------- Cinematic layout: one sticky stage, the camera and the day move with the scroll ---------- */
-.motion #story { height: 1050vh; }
+.motion #story { height: 1220vh; }
 .motion #stage { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; }
 .motion:not(.ready) .beat, .motion:not(.ready) #hud { visibility: hidden; }
 .motion .beat { position: absolute; inset: 0; max-width: none; margin: 0; padding: 0; display: block; perspective: 1400px; pointer-events: none; }
@@ -160,8 +162,13 @@ html:not(.motion) .m-only { display: none !important; }
 .motion [data-b="sessions"] .mockbox { left: 4vw; top: 38vh; width: clamp(560px, 58vw, 1080px); height: 52vh; place-items: start; }
 .motion [data-b="phone"] .txt { left: 7vw; top: 25vh; width: min(440px, 38vw); }
 .motion [data-b="phone"] .mockbox { left: max(40vw, calc(7vw + 480px)); bottom: 9vh; width: 40vh; height: 78vh; }
+.motion [data-b="work"] .txt { left: 0; right: 0; margin: 0 auto; top: 11vh; width: fit-content; max-width: min(720px, 86vw); text-align: center; }
+.motion [data-b="work"] .txt p { margin-inline: auto; }
+.motion [data-b="work"] .mockbox { left: 0; right: 0; margin: 0 auto; top: 36vh; width: min(90vw, 1360px); height: 52vh; }
 .motion [data-b="dusk"] .txt { left: 7vw; top: 14vh; width: min(520px, 42vw); }
 .motion [data-b="dusk"] .toasts { right: 4vw; top: 12vh; width: 360px; }
+.motion [data-b="auto"] .txt { left: 7vw; top: 18vh; width: min(480px, 38vw); }
+.motion [data-b="auto"] .mockbox { right: 4vw; top: 9vh; width: clamp(440px, 46vw, 860px); height: 82vh; }
 @media (max-width: 1023px), (max-aspect-ratio: 1/1) {
   .motion .beat .txt { left: 16px !important; right: 16px !important; top: 76px !important; bottom: auto !important; width: auto !important; max-width: none; margin: 0 !important; text-align: left !important; padding: 16px 18px 18px; }
   .motion .txt h2 { font-size: clamp(26px, 6.6vw, 40px); }
@@ -212,6 +219,7 @@ html:not(.motion) .m-only { display: none !important; }
 .dc-top { display: flex; gap: 10px; align-items: center; }
 .dc-top b { display: block; font-size: 14px; font-weight: 800; }
 .dc-top .path { display: block; font-size: 12px; color: var(--ink-2); }
+.dc-top .stack1 { justify-items: end; }
 .dc-prompt { padding: 8px 10px; border-radius: 6px; background: var(--bg); font: 400 13px/1.45 var(--font-mono); }
 .dc-acts, .dc-started { display: flex; gap: 8px; align-items: center; }
 .composer { margin: 0 16px 16px; padding: 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--glass-rim); }
@@ -280,12 +288,122 @@ html:not(.motion) .m-only { display: none !important; }
 .m-card .row { display: flex; gap: 10px; align-items: flex-start; }
 .m-card .task { display: block; font-size: 15px; font-weight: 700; line-height: 1.3; }
 .m-card .meta { display: block; font-size: 12px; }
-.m-tabs { display: grid; grid-template-columns: repeat(2, 1fr); border-top: 1px solid var(--line); background: var(--bg); padding-bottom: 12px; }
+.m-icon { width: 40px; height: 40px; padding: 0; }
+.m-icon .ic { width: 20px; height: 20px; }
+.m-tabs { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); background: var(--bg); padding-bottom: 12px; }
 .tab { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding-top: 8px; min-height: 56px; font-size: 12px; font-weight: 700; color: var(--ink-2); }
 .tab .ic { width: 22px; height: 22px; }
 .tab.on { color: var(--ink); } .tab.on .ic { color: var(--forest); }
 .tab-count { position: absolute; top: 4px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: var(--on-accent); font: 700 11px/18px var(--font-ui); text-align: center; font-style: normal; }
 .tap { position: absolute; left: 0; top: 0; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(51, 54, 31, .26); border: 2px solid rgba(255, 250, 230, .9); z-index: 6; }
+
+/* Session screen (DESIGN.md D4 and D13): tabs over one dark panel, a shell split beside the CLI, the side panel on the right */
+.mock-work { --dw: 1040; --dh: 470; width: 1040px; height: 470px; }
+.mock-work .frame { height: 100%; }
+.mock-work .ui { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; padding: 14px; }
+.w-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.views-bar { display: flex; align-items: flex-end; gap: 8px; }
+.tab-strip { flex: 1; min-width: 0; display: flex; align-items: flex-end; gap: 4px; overflow: hidden; }
+.wtab { display: flex; align-items: center; gap: 8px; flex: none; min-height: 38px; padding: 6px 10px 6px 12px; border-radius: 8px 8px 0 0; background: var(--glass); box-shadow: var(--glass-rim); color: var(--ink); white-space: nowrap; overflow: hidden; }
+.wtab b { font-size: 13px; font-weight: 600; }
+.wtab small { font-size: 12px; color: var(--ink-2); }
+.wtab.on { background: var(--term-bg); color: var(--term-text); box-shadow: none; }
+.wtab.on small { color: var(--term-dim); }
+.wtab .ft { width: 18px; height: 18px; margin-right: -2px; color: #8FBCEB; }
+.wtab .x { width: 14px; height: 14px; margin-left: 4px; color: var(--term-dim); }
+.tab-new { flex: none; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 8px 8px 0 0; background: var(--glass); box-shadow: var(--glass-rim); color: var(--ink); }
+.bar-btn { flex: none; align-self: center; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 8px; background: var(--glass); box-shadow: var(--glass-rim); color: var(--ink); }
+.mock-work .bar-btn .ic { width: 20px; height: 20px; }
+.w-term { position: relative; flex: 1; min-height: 0; border-radius: 0 10px 10px 10px; background: var(--term-bg); color: var(--term-text); overflow: hidden; font: 400 13px/1.5 var(--font-mono); }
+.pane { position: absolute; top: 0; bottom: 0; display: flex; flex-direction: column; overflow: hidden; }
+#w-cli { left: 0; width: 50%; }
+#w-sh { left: 50%; width: 50%; }
+/* The 1px line between split terminals: term-dim at 60%, as in the app, which keeps it at 3:1 on term-bg. */
+.pane-line { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: rgba(169, 179, 143, .6); }
+.pane-head { display: flex; align-items: center; gap: 6px; flex: none; min-height: 36px; padding: 4px 12px 4px 14px; border-bottom: 1px solid rgba(237, 230, 196, .2); color: var(--term-dim); font-family: var(--font-ui); }
+.pane-head b { font-size: 13px; font-weight: 600; }
+.pane-head small { font-size: 12px; }
+.pane-head .ic { width: 12px; height: 12px; }
+.pane-head .x { width: 14px; height: 14px; margin-left: auto; }
+.pane-head.focus { color: var(--term-text); box-shadow: inset 0 -2px 0 var(--term-green); }
+.pane-out { flex: 1; margin: 0; padding: 12px 14px; font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; }
+.pane-out > span { display: block; min-height: 1.5em; }
+.t-g { color: var(--term-green); } .t-d { color: var(--term-dim); }
+.caret::after { content: ""; display: inline-block; width: 8px; height: 1.1em; margin-left: 2px; vertical-align: -3px; background: var(--term-green); }
+/* The viewer: the diff of one changed file with the app's syntax colors (DESIGN.md section 2, syn-*). */
+.w-view { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--term-bg); }
+.v-bar { display: flex; align-items: center; gap: 12px; flex: none; min-height: 44px; padding: 6px 10px 6px 14px; border-bottom: 1px solid rgba(237, 230, 196, .2); color: var(--term-dim); font: 600 12px var(--font-ui); }
+.v-bar .mono { font-weight: 400; }
+.v-seg { margin-left: auto; display: flex; gap: 2px; padding: 3px; border-radius: 8px; background: rgba(255, 255, 255, .08); }
+.v-seg span { padding: 4px 10px; border-radius: 6px; }
+.v-seg .on { background: rgba(255, 255, 255, .14); color: var(--term-text); }
+.diff { flex: 1; padding: 6px 0; overflow: hidden; }
+.dl { display: grid; grid-template-columns: 34px 34px 20px minmax(0, 1fr); padding-right: 14px; white-space: pre; }
+.dl .n { padding-right: 8px; text-align: right; color: var(--term-dim); }
+.dl .s { text-align: center; }
+.dl.add { background: rgba(166, 207, 106, .16); } .dl.add .s { color: var(--term-green); }
+.dl.del { background: rgba(232, 139, 107, .16); } .dl.del .s { color: var(--term-red); }
+.dl.hunk { display: block; padding: 2px 14px; margin-bottom: 4px; background: rgba(255, 255, 255, .06); color: var(--term-dim); }
+.y-k { color: #C9AEF5; } .y-f { color: #8FBCEB; } .y-s { color: var(--term-green); } .y-n { color: #F2BE7E; } .y-t { color: #E8DA7A; } .y-c { color: var(--term-dim); font-style: italic; }
+.w-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; }
+.side-tabs { display: flex; gap: 2px; padding: 3px; border-radius: 8px; background: var(--surface-2); box-shadow: var(--glass-rim); }
+.side-tab { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 48px; padding: 5px 2px; border-radius: 6px; color: var(--ink-2); font-size: 12px; font-weight: 700; }
+.side-tab .ic { width: 18px; height: 18px; }
+.side-tab.on { background: var(--surface); color: var(--ink); box-shadow: var(--glass-rim); }
+.side-tab.on .ic { color: var(--forest); }
+.st-icon { display: inline-flex; align-items: center; gap: 4px; }
+.st-count { font: 600 12px var(--font-mono); }
+.side-head { display: flex; align-items: center; justify-content: space-between; min-height: 32px; }
+.side-head b { font-size: 14px; font-weight: 800; }
+.side-head .ic { color: var(--ink-2); }
+.summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 13px; }
+.summary .mono { font-size: 12px; }
+.changes { display: flex; flex-direction: column; }
+.change { display: flex; align-items: flex-start; gap: 8px; min-height: 36px; padding: 6px 8px; border-radius: 6px; font: 400 12px/18px var(--font-mono); }
+.change .code { flex: none; width: 1.5ch; font-weight: 700; }
+.change .grow { display: flex; flex-direction: column; }
+.change .name { font-weight: 700; }
+.change .dir, .change .counts { color: var(--ink-2); }
+.change .counts { flex: none; }
+@media (max-width: 719px) {
+  /* A phone-width page has no room for the side panel: the tab stacks its two terminals, as Stack terminals does in the app. */
+  .mock-work { --dw: 460; --dh: 560; width: 460px; height: 560px; }
+  .mock-work .ui { grid-template-columns: minmax(0, 1fr); }
+  .w-side, #w-cursor, #w-tab1 small:not(.tab-more), #w-tab1-off small:not(.tab-more) { display: none; }
+  #w-cli { top: 0; bottom: auto; width: 100%; height: 44%; }
+  #w-sh { left: 0; top: 44%; width: 100%; }
+  .pane-line { left: 0; right: 0; top: 44%; bottom: auto; width: auto; height: 1px; }
+}
+
+/* Automations (DESIGN.md D14) and the Chat card that makes one (D3), in the app's Dusk theme for the evening */
+.mock-auto { --dw: 600; --dh: 580; width: 600px; height: 580px; }
+.mock-auto .frame { height: 100%; }
+.mock-auto .ui { gap: 18px; padding: 20px; }
+.a-chat { display: flex; flex-direction: column; gap: 12px; }
+.a-chat .me { max-width: 440px; }
+.dcard .when { display: flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 12px; font-weight: 700; color: var(--ink); }
+.dcard .when .ic { width: 14px; height: 14px; }
+.a-list { display: flex; flex-direction: column; gap: 10px; }
+.a-list .sec-head .meta { font-weight: 600; }
+.arow { position: relative; display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 2px 14px; align-items: center; padding: 14px 76px 14px 16px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+.arow > .climark { grid-row: 1 / span 2; }
+.arow .task { display: block; font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arow .where { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arow .where .mono { font-size: 12px; font-weight: 400; }
+.arow .next { grid-column: 2; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.arow .status-col { grid-column: 3; grid-row: 1 / span 2; }
+.dc-started .meta { min-width: 0; }
+.arow .never { font-size: 13px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+.switch { position: absolute; right: 16px; top: 50%; translate: 0 -50%; width: 44px; height: 26px; padding: 3px; border-radius: 13px; border: 1px solid var(--forest); background: var(--forest); display: flex; }
+.switch::after { content: ""; width: 18px; height: 18px; border-radius: 50%; background: var(--on-forest); transform: translateX(18px); }
+.arow .ring { border-color: var(--accent); }
+@media (max-width: 719px) {
+  .mock-auto { --dw: 420; --dh: 640; width: 420px; height: 640px; }
+  .mock-auto .ui { padding: 16px; }
+  .arow { grid-template-columns: 30px minmax(0, 1fr); padding-right: 72px; }
+  .arow .status-col { grid-column: 2; grid-row: auto; justify-content: flex-start; }
+  .dc-acts .btn.ghost { display: none; }
+}
 
 /* Dusk: the OS notifications OpenCompanion sends */
 .toasts { display: flex; flex-direction: column; gap: 10px; }
@@ -434,6 +552,15 @@ html:not(.motion) .m-only { display: none !important; }
   <symbol id="i-brain" viewBox="0 0 256 256"><path d="M248,124a56.11,56.11,0,0,0-32-50.61V72a48,48,0,0,0-88-26.49A48,48,0,0,0,40,72v1.39a56,56,0,0,0,0,101.2V176a48,48,0,0,0,88,26.49A48,48,0,0,0,216,176v-1.41A56.09,56.09,0,0,0,248,124ZM88,208a32,32,0,0,1-31.81-28.560A55.87,55.87,0,0,0,64,180h8a8,8,0,0,0,0-16H64A40,40,0,0,1,50.67,86.27,8,8,0,0,0,56,78.73V72a32,32,0,0,1,64,0v68.26A47.8,47.8,0,0,0,88,128a8,8,0,0,0,0,16,32,32,0,0,1,0,64Zm104-44h-8a8,8,0,0,0,0,16h8a55.87,55.87,0,0,0,7.810-.56A32,32,0,1,1,168,144a8,8,0,0,0,0-16,47.8,47.8,0,0,0-32,12.26V72a32,32,0,0,1,64,0v6.73a8,8,0,0,0,5.33,7.54A40,40,0,0,1,192,164Zm16-52a8,8,0,0,1-8,8h-4a36,36,0,0,1-36-36V80a8,8,0,0,1,16,0v4a20,20,0,0,0,20,20h4A8,8,0,0,1,208,112ZM60,120H56a8,8,0,0,1,0-16h4A20,20,0,0,0,80,84V80a8,8,0,0,1,16,0v4A36,36,0,0,1,60,120Z"/></symbol>
   <symbol id="i-caret" viewBox="0 0 256 256"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></symbol>
   <symbol id="i-plus" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 256 256"><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM72,48v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24V80H48V48ZM208,208H48V96H208V208Zm-38.34-85.66a8,8,0,0,1,0,11.32l-48,48a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L116,164.69l42.34-42.35A8,8,0,0,1,169.66,122.34Z"/></symbol>
+  <symbol id="i-split" viewBox="0 0 256 256"><path d="M200,40H56A16,16,0,0,0,40,56V200a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40ZM56,56h64V200H56ZM200,200H136V56h64V200Z"/></symbol>
+  <symbol id="i-sidebar" viewBox="0 0 256 256"><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,160H88V56H216V200Z"/></symbol>
+  <symbol id="i-files" viewBox="0 0 256 256"><path d="M213.66,66.34l-40-40A8,8,0,0,0,168,24H88A16,16,0,0,0,72,40V56H56A16,16,0,0,0,40,72V216a16,16,0,0,0,16,16H168a16,16,0,0,0,16-16V200h16a16,16,0,0,0,16-16V72A8,8,0,0,0,213.66,66.34ZM168,216H56V72h76.69L168,107.31v84.53c0,.06,0,.11,0,.16s0,.1,0,.16V216Zm32-32H184V104a8,8,0,0,0-2.34-5.66l-40-40A8,8,0,0,0,136,56H88V40h76.69L200,75.31Zm-56-32a8,8,0,0,1-8,8H88a8,8,0,0,1,0-16h48A8,8,0,0,1,144,152Zm0,32a8,8,0,0,1-8,8H88a8,8,0,0,1,0-16h48A8,8,0,0,1,144,184Z"/></symbol>
+  <symbol id="i-gitdiff" viewBox="0 0 256 256"><path d="M112,152a8,8,0,0,0-8,8v28.69L66.34,151A8,8,0,0,1,64,145.37V95a32,32,0,1,0-16,0v50.38a23.85,23.85,0,0,0,7,17L92.69,200H64a8,8,0,0,0,0,16h48a8,8,0,0,0,8-8V160A8,8,0,0,0,112,152ZM40,64A16,16,0,1,1,56,80,16,16,0,0,1,40,64Zm168,97V110.63a23.85,23.85,0,0,0-7-17L163.31,56H192a8,8,0,0,0,0-16H144a8,8,0,0,0-8,8V96a8,8,0,0,0,16,0V67.31L189.66,105a8,8,0,0,1,2.34,5.66V161a32,32,0,1,0,16,0Zm-8,47a16,16,0,1,1,16-16A16,16,0,0,1,200,208Z"/></symbol>
+  <symbol id="i-branch" viewBox="0 0 256 256"><path d="M232,64a32,32,0,1,0-40,31v17a8,8,0,0,1-8,8H96a23.84,23.84,0,0,0-8,1.38V95a32,32,0,1,0-16,0v66a32,32,0,1,0,16,0V144a8,8,0,0,1,8-8h88a24,24,0,0,0,24-24V95A32.06,32.06,0,0,0,232,64ZM64,64A16,16,0,1,1,80,80,16,16,0,0,1,64,64ZM96,192a16,16,0,1,1-16-16A16,16,0,0,1,96,192ZM200,80a16,16,0,1,1,16-16A16,16,0,0,1,200,80Z"/></symbol>
+  <symbol id="i-info" viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm16-40a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176ZM112,84a12,12,0,1,1,12,12A12,12,0,0,1,112,84Z"/></symbol>
+  <symbol id="i-file-ts" viewBox="0 0 256 256"><path d="M147.81,196.31a20.82,20.82,0,0,1-9.19,15.23C133.43,215,127,216,121.13,216a61.34,61.34,0,0,1-15.19-2,8,8,0,0,1,4.31-15.41c4.38,1.2,15,2.7,19.55-.36.88-.59,1.83-1.52,2.14-3.93.34-2.67-.71-4.1-12.78-7.59-9.35-2.7-25-7.23-23-23.11a20.56,20.56,0,0,1,9-14.95c11.84-8,30.71-3.31,32.83-2.76a8,8,0,0,1-4.07,15.48c-4.49-1.17-15.23-2.56-19.83.56a4.54,4.54,0,0,0-2,3.67c-.12.9-.14,1.09,1.11,1.9,2.31,1.49,6.45,2.68,10.45,3.84C133.49,174.17,150.05,179,147.81,196.31ZM216,88V216a16,16,0,0,1-16,16H176a8,8,0,0,1,0-16h24V96H152a8,8,0,0,1-8-8V40H56v72a8,8,0,0,1-16,0V40A16,16,0,0,1,56,24h96a8,8,0,0,1,5.66,2.34l56,56A8,8,0,0,1,216,88Zm-56-8h28.69L160,51.31ZM80,144H40a8,8,0,0,0,0,16H52v48a8,8,0,0,0,16,0V160H80a8,8,0,0,0,0-16Z"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 256 256"><path d="M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1,0-16H211.4L184.81,71.64l-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,0,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60L224,85.8V56a8,8,0,1,1,16,0Z"/></symbol>
   <symbol id="logo-claude" viewBox="0 -.01 39.5 39.53"><path fill="#d97757" d="m7.75 26.27 7.77-4.36.13-.38-.13-.21h-.38l-1.3-.08-4.44-.12-3.85-.16-3.73-.2-.94-.2-.88-1.160.09-.58.79-.53 1.13.1 2.5.17 3.75.26 2.72.16 4.03.42h.64l.09-.26-.22-.16-.17-.16-3.88-2.63-4.2-2.78-2.2-1.6-1.19-.81-.6-.76-.26-1.66 1.08-1.19 1.45.1.37.1 1.47 1.13 3.14 2.43 4.1 3.02.6.5.24-.17.03-.12-.27-.45-2.23-4.03-2.38-4.1-1.06-1.7-.28-1.02c-.1-.42-.17-.77-.17-1.2l1.23-1.67.68-.22 1.64.22.69.6 1.02 2.33 1.65 3.67 2.56 4.99.75 1.48.4 1.37.15.42h.26v-.24l.21-2.81.39-3.45.38-4.44.13-1.25.62-1.5 1.23-.81.96.46.79 1.13-.11.73-.47 3.05-.92 4.78-.6 3.2h.35l.4-.4 1.62-2.15 2.72-3.4 1.2-1.350 1.4-1.49.9-.71h1.7l1.25 1.86-.56 1.92-1.75 2.22-1.45 1.88-2.08 2.8-1.3 2.24.12.18.31-.03 4.7-1 2.54-.46 3.03-.52 1.37.64.15.65-.54 1.33-3.24.8-3.8.76-5.66 1.34-.07.05.08.1 2.55.24 1.09.06h2.67l4.97.37 1.3.86.78 1.05-.13.8-2 1.02-2.7-.64-6.3-1.5-2.16-.54h-.3v.18l1.8 1.76 3.3 2.98 4.13 3.84.21.95-.53.75-.56-.08-3.63-2.73-1.4-1.23-3.17-2.67h-.21v.28l.73 1.07 3.86 5.8.2 1.78-.28.58-1 .35-1.1-.2-2.26-3.170-2.33-3.57-1.88-3.2-.23.13-1.11 11.95-.52.61-1.2.46-1-.76-.53-1.23.53-2.43.64-3.17.52-2.52.47-3.13.28-1.04-.02-.07-.23.03-2.36 3.24-3.59 4.85-2.84 3.04-.68.27-1.18-.61.11-1.09.66-.97 3.93-5 2.37-3.1 1.53-1.79-.01-.26h-.09l-10.44 6.78-1.86.24-.8-.75.1-1.23.38-.4 3.14-2.16z"/></symbol>
   <symbol id="logo-openai" viewBox="-1 -.1 949.1 959.8"><path fill="currentColor" d="m925.8 456.3c10.4 23.2 17 48 19.7 73.3 2.6 25.3 1.3 50.9-4.1 75.8-5.3 24.9-14.5 48.8-27.3 70.8-8.4 14.7-18.3 28.5-29.7 41.2-11.3 12.6-23.9 24-37.6 34-13.8 10-28.5 18.4-44.1 25.3-15.5 6.8-31.7 12-48.3 15.4-7.8 24.2-19.4 47.1-34.4 67.7-14.9 20.6-33 38.7-53.6 53.6-20.6 15-43.4 26.6-67.6 34.4-24.2 7.9-49.5 11.8-75 11.8-16.9.1-33.9-1.7-50.5-5.1-16.5-3.5-32.7-8.8-48.2-15.7s-30.2-15.5-43.9-25.5c-13.6-10-26.2-21.5-37.4-34.2-25 5.4-50.6 6.7-75.9 4.1-25.3-2.7-50.1-9.3-73.4-19.7-23.2-10.3-44.7-24.3-63.6-41.4s-35-37.1-47.7-59.1c-8.5-14.7-15.5-30.2-20.8-46.3s-8.8-32.7-10.6-49.6c-1.8-16.8-1.7-33.8.1-50.7 1.8-16.8 5.5-33.4 10.8-49.5-17-18.9-31-40.4-41.4-63.6-10.3-23.3-17-48-19.6-73.3-2.7-25.3-1.3-50.9 4-75.8s14.5-48.8 27.3-70.8c8.4-14.7 18.3-28.6 29.6-41.2s24-24 37.7-34 28.5-18.5 44-25.3c15.6-6.9 31.8-12 48.4-15.4 7.8-24.3 19.4-47.1 34.3-67.7 15-20.6 33.1-38.7 53.7-53.7 20.6-14.9 43.4-26.5 67.6-34.4 24.2-7.8 49.5-11.8 75-11.7 16.9-.1 33.9 1.6 50.5 5.1s32.8 8.7 48.3 15.6c15.5 7 30.2 15.5 43.9 25.5 13.7 10.1 26.3 21.5 37.5 34.2 24.9-5.3 50.5-6.6 75.8-4s50 9.3 73.3 19.6c23.2 10.4 44.7 24.3 63.6 41.4 18.9 17 35 36.9 47.7 59 8.5 14.6 15.5 30.1 20.8 46.3 5.3 16.1 8.9 32.7 10.6 49.6 1.8 16.9 1.8 33.9-.1 50.8-1.8 16.9-5.5 33.5-10.8 49.6 17.1 18.9 31 40.3 41.4 63.6zm-333.2 426.9c21.8-9 41.6-22.3 58.3-39s30-36.5 39-58.4c9-21.8 13.7-45.2 13.7-68.8v-223q-.1-.3-.2-.7-.1-.3-.3-.6-.2-.3-.5-.5-.3-.3-.6-.4l-80.7-46.6v269.4c0 2.7-.4 5.5-1.1 8.1-.7 2.7-1.7 5.2-3.1 7.6s-3 4.6-5 6.5a32.1 32.1 0 0 1 -6.5 5l-191.1 110.3c-1.6 1-4.3 2.4-5.7 3.2 7.9 6.7 16.5 12.6 25.5 17.8 9.1 5.2 18.5 9.6 28.3 13.2 9.8 3.5 19.9 6.2 30.1 8 10.3 1.8 20.7 2.7 31.1 2.7 23.6 0 47-4.7 68.8-13.8zm-455.1-151.4c11.9 20.5 27.6 38.3 46.3 52.7 18.8 14.4 40.1 24.9 62.9 31s46.6 7.7 70 4.6 45.9-10.7 66.4-22.5l193.2-111.5.5-.5q.2-.2.3-.6.2-.3.3-.6v-94l-233.2 134.9c-2.4 1.4-4.9 2.4-7.5 3.2-2.7.7-5.4 1-8.2 1-2.7 0-5.4-.3-8.1-1-2.6-.8-5.2-1.8-7.6-3.2l-191.1-110.4c-1.7-1-4.2-2.5-5.6-3.4-1.8 10.3-2.7 20.7-2.7 31.1s1 20.8 2.8 31.1c1.8 10.2 4.6 20.3 8.1 30.1 3.6 9.8 8 19.2 13.2 28.2zm-50.2-417c-11.8 20.5-19.4 43.1-22.5 66.5s-1.5 47.1 4.6 70c6.1 22.8 16.6 44.1 31 62.9 14.4 18.7 32.3 34.4 52.7 46.2l193.1 111.6q.3.1.7.2h.7q.4 0 .7-.2.3-.1.6-.3l81-46.8-233.2-134.6c-2.3-1.4-4.5-3.1-6.5-5a32.1 32.1 0 0 1 -5-6.5c-1.3-2.4-2.4-4.9-3.1-7.6-.7-2.6-1.1-5.3-1-8.1v-227.1c-9.8 3.6-19.3 8-28.3 13.2-9 5.3-17.5 11.3-25.5 18-7.9 6.7-15.3 14.1-22 22.1-6.7 7.9-12.6 16.5-17.8 25.5zm663.3 154.4c2.4 1.4 4.6 3 6.6 5 1.9 1.9 3.6 4.1 5 6.5 1.3 2.4 2.4 5 3.1 7.6.6 2.7 1 5.4.9 8.2v227.1c32.1-11.8 60.1-32.5 80.8-59.7 20.8-27.2 33.3-59.7 36.2-93.7s-3.9-68.2-19.7-98.5-39.9-55.5-69.5-72.5l-193.1-111.6q-.3-.1-.7-.2h-.7q-.3.1-.7.2-.3.1-.6.3l-80.6 46.6 233.2 134.7zm80.5-121h-.1v.1zm-.1-.1c5.8-33.6 1.9-68.2-11.3-99.7-13.1-31.5-35-58.6-63-78.2-28-19.5-61-30.7-95.1-32.2-34.2-1.4-68 6.9-97.6 23.9l-193.1 111.5q-.3.2-.5.5l-.4.6q-.1.3-.2.7-.1.3-.1.7v93.2l233.2-134.7c2.4-1.4 5-2.4 7.6-3.2 2.7-.7 5.4-1 8.1-1 2.8 0 5.5.3 8.2 1 2.6.8 5.1 1.8 7.5 3.2l191.1 110.4c1.7 1 4.2 2.4 5.6 3.3zm-505.3-103.2c0-2.7.4-5.4 1.1-8.1.7-2.6 1.7-5.2 3.1-7.6 1.4-2.3 3-4.5 5-6.5 1.9-1.9 4.1-3.6 6.5-4.9l191.1-110.3c1.8-1.1 4.3-2.5 5.7-3.2-26.2-21.9-58.2-35.9-92.1-40.2-33.9-4.4-68.3 1-99.2 15.5-31 14.5-57.2 37.6-75.5 66.4-18.3 28.9-28 62.3-28 96.5v223q.1.4.2.7.1.3.3.6.2.3.5.6.2.2.6.4l80.7 46.6zm43.8 294.7 103.9 60 103.9-60v-119.9l-103.8-60-103.9 60z"/></symbol>
   <symbol id="logo-gemini" viewBox="38.562 0 8.526 8.518"><radialGradient id="gem-a" cx="67.977%" cy="18.976%" gradientTransform="matrix(-.34432 .34402 -.12615 -.93896 .938 .134)" r="192.358%"><stop offset="0" stop-color="#1c69ff"/><stop offset="1" stop-color="#94bcfe"/></radialGradient><path d="M42.825 0a5.08 5.08 0 0 0 4.263 4.259 5.08 5.08 0 0 0-4.263 4.259 5.08 5.08 0 0 0-4.263-4.26A5.08 5.08 0 0 0 42.825 0z" fill="url(#gem-a)"/></symbol>
@@ -441,7 +568,9 @@ html:not(.motion) .m-only { display: none !important; }
   <filter id="mb-1" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="0 0"/></filter>
   <filter id="mb-2" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="0 0"/></filter>
   <filter id="mb-3" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="0 0"/></filter>
+  <filter id="mb-4" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="0 0"/></filter>
   <filter id="mb-5" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="0 0"/></filter>
+  <filter id="mb-6" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="0 0"/></filter>
 </svg>
 
 <div id="world" aria-hidden="true">
@@ -487,7 +616,7 @@ html:not(.motion) .m-only { display: none !important; }
       <div class="beat" id="beat-hero" data-b="hero">
         <div class="txt plate hero-plate">
           <h1 data-mb="0">Step away from the terminal</h1>
-          <p>OpenCompanion starts and watches Claude Code, Codex CLI and OpenCode on your computer, and tells you when a session needs you.</p>
+          <p>OpenCompanion starts and watches Claude Code, Codex CLI, OpenCode and other AI coding CLIs on your computer, and tells you when a session needs you.</p>
           <a class="btn primary lg" href="#get" id="btn-hero-get">Build it on your computer</a>
         </div>
         <p class="cue plate" id="scroll-cue"><svg class="ic" aria-hidden="true"><use href="#i-arrow-down"/></svg>Scroll to spend a day with it</p>
@@ -509,7 +638,7 @@ html:not(.motion) .m-only { display: none !important; }
                     <div class="planner" id="c-plan"><span class="who">Planner</span><p>Two separate folders, so two sessions. Check the prompts, then press Run on each one.</p></div>
                   </div>
                   <div class="dcard" id="c-card1">
-                    <div class="dc-top"><span class="climark"><svg style="color:var(--ink)"><use href="#logo-openai"/></svg></span><span class="grow"><b>Codex CLI · interactive</b><span class="mono path">~/Project/ai-remote</span></span><span class="chip run m-only dc-chip">Running</span></div>
+                    <div class="dc-top"><span class="climark"><svg style="color:var(--ink)"><use href="#logo-openai"/></svg></span><span class="grow"><b>Fix the failing tests</b><span class="path">Codex CLI · interactive · <span class="mono">~/Project/ai-remote</span></span></span><span class="stack1"><span class="chip idle dc-ready">Ready</span><span class="chip run m-only dc-chip">Running</span></span></div>
                     <div class="dc-prompt">Run the tests, find out why they fail, and fix them.</div>
                     <div class="stack1">
                       <div class="dc-acts"><span class="btn primary sm run-btn"><svg class="ic"><use href="#i-play"/></svg>Run in ai-remote</span><span class="btn secondary sm"><svg class="ic"><use href="#i-pencil"/></svg>Edit</span><span class="btn ghost sm">Discard</span></div>
@@ -517,7 +646,7 @@ html:not(.motion) .m-only { display: none !important; }
                     </div>
                   </div>
                   <div class="dcard" id="c-card2">
-                    <div class="dc-top"><span class="climark"><svg><use href="#logo-claude"/></svg></span><span class="grow"><b>Claude Code · interactive</b><span class="mono path">~/Project/uninote</span></span><span class="chip run m-only dc-chip">Running</span></div>
+                    <div class="dc-top"><span class="climark"><svg><use href="#logo-claude"/></svg></span><span class="grow"><b>Write the API docs</b><span class="path">Claude Code · interactive · <span class="mono">~/Project/uninote</span></span></span><span class="stack1"><span class="chip idle dc-ready">Ready</span><span class="chip run m-only dc-chip">Running</span></span></div>
                     <div class="dc-prompt">Write API docs for the public endpoints in docs/api.md.</div>
                     <div class="stack1">
                       <div class="dc-acts"><span class="btn primary sm run-btn"><svg class="ic"><use href="#i-play"/></svg>Run in uninote</span><span class="btn secondary sm"><svg class="ic"><use href="#i-pencil"/></svg>Edit</span><span class="btn ghost sm">Discard</span></div>
@@ -582,7 +711,7 @@ html:not(.motion) .m-only { display: none !important; }
                 <div class="m-bar"><span class="m-brand"><svg class="ic"><use href="#i-logo"/></svg>OpenCompanion</span><span class="chip run">Connected</span></div>
                 <div class="m-content">
                   <p class="m-conn">To your desktop · 192.168.1.24</p>
-                  <div class="m-headrow"><b class="m-h1">Sessions</b><span class="btn secondary sm"><svg class="ic"><use href="#i-plus"/></svg>New session</span></div>
+                  <div class="m-headrow"><b class="m-h1">Sessions</b><span class="btn secondary m-icon" title="New session"><svg class="ic"><use href="#i-plus"/></svg></span></div>
                   <div class="m-needs" id="p-needs">
                     <b>Claude Code wants to run a command</b>
                     <span class="meta">uninote · asked just now</span>
@@ -596,11 +725,87 @@ html:not(.motion) .m-only { display: none !important; }
                     <div class="m-card"><div class="row"><span class="climark"><svg style="color:var(--ink)"><use href="#logo-openai"/></svg></span><span class="grow"><span class="task">Fix the failing tests</span><span class="meta">Codex CLI · ai-remote</span></span><span class="chip run">Running</span></div><span class="horizon full" data-hz="5"><i class="now"></i></span></div>
                   </div>
                 </div>
-                <div class="m-tabs"><span class="tab on"><svg class="ic"><use href="#i-house"/></svg>Sessions<i class="tab-count" id="p-badge">1</i></span><span class="tab"><svg class="ic"><use href="#i-chats"/></svg>Chat</span></div>
+                <div class="m-tabs"><span class="tab on"><svg class="ic"><use href="#i-house"/></svg>Sessions<i class="tab-count" id="p-badge">1</i></span><span class="tab"><svg class="ic"><use href="#i-chats"/></svg>Chat</span><span class="tab"><svg class="ic"><use href="#i-calendar"/></svg>Automations</span></div>
               </div>
               <span class="notch"></span>
             </div>
             <span class="tap m-only" id="p-tap"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="beat" id="beat-work" data-b="work">
+        <div class="txt plate">
+          <h2 data-mb="4">Check the work beside the CLI</h2>
+          <p>Split a shell next to the CLI to run the tests, then open a changed file and read its diff.</p>
+        </div>
+        <div class="mockbox">
+          <div class="mock mock-work" role="img" aria-label="A session screen: Codex CLI in ai-remote on the left and a bash terminal split beside it, where the tests pass. The Changes tab lists three changed files, and the diff of src/lib/sync.ts opens in a tab with syntax colors.">
+            <div class="frame">
+              <div class="ui" id="work-ui">
+                <div class="w-main">
+                  <div class="views-bar">
+                    <div class="tab-strip">
+                      <span class="stack1">
+                        <span class="wtab on" id="w-tab1"><b>Codex CLI</b><small>terminal</small><small class="tab-more">+1</small></span>
+                        <span class="wtab m-only" id="w-tab1-off"><b>Codex CLI</b><small>terminal</small><small class="tab-more">+1</small></span>
+                      </span>
+                      <span class="wtab on m-only" id="w-tab2"><svg class="ic ft"><use href="#i-file-ts"/></svg><b class="mono">sync.ts</b><small>changes</small><svg class="ic x"><use href="#i-x"/></svg></span>
+                      <span class="tab-new"><svg class="ic"><use href="#i-plus"/></svg></span>
+                    </div>
+                    <span class="bar-btn"><svg class="ic"><use href="#i-split"/></svg></span>
+                    <span class="bar-btn"><svg class="ic" style="transform:scaleX(-1)"><use href="#i-sidebar"/></svg></span>
+                  </div>
+                  <div class="w-term">
+                    <section class="pane" id="w-cli">
+                      <div class="pane-head"><b>Codex CLI</b><small>terminal</small><svg class="ic"><use href="#i-caret"/></svg></div>
+                      <pre class="pane-out"><span class="t-g">› Run the tests, find out why they fail, and fix them.</span><span class="t-d">• Ran bun run test: 2 failed</span><span class="t-d">• Edited src/lib/sync.ts</span><span class="t-d">• Edited src/lib/sync.test.ts</span><span class="t-d">• Ran bun run test: 20 passed</span><span>send() now retries up to three times, so a dropped connection no longer fails the sync. Both tests pass.</span></pre>
+                    </section>
+                    <span class="pane-line"></span>
+                    <section class="pane" id="w-sh">
+                      <div class="pane-head focus"><b>bash</b><svg class="ic"><use href="#i-caret"/></svg><svg class="ic x"><use href="#i-x"/></svg></div>
+                      <pre class="pane-out"><span><span class="t-g">~/Project/ai-remote$</span> <span id="w-cmd">bun run test</span><span class="caret m-only" id="w-caret1"></span></span><span class="w-o t-g"> ✓ src/lib/sync.test.ts (12 tests)</span><span class="w-o t-g"> ✓ src/lib/queue.test.ts (8 tests)</span><span class="w-o"></span><span class="w-o"> Test Files  <span class="t-g">2 passed</span> (2)</span><span class="w-o">      Tests  <span class="t-g">20 passed</span> (20)</span><span class="w-o"><span class="t-g">~/Project/ai-remote$</span> <span class="caret"></span></span></pre>
+                    </section>
+                    <section class="w-view m-only" id="w-view">
+                      <div class="v-bar"><span class="mono">src/lib/sync.ts</span><span>TypeScript</span><span class="v-seg"><span>File</span><span class="on">Changes</span></span></div>
+                      <div class="diff">
+                        <span class="dl hunk">@@ -18,5 +18,6 @@ export async function syncAll(jobs: Job[]) {</span>
+                        <span class="dl"><span class="n">18</span><span class="n">18</span><span class="s"></span><span>  <span class="y-k">for</span> (<span class="y-k">const</span> job <span class="y-k">of</span> jobs) {</span></span>
+                        <span class="dl del"><span class="n">19</span><span class="n"></span><span class="s">−</span><span>    <span class="y-k">await</span> <span class="y-f">send</span>(job);</span></span>
+                        <span class="dl add"><span class="n"></span><span class="n">19</span><span class="s">+</span><span>    <span class="y-c">// The server skips a job it already has, so a retry is safe.</span></span></span>
+                        <span class="dl add"><span class="n"></span><span class="n">20</span><span class="s">+</span><span>    <span class="y-k">await</span> <span class="y-f">retry</span>(() <span class="y-k">=&gt;</span> <span class="y-f">send</span>(job), { tries: <span class="y-n">3</span> });</span></span>
+                        <span class="dl"><span class="n">20</span><span class="n">21</span><span class="s"></span><span>  }</span></span>
+                        <span class="dl"><span class="n">21</span><span class="n">22</span><span class="s"></span><span>  <span class="y-k">return</span> jobs.length;</span></span>
+                        <span class="dl"><span class="n">22</span><span class="n">23</span><span class="s"></span><span>}</span></span>
+                        <span class="dl hunk">@@ -40,0 +41,6 @@ function send(job: Job) {</span>
+                        <span class="dl add"><span class="n"></span><span class="n">41</span><span class="s">+</span><span><span class="y-k">async function</span> <span class="y-f">retry</span>(run: () <span class="y-k">=&gt;</span> <span class="y-t">Promise</span>&lt;<span class="y-t">void</span>&gt;, opts: { tries: <span class="y-t">number</span> }) {</span></span>
+                        <span class="dl add"><span class="n"></span><span class="n">42</span><span class="s">+</span><span>  <span class="y-k">for</span> (<span class="y-k">let</span> i = <span class="y-n">1</span>; ; i++) {</span></span>
+                        <span class="dl add"><span class="n"></span><span class="n">43</span><span class="s">+</span><span>    <span class="y-k">try</span> { <span class="y-k">return await</span> <span class="y-f">run</span>(); }</span></span>
+                        <span class="dl add"><span class="n"></span><span class="n">44</span><span class="s">+</span><span>    <span class="y-k">catch</span> (err) { <span class="y-k">if</span> (i &gt;= opts.tries) <span class="y-k">throw</span> err; }</span></span>
+                        <span class="dl add"><span class="n"></span><span class="n">45</span><span class="s">+</span><span>  }</span></span>
+                        <span class="dl add"><span class="n"></span><span class="n">46</span><span class="s">+</span><span>}</span></span>
+                      </div>
+                    </section>
+                  </div>
+                </div>
+                <div class="w-side">
+                  <div class="side-tabs">
+                    <span class="side-tab"><svg class="ic"><use href="#i-files"/></svg>Files</span>
+                    <span class="side-tab on"><span class="st-icon"><svg class="ic"><use href="#i-gitdiff"/></svg><span class="st-count">3</span></span>Changes</span>
+                    <span class="side-tab"><svg class="ic"><use href="#i-branch"/></svg>Branch</span>
+                    <span class="side-tab"><svg class="ic"><use href="#i-info"/></svg>Details</span>
+                  </div>
+                  <div class="side-head"><b>Changes</b><svg class="ic"><use href="#i-refresh"/></svg></div>
+                  <p class="summary"><b>3 files</b><span class="mono">+24 −3</span><span>since 4f1c2a9</span></p>
+                  <div class="changes">
+                    <span class="change" id="w-ch1"><span class="code">M</span><span class="grow"><span class="name">sync.ts</span><span class="dir">src/lib</span></span><span class="counts">+8 −1</span></span>
+                    <span class="change"><span class="code">M</span><span class="grow"><span class="name">sync.test.ts</span><span class="dir">src/lib</span></span><span class="counts">+15 −1</span></span>
+                    <span class="change"><span class="code">M</span><span class="grow"><span class="name">package.json</span></span><span class="counts">+1 −1</span></span>
+                  </div>
+                </div>
+                <svg class="cursor m-only" id="w-cursor" viewBox="0 0 24 24"><path d="M4 2v17l4.5-4 3 6.5 3-1.3-2.9-6.4 5.9-.2z" fill="#33361F" stroke="#FFFAE6" stroke-width="1.6" stroke-linejoin="round"/></svg>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -613,6 +818,51 @@ html:not(.motion) .m-only { display: none !important; }
         <div class="toasts" role="img" aria-label="Two notifications from OpenCompanion: Codex CLI finished in ai-remote, and Claude Code finished in uninote.">
           <div class="ntf" id="n1"><span class="ntf-app"><svg class="ic"><use href="#i-logo"/></svg>OpenCompanion</span><b>Codex CLI finished</b><span>ai-remote · Fix the failing tests</span></div>
           <div class="ntf" id="n2"><span class="ntf-app"><svg class="ic"><use href="#i-logo"/></svg>OpenCompanion</span><b>Claude Code finished</b><span>uninote · Write the API docs</span></div>
+        </div>
+      </div>
+
+      <div class="beat flip" id="beat-auto" data-b="auto">
+        <div class="txt plate">
+          <h2 data-mb="6">Schedule tomorrow's first session</h2>
+          <p>Ask Chat for work that repeats, then press Create. The session starts on schedule while OpenCompanion is open or in the tray.</p>
+        </div>
+        <div class="mockbox">
+          <div class="mock mock-auto dusk" role="img" aria-label="Chat in the Dusk theme: you ask for a review of the open pull requests every weekday at 9, and the planner answers with an automation card. After Create, Automations lists it with its next run, tomorrow at 09:00.">
+            <div class="frame">
+              <div class="ui" id="auto-ui">
+                <div class="a-chat">
+                  <p class="me" id="a-me">Every weekday at 9, review the open pull requests in uninote.</p>
+                  <div class="dcard" id="a-card">
+                    <div class="dc-top"><span class="climark"><svg><use href="#logo-claude"/></svg></span><span class="grow"><b>Review the open pull requests</b><span class="path">Claude Code · headless · <span class="mono">~/Project/uninote</span></span><span class="when"><svg class="ic"><use href="#i-calendar"/></svg>Weekdays at 09:00</span></span><span class="stack1"><span class="chip idle m-only" id="a-chip1">Automation</span><span class="chip run" id="a-chip2">Created</span></span></div>
+                    <div class="dc-prompt">Review each open pull request and leave your comments on it.</div>
+                    <div class="stack1">
+                      <div class="dc-acts m-only" id="a-acts"><span class="btn primary sm" id="a-create"><svg class="ic"><use href="#i-calendar"/></svg>Create automation</span><span class="btn secondary sm"><svg class="ic"><use href="#i-pencil"/></svg>Edit</span><span class="btn ghost sm">Discard</span></div>
+                      <div class="dc-started" id="a-done"><span class="btn secondary sm"><svg class="ic"><use href="#i-calendar"/></svg>Open automation</span><span class="meta">It runs by itself from now on. Change or pause it in Automations.</span></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="a-list">
+                  <div class="sec-head"><b>Automations</b></div>
+                  <div class="arow">
+                    <span class="climark"><svg style="color:var(--ink)"><use href="#logo-openai"/></svg></span>
+                    <span style="min-width:0"><span class="task">Check the nightly build</span><span class="where">Codex CLI · <span class="mono">ai-remote</span> · Every day at 18:00</span></span>
+                    <span class="status-col"><span class="chip run">Started</span></span>
+                    <span class="next">Next run: tomorrow 18:00</span>
+                    <span class="switch"></span>
+                  </div>
+                  <div class="arow" id="a-row2">
+                    <span class="climark"><svg><use href="#logo-claude"/></svg></span>
+                    <span style="min-width:0"><span class="task">Review the open pull requests</span><span class="where">Claude Code · <span class="mono">uninote</span> · Weekdays at 09:00</span></span>
+                    <span class="status-col"><span class="never">Not run yet</span></span>
+                    <span class="next">Next run: tomorrow 09:00</span>
+                    <span class="switch"></span>
+                    <span class="ring m-only" id="a-ring"></span>
+                  </div>
+                </div>
+                <svg class="cursor m-only" id="a-cursor" viewBox="0 0 24 24"><path d="M4 2v17l4.5-4 3 6.5 3-1.3-2.9-6.4 5.9-.2z" fill="#F3EBC8" stroke="#1B1F1A" stroke-width="1.6" stroke-linejoin="round"/></svg>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -629,10 +879,13 @@ html:not(.motion) .m-only { display: none !important; }
         <li><span class="climark"><svg><use href="#logo-claude"/></svg></span><div><b>Claude Code</b><span class="ver mono">checked with 2.1</span><p>Starts sessions, watches them, and answers their permission prompts from the desktop or your phone.</p><ul class="caps" aria-label="What works with Claude Code"><li>Interactive</li><li>Headless</li><li>Approve/Deny</li><li>Resume</li><li>Chat planner</li></ul></div></li>
         <li><span class="climark"><svg style="color:var(--ink)"><use href="#logo-openai"/></svg></span><div><b>Codex CLI</b><span class="ver mono">checked with 0.153</span><p>Starts and watches sessions. Its permission prompts are answered in its own terminal.</p><ul class="caps" aria-label="What works with Codex CLI"><li>Interactive</li><li>Headless</li><li>Resume</li><li>Chat planner</li></ul></div></li>
         <li><span class="climark">OC</span><div><b>OpenCode</b><span class="ver mono">checked with 1.18</span><p>Starts and watches sessions. Its prompts are answered in its own terminal, and a headless run turns them down by itself.</p><ul class="caps" aria-label="What works with OpenCode"><li>Interactive</li><li>Headless</li><li>Resume</li><li>Chat planner</li></ul></div></li>
+        <li><span class="climark">CCS</span><div><b>CCS</b><span class="ver mono">checked with 8.10</span><p>Starts Claude Code with one of your CCS profiles, so its sessions get Claude Code's hooks and Approve/Deny. API and CLIProxy profiles run in a terminal only, without hooks.</p><ul class="caps" aria-label="What works with CCS"><li>Interactive</li><li>Headless</li><li>Approve/Deny</li><li>Resume</li><li>Chat planner</li></ul></div></li>
+        <li><span class="climark">Pi</span><div><b>Pi</b><span class="ver mono">checked with 0.87</span><p>Pi never asks for permission: it runs its tools in every mode except Plan, which only lets it read and search.</p><ul class="caps" aria-label="What works with Pi"><li>Interactive</li><li>Headless</li><li>Resume</li><li>Chat planner</li></ul></div></li>
+        <li><span class="climark">omp</span><div><b>omp</b><span class="ver mono">checked with 18.3</span><p>A Pi fork that runs on Bun. In a terminal it asks before a tool its mode does not allow, and OpenCompanion does not flag that prompt yet.</p><ul class="caps" aria-label="What works with omp"><li>Interactive</li><li>Headless</li><li>Resume</li><li>Chat planner</li></ul></div></li>
         <li><span class="climark"><svg><use href="#logo-gemini"/></svg></span><div><b>Gemini CLI</b><span class="ver mono">not tested</span><p>Found and listed with its version. A terminal start is wired up but has never been run against the real CLI.</p><ul class="caps" aria-label="What works with Gemini CLI"><li>Detected</li></ul></div></li>
       </ul>
       <ul class="plate notes">
-        <li>Sessions you started in your own terminal show up too, read-only. For Claude Code, Codex CLI and OpenCode you also see their transcript.</li>
+        <li>Sessions you started in your own terminal show up too, read-only. Every CLI here except Gemini CLI also shows its transcript.</li>
         <li>OpenCompanion never installs a CLI. The CLIs screen shows the install command, and you run it yourself.</li>
       </ul>
     </div>
@@ -642,17 +895,21 @@ html:not(.motion) .m-only { display: none !important; }
     <div class="facts-in flip">
       <div class="plate f-head">
         <h2 id="features-title">The rest of the app</h2>
-        <p>The day above showed Chat, the Overview and the phone. Here is what else is in there.</p>
+        <p>The day above showed Chat, the Overview, the phone, a session's terminals and an automation. Here is what else is in there.</p>
       </div>
       <dl class="glass-panel feat">
-        <div><dt>Waiting for you</dt><dd>Claude Code permission prompts get Approve and Deny. A CLI's opening dialogs, like a folder trust question, are flagged and never answered for you.</dd></div>
-        <div><dt>Session control</dt><dd>Stop, resume or send a follow-up message. All sessions has search and filters, and every session shows its CPU and memory.</dd></div>
+        <div><dt>Waiting for you</dt><dd>Claude Code and CCS permission prompts get Approve and Deny. A CLI's opening dialogs, like a folder trust question, are flagged and never answered for you.</dd></div>
+        <div><dt>A shell under every CLI</dt><dd>A session's terminal runs in PowerShell or bash. When the CLI exits, type its name to start it again with the session's flags. Type into a closed terminal and the CLI starts again with its own history.</dd></div>
+        <div><dt>Tabs and splits</dt><dd>Open shells as tabs, up to four terminals in one tab. Drag a terminal onto any side of another to split it. Right-click a tab to close, pin or move it, or a terminal to copy, paste or split it.</dd></div>
+        <div><dt>Files, Changes and Branch</dt><dd>Search the folder by name or text, read files with syntax colors for about 40 languages, zoom into images and PDFs, and switch the branch once the session has stopped and the tracked files are committed.</dd></div>
+        <div><dt>Automations</dt><dd>Every day, some days, every few minutes or hours, or a cron expression, in local time. A run missed while the app was closed runs once when it opens, marked Late.</dd></div>
         <div><dt>Chat planner</dt><dd>A CLI running headless with read-only access to your project folders, or any OpenAI-compatible endpoint such as Ollama. Pick its model and thinking level, and type @ to name a folder.</dd></div>
-        <div><dt>Notifications</dt><dd>Choose them per CLI and per project folder. On Windows, clicking one opens its session.</dd></div>
+        <div><dt>Sidebar</dt><dd>Sessions sit under their project folder, pinned ones first, with a count of the AI CLIs running in each. Right-click a row for its actions.</dd></div>
+        <div><dt>Session control</dt><dd>Stop a headless session or send it a follow-up. All sessions has search and filters, and every session shows its CPU and memory.</dd></div>
+        <div><dt>Notifications</dt><dd>Choose them per CLI and per project folder. On Windows, and on Linux when the notification server supports it, clicking one opens its session.</dd></div>
         <div><dt>Skills</dt><dd>Compares the skill folders of each CLI and shows which skill is missing or different, with a command you copy and run.</dd></div>
-        <div><dt>Tray</dt><dd>Sessions keep running after you close the window, and OpenCompanion can start in the tray when you sign in to Windows.</dd></div>
-        <div><dt>English or Indonesian</dt><dd>Every screen, the phone page, the notifications and the tray menu.</dd></div>
-        <div><dt>Settings</dt><dd>Text size, how long finished sessions are kept, and a custom path for each CLI.</dd></div>
+        <div><dt>Tray</dt><dd>Sessions and automations keep running after you close the window, and OpenCompanion can start in the tray when you sign in.</dd></div>
+        <div><dt>Settings</dt><dd>Day or Dusk theme, English or Indonesian, text size, how long finished sessions are kept, and a custom path for each CLI.</dd></div>
       </dl>
       <div class="glass-panel modes-panel">
         <h3>Four permission modes</h3>
@@ -681,7 +938,8 @@ html:not(.motion) .m-only { display: none !important; }
       </ol>
       <ul class="plate notes pair-notes">
         <li>The connection is plain HTTP. On a network you do not trust, or away from home, use a VPN with HTTPS, such as Tailscale.</li>
-        <li>A paired phone can do what you can do at the desktop, including starting a CLI in Bypass mode. Remove a phone you no longer use.</li>
+        <li>A paired phone can watch and start sessions, answer prompts, plan in Chat and edit automations, including starting a CLI in Bypass mode. Remove a phone you no longer use.</li>
+        <li>Shell tabs and the Files, Changes and Branch tabs stay on the desktop. File contents never reach the phone.</li>
         <li>On iPhone, the Home Screen app keeps its own storage, so pair it once more by typing the code.</li>
         <li>The phone shows notifications while its page is open. Web Push is not built yet.</li>
       </ul>
@@ -696,17 +954,18 @@ html:not(.motion) .m-only { display: none !important; }
         <div>
           <h3>Stays on this computer</h3>
           <ul>
-            <li>Sessions, events, Chat and your settings, in one SQLite file in the app data folder: <span class="mono">%APPDATA%\dev.opencompanion.app</span> on Windows.</li>
-            <li>Terminal logs, and the hook files for Claude Code sessions, in the same folder.</li>
+            <li>Sessions, events, Chat, automations and your settings, in one SQLite file in the app data folder: <span class="mono">%APPDATA%\dev.opencompanion.app</span> on Windows, <span class="mono">~/Library/Application Support/dev.opencompanion.app</span> on macOS, <span class="mono">~/.local/share/dev.opencompanion.app</span> on Linux.</li>
+            <li>Terminal logs, and the hook files for Claude Code sessions, in the same folder. Shell tabs are never saved: their output lives in memory until you close the tab.</li>
+            <li>Images you paste into a terminal, in the system temp folder under <span class="mono">opencompanion-paste</span>, until you or the system clear it.</li>
             <li>Paired phones, stored only as SHA-256 hashes of their tokens.</li>
-            <li>The CLIs' own files. OpenCompanion reads their history and skill folders, and never writes to them.</li>
+            <li>The CLIs' own files. OpenCompanion reads their history and skill folders, and never writes to them. The Files, Changes and Branch tabs run your own git, and only Switch branch changes anything.</li>
           </ul>
         </div>
         <div>
           <h3>Leaves it, and where to</h3>
           <ul>
             <li>Each CLI talks to its own provider with your login and your quota, the same as in your terminal.</li>
-            <li>The Chat planner sends your message, recent turns, the installed CLIs, folder paths and current sessions to the CLI it runs, or to the endpoint you set.</li>
+            <li>The Chat planner sends your message, recent turns, the installed CLIs, folder paths, current sessions and your automations to the CLI it runs, or to the endpoint you set.</li>
             <li>The phone page and its updates go to your paired phones, over your own network, only while phone access is on.</li>
           </ul>
         </div>
@@ -721,11 +980,13 @@ html:not(.motion) .m-only { display: none !important; }
         <p>Read these before you build, so none of them surprises you later.</p>
       </div>
       <ul class="plate notes limits">
-        <li>Approve/Deny works for Claude Code only. Codex CLI and OpenCode prompts are answered in their own terminal.</li>
+        <li>Approve/Deny works for Claude Code and CCS only. Codex CLI, OpenCode and omp prompts are answered in their own terminal.</li>
         <li>A successful headless Codex CLI run has not been observed yet. On the development machine Codex could not sign in, so its events are parsed from its documentation.</li>
         <li>Gemini CLI is detected, but no Gemini session has been run yet. It has no headless mode and cannot plan in Chat.</li>
-        <li>Windows 11 is the only tested platform. macOS and Linux build from the same code.</li>
-        <li>On macOS and Linux, clicking a notification does not open its session.</li>
+        <li>CCS, Pi and omp have their flags covered by tests, but no session with a real provider has been run through OpenCompanion yet.</li>
+        <li>Windows 11 is tested by hand every day, and Linux end to end in Docker on Ubuntu 24.04. macOS builds and passes its tests in CI, but nobody has opened the window on a Mac yet.</li>
+        <li>On macOS, clicking a notification does not open its session.</li>
+        <li>Automations run only while OpenCompanion is open or in the tray. A run missed while it was closed runs once, late, when it opens again.</li>
         <li>There are no prebuilt installers yet, so you build OpenCompanion from source.</li>
       </ul>
     </div>
@@ -736,16 +997,16 @@ html:not(.motion) .m-only { display: none !important; }
       <h2 id="get-title">Build it on your computer</h2>
       <p>OpenCompanion is a Tauri 2 app. You need:</p>
       <ul class="reqs">
-        <li>Windows 11. macOS and Linux build from the same code but are untested.</li>
+        <li>Windows 11, a Linux desktop with WebKitGTK 4.1, or macOS (tested in CI only).</li>
         <li>Rust (stable), with the MSVC toolchain on Windows, and the <a href="https://tauri.app/start/prerequisites/">Tauri 2 prerequisites</a> for your system.</li>
-        <li>Bun.</li>
-        <li>At least one of Claude Code, Codex CLI or OpenCode, installed and signed in.</li>
+        <li>Bun, and Node.js (LTS) to run the tests.</li>
+        <li>At least one supported CLI, installed and signed in.</li>
       </ul>
       <pre class="term" id="build-cmds">git clone https://github.com/yusupsupriyadi/opencompanion.git
 cd opencompanion
 bun install
 bun run tauri build</pre>
-      <p class="small">The installer lands in <span class="mono">src-tauri/target/release/bundle</span>. For a window with hot reload, run <span class="mono">bun run tauri dev</span> instead. To run the checks or send a change, read <a href="https://github.com/yusupsupriyadi/opencompanion/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>.</p>
+      <p class="small">The installer lands in <span class="mono">src-tauri/target/release/bundle</span>: <span class="mono">.msi</span> and <span class="mono">.exe</span> on Windows, <span class="mono">.deb</span>, <span class="mono">.rpm</span> and AppImage on Linux, <span class="mono">.app</span> and <span class="mono">.dmg</span> on macOS. For a window with hot reload, run <span class="mono">bun run tauri dev</span> instead. To run the checks or send a change, read <a href="https://github.com/yusupsupriyadi/opencompanion/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>.</p>
       <div class="get-acts">
         <a class="btn primary lg" href="https://github.com/yusupsupriyadi/opencompanion"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>Open the repository on GitHub</a>
         <button class="btn secondary lg" type="button" id="btn-copy"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg>Copy the commands</button>
@@ -757,14 +1018,14 @@ bun run tauri build</pre>
 
 <footer class="foot">
   <div class="plate foot-in">
-    <span class="brand-sm"><svg class="ic" aria-hidden="true"><use href="#i-logo"/></svg>OpenCompanion 0.1.0</span>
+    <span class="brand-sm"><svg class="ic" aria-hidden="true"><use href="#i-logo"/></svg>OpenCompanion 0.1.1</span>
     <a href="https://github.com/yusupsupriyadi/opencompanion">Source on GitHub</a>
     <a href="https://github.com/yusupsupriyadi/opencompanion/blob/main/LICENSE">MIT License</a>
     <a href="https://github.com/yusupsupriyadi/opencompanion/blob/main/CONTRIBUTING.md">Contributing</a>
     <a href="https://github.com/yusupsupriyadi/opencompanion/blob/main/SECURITY.md">Security</a>
     <a href="https://github.com/yusupsupriyadi/opencompanion/blob/main/CHANGELOG.md">Changelog</a>
     <a href="#top">Back to the morning</a>
-    <p class="tm">Claude Code, Codex CLI, OpenCode and Gemini CLI belong to their owners. OpenCompanion is an independent project, not affiliated with them.</p>
+    <p class="tm">Claude Code, Codex CLI, OpenCode, Gemini CLI, CCS, Pi and omp belong to their owners. OpenCompanion is an independent project, not affiliated with them.</p>
   </div>
 </footer>
 
@@ -779,6 +1040,8 @@ bun run tauri build</pre>
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
   const html = document.documentElement;
   const IMG_W = 1672, IMG_H = 941;
+  // The day's timeline runs from 0 to END; ?t= and the clock's horizon use the same units.
+  const END = 116;
   const SPECKS = [6, 23, 41, 58, 77, 96, 118, 137, 152, 171, 190, 207];
 
   // Seeded random, so stars, grass and fireflies land in the same places on every visit.
@@ -1031,12 +1294,12 @@ bun run tauri build</pre>
     };
     const camWide = (ui, at, dur = 1) => tl.to(ui, { x: 0, y: 0, scale: 1, duration: dur, ease: "power2.inOut" }, at);
 
-    const bHero = $("#beat-hero"), bChat = $("#how"), bSes = $("#beat-sessions"), bPhone = $("#beat-phone"), bDusk = $("#beat-dusk");
+    const bHero = $("#beat-hero"), bChat = $("#how"), bSes = $("#beat-sessions"), bPhone = $("#beat-phone"), bWork = $("#beat-work"), bDusk = $("#beat-dusk"), bAuto = $("#beat-auto");
     const boxOf = (b) => $(".mockbox", b);
 
     /* Camera between scenes */
-    [[2, 10], [27, 8], [42, 9], [59, 8], [75, 13], [89, 11]].forEach(([at, dur], i) => tl.to(cam, { k: i + 1, duration: dur, ease: "power2.inOut" }, at));
-    tl.to(drift, { u: -0.006, duration: 100, ease: "none" }, 0);
+    [[2, 10], [27, 8], [42, 9], [59, 8], [80, 13], [94, 11]].forEach(([at, dur], i) => tl.to(cam, { k: i + 1, duration: dur, ease: "power2.inOut" }, at));
+    tl.to(drift, { u: -0.006, duration: END, ease: "none" }, 0);
 
     /* 07:00  Morning: the hero leaves, the sky opens */
     tl.to("#scroll-cue", { opacity: 0, y: 12, duration: 0.8, ease: "power2.in" }, 0.4);
@@ -1073,11 +1336,13 @@ bun run tauri build</pre>
     tl.to(cursor, { x: r1.x - 4, y: r1.y - 2, duration: 1.4, ease: "power2.inOut" }, 22.2);
     pulse(run1, 23.8);
     swap($(".dc-acts", card1), $(".dc-started", card1), 24.2);
+    tl.to($(".dc-ready", card1), { opacity: 0, duration: 0.2 }, 24.3);
     tl.fromTo($(".dc-chip", card1), { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(2)", immediateRender: false }, 24.3);
     camTo(chatUi, run2, 24.7, 1.45, 1.1);
     tl.to(cursor, { x: r2.x - 4, y: r2.y - 2, duration: 1.2, ease: "power2.inOut" }, 24.7);
     pulse(run2, 26);
     swap($(".dc-acts", card2), $(".dc-started", card2), 26.4);
+    tl.to($(".dc-ready", card2), { opacity: 0, duration: 0.2 }, 26.5);
     tl.fromTo($(".dc-chip", card2), { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(2)", immediateRender: false }, 26.5);
     camWide(chatUi, 26.8, 1.1);
     tl.to(cursor, { opacity: 0, duration: 0.3 }, 27.2);
@@ -1146,60 +1411,118 @@ bun run tauri build</pre>
     tl.to(pBox, { y: "75vh", rotation: 4, opacity: 0.9, duration: 2.4, ease: "power2.in" }, 59.6);
     tl.set(pBox, { opacity: 0 }, 62);
 
+    /* 15:00  The session screen: the tests run in a shell split beside the CLI, then a changed file opens as a diff */
+    const workUi = $("#work-ui"), wBox = boxOf(bWork), wCmd = $("#w-cmd"), wOut = $$("#w-sh .w-o"), wCur = $("#w-cursor");
+    const wView = $("#w-view"), wTab2 = $("#w-tab2"), wCh1 = $("#w-ch1"), wLines = $$("#w-view .dl");
+    const cmdText = wCmd.textContent, cmdTyper = { n: 0 };
+    // At phone width the side panel is hidden, as in a narrow app window, so the diff opens without the pointer.
+    const sideShown = getComputedStyle($(".w-side", workUi)).display !== "none";
+    gsap.set([...wOut, wView, "#w-tab1-off", wCur], { opacity: 0 });
+    textIn(bWork, 62.8, "up");
+    tl.fromTo(wBox, { opacity: 0, y: 160, rotationX: 14 }, { opacity: 1, y: 0, rotationX: 0, duration: 2.6, ease: "power3.out", immediateRender: false }, 62.2);
+    camTo(workUi, $("#w-sh"), 64.6, 1.3, 1.2);
+    tl.fromTo(cmdTyper, { n: 0 }, { n: cmdText.length, duration: 1.4, ease: "none", immediateRender: false, onUpdate() { wCmd.textContent = cmdText.slice(0, Math.round(cmdTyper.n)); } }, 65.2);
+    tl.to("#w-caret1", { opacity: 0, duration: 0.1, ease: "none" }, 66.8);
+    tl.fromTo(wOut, { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.35, stagger: 0.3, immediateRender: false }, 66.9);
+    camWide(workUi, 68.9, 1.1);
+    // The new tab's width is measured before it folds shut, so it grows to the size the app would give it.
+    const tab2W = wTab2.getBoundingClientRect().width / zoomOf(wTab2);
+    const tabShut = { width: 0, paddingLeft: 0, paddingRight: 0, opacity: 0 };
+    const openAt = 71.2;
+    if (sideShown) {
+      const ch = inUi(wCh1, workUi);
+      gsap.set(wCur, { x: ch.x + 90, y: ch.y + 110 });
+      tl.to(wCur, { opacity: 1, duration: 0.3 }, 69.4);
+      tl.to(wCur, { x: ch.x - 40, y: ch.y - 2, duration: 1.2, ease: "power2.inOut" }, 69.6);
+      tl.fromTo(wCur, { scale: 1 }, { scale: 0.85, duration: 0.15, yoyo: true, repeat: 1, ease: "power2.in", immediateRender: false }, 70.8);
+      tl.fromTo(wCh1, { backgroundColor: "rgba(244,231,176,0)" }, { backgroundColor: "rgba(244,231,176,1)", duration: 0.3, immediateRender: false }, 70.9);
+      tl.to(wCur, { opacity: 0, duration: 0.3 }, 72.4);
+    }
+    gsap.set(wTab2, tabShut);
+    tl.fromTo(wTab2, tabShut, { width: tab2W, paddingLeft: 12, paddingRight: 10, opacity: 1, duration: 0.6, ease: "power3.out", immediateRender: false }, openAt);
+    swap($("#w-tab1"), $("#w-tab1-off"), openAt, 0.4);
+    tl.fromTo(wView, { opacity: 0 }, { opacity: 1, duration: 0.5, immediateRender: false }, openAt + 0.2);
+    tl.fromTo(wLines, { opacity: 0, x: -8 }, { opacity: 1, x: 0, duration: 0.3, stagger: 0.12, immediateRender: false }, openAt + 0.5);
+    textOut(bWork, 77.6, "up");
+    tl.to(wBox, { opacity: 0, y: -60, scale: 0.94, duration: 1.3, ease: "power2.in" }, 77.9);
+
     /* 18:40  Sunset over the meadow; the evening's notifications; the lantern */
     const root = html;
-    tl.to("#sky-gold", { opacity: 1, duration: 14, ease: "none" }, 60);
-    tl.to("#sun", { left: "80%", top: "41%", duration: 14, ease: "sine.inOut" }, 60);
-    tl.to(root, { "--sun-core": "#FFF1C4", "--sun-mid": "rgba(255,214,140,.9)", "--sun-glow": "rgba(255,190,110,.42)", duration: 14, ease: "none" }, 60);
-    tl.to("#sky-dusk", { opacity: 1, duration: 10, ease: "sine.inOut" }, 73);
-    tl.to("#sun", { left: "77%", top: "72%", duration: 12, ease: "sine.in" }, 74);
+    tl.to("#sky-gold", { opacity: 1, duration: 18, ease: "none" }, 60);
+    tl.to("#sun", { left: "80%", top: "41%", duration: 18, ease: "sine.inOut" }, 60);
+    tl.to(root, { "--sun-core": "#FFF1C4", "--sun-mid": "rgba(255,214,140,.9)", "--sun-glow": "rgba(255,190,110,.42)", duration: 18, ease: "none" }, 60);
+    tl.to("#sky-dusk", { opacity: 1, duration: 11, ease: "sine.inOut" }, 77);
+    tl.to("#sun", { left: "77%", top: "72%", duration: 13, ease: "sine.in" }, 78);
     // Once set, the sun leaves for good: the night camera looks up and the hills no longer hide it.
-    tl.to("#sun", { opacity: 0, duration: 2, ease: "none" }, 86);
-    tl.to(root, { "--sun-core": "#FFD58F", "--sun-mid": "rgba(255,160,90,.9)", "--sun-glow": "rgba(255,120,70,.45)", duration: 10, ease: "none" }, 74);
-    // Day plates turn to Dusk between the phone and the evening text, when no story text is on screen.
+    tl.to("#sun", { opacity: 0, duration: 2, ease: "none" }, 91);
+    tl.to(root, { "--sun-core": "#FFD58F", "--sun-mid": "rgba(255,160,90,.9)", "--sun-glow": "rgba(255,120,70,.45)", duration: 11, ease: "none" }, 78);
+    // Day plates turn to Dusk between the session screen and the evening text, when no story text is on screen.
     // Ink flips in one step late in the fade, so no in-between grey ever sits on a grey plate.
-    tl.to(root, { "--p-bg": "rgba(36,42,34,.74)", "--rim1": 0.18, "--rim2": 0.08, "--p-mark": "#6E7862", duration: 1, ease: "none" }, 76);
-    tl.set(root, { "--p-ink": "#F3EBC8", "--p-btn": "#9CC45A", "--p-btn-ink": "#1B1F1A" }, 76.8);
-    tl.to(root, { "--g1": "#1d2f27", "--g2": "#15241d", "--g3": "#0f1a14", duration: 12, ease: "none" }, 74);
-    tl.to("#vignette", { opacity: 0.75, duration: 12, ease: "none" }, 70);
-    tl.to("#sky-night", { opacity: 1, duration: 10, ease: "sine.inOut" }, 84);
-    tl.to("#stars", { opacity: 1, duration: 8, ease: "none" }, 87);
-    tl.to("#vignette", { opacity: 1, duration: 8, ease: "none" }, 86);
+    tl.to(root, { "--p-bg": "rgba(36,42,34,.74)", "--rim1": 0.18, "--rim2": 0.08, "--p-mark": "#6E7862", duration: 1, ease: "none" }, 80.6);
+    tl.set(root, { "--p-ink": "#F3EBC8", "--p-btn": "#9CC45A", "--p-btn-ink": "#1B1F1A" }, 81.4);
+    tl.to(root, { "--g1": "#1d2f27", "--g2": "#15241d", "--g3": "#0f1a14", duration: 13, ease: "none" }, 78);
+    tl.to("#vignette", { opacity: 0.75, duration: 13, ease: "none" }, 74);
+    tl.to("#sky-night", { opacity: 1, duration: 10, ease: "sine.inOut" }, 89);
+    tl.to("#stars", { opacity: 1, duration: 8, ease: "none" }, 92);
+    tl.to("#vignette", { opacity: 1, duration: 8, ease: "none" }, 91);
     // Each grade fades in over the one below it; the one below leaves only once the new one is full.
     // Two layers never share a soft edge for long, so no bright rim shows around clouds or along the ridge.
     if (grades.gGold) {
       const G = (k) => grades[k];
-      const steps = [["#ground", "gGold", "#clouds", "cGold", 60, 14], [null, "gDusk", null, "cDusk", 74, 10], [null, "gNight", null, "cNight", 84, 10]];
+      const steps = [["#ground", "gGold", "#clouds", "cGold", 60, 18], [null, "gDusk", null, "cDusk", 78, 11], [null, "gNight", null, "cNight", 89, 10]];
       let prevG = $("#ground"), prevC = $("#clouds");
       steps.forEach(([, g, , c, at, dur]) => {
         tl.fromTo([G(g), G(c)], { opacity: 0 }, { opacity: 1, duration: dur, ease: "sine.inOut", immediateRender: false }, at);
         tl.to([prevG, prevC], { opacity: 0, duration: 0.6, ease: "none" }, at + dur);
         prevG = G(g); prevC = G(c);
       });
-      tl.to(G("cNight"), { opacity: 0.8, duration: 4, ease: "none" }, 95);
+      tl.to(G("cNight"), { opacity: 0.8, duration: 4, ease: "none" }, 100);
     } else {
-      tl.to("#clouds", { opacity: 0.55, duration: 8, ease: "none" }, 86);
+      tl.to("#clouds", { opacity: 0.55, duration: 8, ease: "none" }, 91);
     }
-    textIn(bDusk, 78, "up");
-    tl.fromTo("#n1", { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 1, ease: "power4.out", immediateRender: false }, 80);
-    tl.fromTo("#n2", { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 1, ease: "power4.out", immediateRender: false }, 82.8);
-    tl.to(["#n1", "#n2"], { opacity: 0, x: 40, duration: 0.7, stagger: 0.15, ease: "power2.in" }, 88.2);
-    tl.fromTo("#lantern", { opacity: 0 }, { opacity: 1, duration: 1.6, ease: "power2.out", immediateRender: false }, 84);
-    tl.fromTo("#lantern .glow", { scale: 0.2 }, { scale: 1, duration: 2.4, ease: "back.out(1.6)", immediateRender: false }, 84);
-    tl.to("#flies", { opacity: 1, duration: 6, ease: "none" }, 83);
-    textOut(bDusk, 89.4, "up");
+    textIn(bDusk, 83, "up");
+    tl.fromTo("#n1", { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 1, ease: "power4.out", immediateRender: false }, 85);
+    tl.fromTo("#n2", { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 1, ease: "power4.out", immediateRender: false }, 87.8);
+    tl.to(["#n1", "#n2"], { opacity: 0, x: 40, duration: 0.7, stagger: 0.15, ease: "power2.in" }, 93.2);
+    tl.fromTo("#lantern", { opacity: 0 }, { opacity: 1, duration: 1.6, ease: "power2.out", immediateRender: false }, 89);
+    tl.fromTo("#lantern .glow", { scale: 0.2 }, { scale: 1, duration: 2.4, ease: "back.out(1.6)", immediateRender: false }, 89);
+    tl.to("#flies", { opacity: 1, duration: 6, ease: "none" }, 88);
+    textOut(bDusk, 94.4, "up");
 
-    /* 21:00  Night: the camera looks up, the page continues under the stars */
-    tl.to("#hud", { opacity: 0, duration: 2, ease: "none" }, 97);
-    tl.to({}, { duration: 0.001 }, 100);
-    ["hero:0", "chat:12", "sessions:31", "phone:47", "dusk:79", "night:95"].forEach((l) => { const [n, t] = l.split(":"); tl.addLabel(n, +t); });
+    /* 20:00  Under the stars: Chat turns a repeating ask into an automation for tomorrow morning */
+    const autoUi = $("#auto-ui"), aBox = boxOf(bAuto), aCur = $("#a-cursor"), aCreate = $("#a-create"), aRow2 = $("#a-row2"), aRing = $("#a-ring");
+    const row2H = localH(aRow2);
+    const rowShut = { height: 0, opacity: 0, paddingTop: 0, paddingBottom: 0, borderWidth: 0 };
+    gsap.set(["#a-chip2", "#a-done", aRing, aCur], { opacity: 0 });
+    gsap.set(aRow2, { overflow: "hidden", ...rowShut });
+    textIn(bAuto, 97, "left");
+    tl.fromTo(aBox, { opacity: 0, x: 120, rotationY: -12 }, { opacity: 1, x: 0, rotationY: 0, duration: 2.4, immediateRender: false }, 96.4);
+    const cr = inUi(aCreate, autoUi);
+    gsap.set(aCur, { x: cr.x + 120, y: cr.y + 90 });
+    tl.to(aCur, { opacity: 1, duration: 0.3 }, 99.4);
+    tl.to(aCur, { x: cr.x - 4, y: cr.y - 2, duration: 1.3, ease: "power2.inOut" }, 99.6);
+    pulse(aCreate, 101.1);
+    swap($("#a-acts"), $("#a-done"), 101.5);
+    swap($("#a-chip1"), $("#a-chip2"), 101.6, 0.3);
+    tl.to(aCur, { opacity: 0, duration: 0.3 }, 102.2);
+    tl.fromTo(aRow2, rowShut, { height: row2H, opacity: 1, paddingTop: 14, paddingBottom: 14, borderWidth: 1, duration: 0.9, ease: "power3.out", immediateRender: false }, 102.6);
+    tl.set(aRow2, { overflow: "visible" }, 103.5);
+    tl.fromTo(aRing, { opacity: 0 }, { opacity: 1, duration: 0.4, immediateRender: false }, 103.6);
+    textOut(bAuto, 109.2, "left");
+    tl.to(aBox, { opacity: 0, x: 80, duration: 1.2, ease: "power2.in" }, 109.4);
+
+    /* 21:30  Night: the camera looks up, the page continues under the stars */
+    tl.to("#hud", { opacity: 0, duration: 2, ease: "none" }, 112);
+    tl.to({}, { duration: 0.001 }, END);
+    ["hero:0", "chat:12", "sessions:31", "phone:47", "work:64", "dusk:84", "auto:98", "night:112"].forEach((l) => { const [n, t] = l.split(":"); tl.addLabel(n, +t); });
 
     /* ---------- The clock and the horizon follow the timeline ---------- */
-    const CLOCK = [[0, 420], [8, 530], [12, 540], [30, 630], [44, 760], [62, 900], [76, 1070], [84, 1120], [100, 1260]];
-    const HUD_EV = [[17, ""], [24, ""], [26, ""], [33, ""], [36.5, ""], [39.6, "w"], [56, ""], [80, ""], [82.8, ""]];
+    const CLOCK = [[0, 420], [8, 530], [12, 540], [30, 630], [44, 760], [62, 900], [80, 1070], [89, 1120], [97, 1200], [END, 1290]];
+    const HUD_EV = [[17, ""], [24, ""], [26, ""], [33, ""], [36.5, ""], [39.6, "w"], [56, ""], [67, ""], [71.2, ""], [85, ""], [87.8, ""], [101.5, ""]];
     const hudHz = $("#hud-hz"), hudNow = $("#hud-now"), clock = $("#clock");
+    const onHz = (t) => (t / END) * 100;
     SPECKS.forEach((x, i) => hudHz.insertAdjacentHTML("afterbegin", `<i class="sp" style="left:${(x / 2.2).toFixed(1)}%;top:${i % 2 ? 14 : 15}px"></i>`));
-    const hudEvs = HUD_EV.map(([t, c]) => { const e = document.createElement("i"); e.className = "ev " + c; e.style.left = t + "%"; e.style.opacity = 0; hudHz.appendChild(e); return [t, e]; });
+    const hudEvs = HUD_EV.map(([t, c]) => { const e = document.createElement("i"); e.className = "ev " + c; e.style.left = onHz(t) + "%"; e.style.opacity = 0; hudHz.appendChild(e); return [t, e]; });
     let lastMin = -1;
     function tick() {
       const t = tl.time();
@@ -1209,7 +1532,7 @@ bun run tauri build</pre>
       const [t0, m0] = CLOCK[i], [t1, m1] = CLOCK[i + 1];
       const m = Math.round(m0 + (m1 - m0) * gsap.utils.clamp(0, 1, (t - t0) / (t1 - t0)));
       if (m !== lastMin) { lastMin = m; clock.textContent = String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); }
-      hudNow.style.left = Math.min(97, t) + "%";
+      hudNow.style.left = Math.min(97, onHz(t)) + "%";
       hudEvs.forEach(([at, e]) => { e.style.opacity = t >= at ? 1 : 0; });
       html.classList.toggle("past-hero", t > 3.2);
     }
@@ -1233,7 +1556,7 @@ bun run tauri build</pre>
     const gl = $$("#grass .gl"), flies = $$("#flies i"), glow = $("#lantern .glow");
     gsap.ticker.add((time) => {
       gl.forEach((g, i) => g.setAttribute("transform", `translate(0 420) skewX(${(Math.sin(time * (0.7 + i * 0.25) + i * 1.7) * (2.2 + i)).toFixed(2)}) translate(0 -420)`));
-      if (tl.time() > 82) {
+      if (tl.time() > 87) {
         glow.style.opacity = (0.86 + Math.sin(time * 7.3) * 0.05 + Math.sin(time * 3.1) * 0.06).toFixed(3);
         flies.forEach((f) => {
           const ph = +f.dataset.ph, sp = +f.dataset.sp, k = (time * 0.05 * sp + ph) % 1;
@@ -1260,7 +1583,7 @@ bun run tauri build</pre>
     const q = new URLSearchParams(location.search).get("t");
     window.OC = { tl, st, seek(t) {
       gsap.getTweensOf([intro, ...heroW, "#beat-hero .txt", "#scroll-cue", "#hud"]).forEach((tw) => { if (tw.parent === gsap.globalTimeline) tw.progress(1); });
-      scrollTo(0, st.start + (st.end - st.start) * (t / 100)); st.update(); tl.progress(t / 100); tick(); gsap.ticker.tick();
+      scrollTo(0, st.start + (st.end - st.start) * (t / END)); st.update(); tl.progress(t / END); tick(); gsap.ticker.tick();
     } };
     if (q !== null) window.OC.seek(+q);
   }
