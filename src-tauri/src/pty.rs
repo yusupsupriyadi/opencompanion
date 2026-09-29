@@ -35,13 +35,15 @@ pub struct Stay {
 
 /// Runs the program with the environment the profile left and exits with its code. The program and
 /// its arguments arrive as environment variables: PowerShell would parse `$` or quotes in a prompt.
+/// They are removed with `[NullString]::Value`: PowerShell hands `$null` to a .NET string as "",
+/// which .NET 9 and later (PowerShell 7.5+) keep as an empty variable instead of removing it.
 const POWERSHELL_HOST: &str = "$ErrorActionPreference = 'Stop'; \
     $start = New-Object System.Diagnostics.ProcessStartInfo; \
     $start.FileName = $env:OPENCOMPANION_PROGRAM; \
     $start.Arguments = $env:OPENCOMPANION_ARGS; \
     $start.WorkingDirectory = $env:OPENCOMPANION_CWD; \
     $start.UseShellExecute = $false; \
-    foreach ($name in 'OPENCOMPANION_PROGRAM', 'OPENCOMPANION_ARGS', 'OPENCOMPANION_CWD') { [Environment]::SetEnvironmentVariable($name, $null) }; \
+    foreach ($name in 'OPENCOMPANION_PROGRAM', 'OPENCOMPANION_ARGS', 'OPENCOMPANION_CWD') { [Environment]::SetEnvironmentVariable($name, [NullString]::Value) }; \
     $cli = [System.Diagnostics.Process]::Start($start); \
     $cli.WaitForExit(); \
     exit $cli.ExitCode";
@@ -56,7 +58,7 @@ const POWERSHELL_STAY: &str = "& { \
     $again = $env:OPENCOMPANION_AGAIN | ConvertFrom-Json; \
     $oc = @{ Program = $env:OPENCOMPANION_PROGRAM; Again = @(foreach ($a in $again) { $a }) }; \
     $name = $env:OPENCOMPANION_NAME; $first = $env:OPENCOMPANION_ARGS; $cwd = $env:OPENCOMPANION_CWD; \
-    foreach ($n in 'OPENCOMPANION_PROGRAM', 'OPENCOMPANION_ARGS', 'OPENCOMPANION_CWD', 'OPENCOMPANION_NAME', 'OPENCOMPANION_AGAIN') { [Environment]::SetEnvironmentVariable($n, $null) }; \
+    foreach ($n in 'OPENCOMPANION_PROGRAM', 'OPENCOMPANION_ARGS', 'OPENCOMPANION_CWD', 'OPENCOMPANION_NAME', 'OPENCOMPANION_AGAIN') { [Environment]::SetEnvironmentVariable($n, [NullString]::Value) }; \
     Set-Item -Path ('function:global:' + $name) -Value ({ & $oc.Program @($oc.Again) @args }.GetNewClosure()); \
     $start = New-Object System.Diagnostics.ProcessStartInfo; \
     $start.FileName = $oc.Program; \
