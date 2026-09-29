@@ -4,7 +4,7 @@ Notable changes to OpenCompanion are listed here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
-Planned as 0.1.0, the first public release. Windows 11 is tested by hand, Linux end to end in Docker, and macOS builds and passes its tests in CircleCI.
+Planned as 0.1.0, the first public release. Windows 11 is tested by hand, Linux end to end in Docker, and macOS builds and passes its tests in GitHub Actions.
 
 ### Added
 
@@ -24,7 +24,8 @@ Planned as 0.1.0, the first public release. Windows 11 is tested by hand, Linux 
 - omp (`@oh-my-pi/pi-coding-agent`), a Pi fork that runs on Bun, as a CLI through the Pi adapter: interactive and headless sessions (`omp --mode json`), follow-ups and Resume, the Chat planner with `omp models --json`, outside sessions with transcripts from `~/.omp/agent/sessions`, and its skill folder. Each permission mode sets omp's `--approval-mode`; Plan also limits it to `read`, `grep` and `glob`.
 - Text size and retention of finished sessions in Settings.
 - Linux and macOS support: CLIs started from a GUI launch get the login shell's PATH and environment; Stop ends the CLI's whole process group; start in the tray at sign-in (XDG autostart entry, LaunchAgent); a click on a Linux notification opens its session; native traffic lights on macOS; each OS's paste key, folder example and home-folder shortening; folder rules follow the file system's case rules; Claude Code history is read as a project source on Unix.
-- `scripts/ci/checks.sh`, a Linux end-to-end test in Docker (`e2e/linux`), and CircleCI jobs for Linux, Windows and macOS that run only when triggered.
+- `scripts/ci/checks.sh`, a Linux end-to-end test in Docker (`e2e/linux`), and GitHub Actions CI that runs both on Linux, Windows and macOS for every push to `main` and every pull request.
+- Release workflow: a `v*` tag builds the Windows, Linux and macOS installers into a draft GitHub release. macOS builds are ad-hoc signed.
 - Scroll-driven landing page in `landing/`.
 - README, CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, the MIT LICENSE, and GitHub issue and pull request templates.
 

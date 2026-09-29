@@ -10,6 +10,7 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 e2e/linux/out/
 
-# Local only: the code index and agent work notes.
+# Local only: the code index, agent work notes and the retired CircleCI config.
 .codegraph/
 .development-history/
+.circleci/

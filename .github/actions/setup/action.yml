@@ -1,0 +1,39 @@
+name: Set up the toolchain
+description: Node.js, Bun and Rust with clippy, plus the Tauri 2 system packages on Linux.
+
+inputs:
+  rust-targets:
+    description: Extra Rust targets, comma separated (for example aarch64-apple-darwin).
+    default: ""
+  cache-key:
+    description: Extra key for the Rust cache, so matrix entries on one OS keep separate caches.
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Tauri system packages
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          build-essential pkg-config file patchelf \
+          libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+    # jsdom needs Node ^24.15.0; scripts/ci/linux-deps.sh pins the same version for Docker.
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 24.21.0
+
+    - uses: oven-sh/setup-bun@v2
+
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy
+        targets: ${{ inputs.rust-targets }}
+
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: src-tauri
+        key: ${{ inputs.cache-key }}

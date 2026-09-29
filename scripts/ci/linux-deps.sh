@@ -4,7 +4,7 @@
 # and tauri-driver. Used by e2e/linux/Dockerfile, so a local run and CI install the same things.
 set -euo pipefail
 
-# jsdom wants ^24.15.0 on Node 24; .circleci/config.yml pins the same version.
+# jsdom wants ^24.15.0 on Node 24; .github/actions/setup/action.yml pins the same version.
 NODE_VERSION=24.21.0
 export DEBIAN_FRONTEND=noninteractive
 

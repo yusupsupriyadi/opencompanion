@@ -1,0 +1,51 @@
+# The checks on Windows, Linux and macOS, and the Linux end-to-end run. The steps live in
+# scripts/ci and e2e/linux, so they run the same way locally. release.yml calls this workflow
+# before it builds anything.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  checks:
+    name: Checks (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      # Git Bash on Windows.
+      - name: bun check, Vitest, clippy and cargo test
+        shell: bash
+        run: bash scripts/ci/checks.sh
+
+  linux-e2e:
+    name: Linux end to end (Docker)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build, install and drive the .deb (Xvfb, WebDriver)
+        run: bash e2e/linux/run.sh e2e
+      - name: Upload screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-e2e
+          path: e2e/linux/out
+          if-no-files-found: ignore

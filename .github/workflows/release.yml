@@ -1,0 +1,101 @@
+# Pushing a tag like v0.2.0 runs CI, then builds the installers for Windows, Linux and macOS
+# into a draft release. Publish the draft by hand once its assets look right.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Tag matches the app version
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Compare the tag with package.json, tauri.conf.json and Cargo.toml
+        shell: bash
+        run: |
+          want=${GITHUB_REF_NAME#v}
+          failed=0
+          check() {
+            if [ "$2" != "$want" ]; then
+              echo "::error file=$1::version is $2 but the tag $GITHUB_REF_NAME needs $want"
+              failed=1
+            fi
+          }
+          check package.json "$(jq -r .version package.json)"
+          check src-tauri/tauri.conf.json "$(jq -r .version src-tauri/tauri.conf.json)"
+          check src-tauri/Cargo.toml "$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -n 1)"
+          exit "$failed"
+
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  # One draft for the whole matrix, so parallel builds cannot each create their own.
+  draft:
+    name: Create the draft release
+    needs: [version, checks]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      id: ${{ steps.create.outputs.id }}
+    steps:
+      - id: create
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BODY: |
+            Installers for Windows, Linux and macOS are attached below. What changed is in [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md).
+
+            These builds are not code-signed yet. On Windows, SmartScreen asks before the first start: choose More info, then Run anyway. On macOS the app is ad-hoc signed, so allow it once in System Settings, Privacy & Security, Open Anyway.
+        run: |
+          id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
+            -f tag_name="$GITHUB_REF_NAME" -f name="OpenCompanion $GITHUB_REF_NAME" \
+            -f body="$BODY" -F draft=true --jq .id)
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: draft
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+          # Built on the oldest Ubuntu runner: an older glibc lets the .deb and AppImage run on newer releases too.
+          - name: Linux x64
+            os: ubuntu-22.04
+          - name: macOS Apple Silicon
+            os: macos-latest
+            target: aarch64-apple-darwin
+          - name: macOS Intel
+            os: macos-latest
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+        with:
+          rust-targets: ${{ matrix.target }}
+          cache-key: ${{ matrix.target }}
+      - run: bun install --frozen-lockfile
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          releaseId: ${{ needs.draft.outputs.id }}
+          tagName: ${{ github.ref_name }}
+          releaseDraft: true
+          tauriScript: bun run tauri
+          args: ${{ matrix.target && format('--target {0}', matrix.target) || '' }}

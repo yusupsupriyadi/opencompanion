@@ -65,7 +65,7 @@ Notes:
 
 | | Windows 11 | Linux | macOS |
 |---|---|---|---|
-| How it was tested | By hand, every day | End to end in Docker on Ubuntu 24.04: the installed `.deb`, driven through WebDriver ([e2e/linux](CONTRIBUTING.md#linux-end-to-end-in-docker)) | Built and tested in CircleCI (macOS 26, Apple M4 Pro): svelte-check, Vitest, clippy and every Rust test pass. Not run by hand yet |
+| How it was tested | By hand, every day | End to end in Docker on Ubuntu 24.04: the installed `.deb`, driven through WebDriver ([e2e/linux](CONTRIBUTING.md#linux-end-to-end-in-docker)) | Built and tested in GitHub Actions (macOS 26, Apple Silicon): svelte-check, Vitest, clippy and every Rust test pass. Not run by hand yet |
 | Packages from `bun run tauri build` | `.msi`, `.exe` | `.deb`, `.rpm`, AppImage | `.app`, `.dmg` |
 | Window controls | OpenCompanion's own | OpenCompanion's own | Native traffic lights |
 | Paste in a terminal | Ctrl+V | Ctrl+Shift+V (Ctrl+V goes to the CLI) | ⌘V |
@@ -159,7 +159,7 @@ bash scripts/ci/checks.sh              # all of the above, clippy with -D warnin
 bash e2e/linux/run.sh all              # the checks and an end-to-end run on Ubuntu 24.04, in Docker
 ```
 
-The tests need Node.js: Vitest runs on Node, not on Bun. CI runs on CircleCI and only when triggered, one job per OS; [CONTRIBUTING](CONTRIBUTING.md#ci) shows how.
+The tests need Node.js: Vitest runs on Node, not on Bun. GitHub Actions runs the checks on Windows, Linux and macOS, and the Linux end-to-end test, on every push to `main` and every pull request ([CONTRIBUTING](CONTRIBUTING.md#ci)). A version tag builds the installers into a draft release ([Releasing](CONTRIBUTING.md#releasing)).
 
 The integration tests drive a stand-in CLI (`src-tauri/src/bin/fake-cli.rs`) that prints the event formats captured from the real CLIs, so they need no CLI and no quota. `src-tauri/src/bin/air-spike.rs` runs the real CLIs from a terminal for spikes.
 
@@ -206,7 +206,7 @@ Built: the P0 requirements of PRD sections A to G, most P1 ones (install command
 - The phone page can be added to the home screen (web app manifest, Apple tags). On the plain-HTTP LAN, Chrome shows no install prompt and no service worker runs, so the installed app opens only while the desktop answers; over HTTPS or on localhost the service worker keeps the app shell and the offline screen. On iPhone the Home Screen app keeps its own storage, apart from Safari, so it is paired once more by typing the code.
 - The desktop sidebar lists every session, but the phone lists the 60 newest.
 - OpenCompanion does not delete pasted images from the temp folder. A paste that cannot be saved pastes nothing, without a message.
-- Windows 11 is tested by hand, Linux end to end in Docker, and macOS in CircleCI (build and tests, no window). Nobody has run OpenCompanion by hand on a Mac or on a Linux desktop (GNOME, KDE) yet.
+- Windows 11 is tested by hand, Linux end to end in Docker, and macOS in GitHub Actions (build and tests, no window). Nobody has run OpenCompanion by hand on a Mac or on a Linux desktop (GNOME, KDE) yet.
 
 ### Roadmap
 

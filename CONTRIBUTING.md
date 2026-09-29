@@ -69,15 +69,11 @@ The end-to-end run starts the installed app under Xvfb and drives it through `ta
 
 ### CI
 
-CircleCI runs the same scripts (`.circleci/config.yml`). Every job is off by default, so a push runs nothing. To run jobs, open the project in CircleCI, choose Trigger Pipeline and set any of the boolean parameters `linux`, `linux_e2e`, `windows` and `macos` to true. From a terminal, with a personal API token:
+GitHub Actions runs the same scripts (`.github/workflows/ci.yml`) on every push to `main` and on every pull request: `scripts/ci/checks.sh` on Ubuntu 24.04, Windows and macOS, and the Linux end-to-end run in Docker. The end-to-end screenshots, `results.json` and logs are attached to the run as the `linux-e2e` artifact. To run CI on another branch, open Actions, choose CI and press Run workflow, or from a terminal:
 
 ```sh
-curl -X POST https://circleci.com/api/v2/project/gh/yusupsupriyadi/opencompanion/pipeline \
-  -H "Circle-Token: $CIRCLECI_TOKEN" -H "Content-Type: application/json" \
-  -d '{"branch": "main", "parameters": {"linux": true, "windows": true, "macos": true}}'
+gh workflow run ci.yml --ref my-branch
 ```
-
-A macOS minute costs 20 Linux minutes of credits, so run `macos` when a change touches macOS code paths or before a release.
 
 ### Checking against the real CLIs
 
@@ -119,3 +115,20 @@ A few product rules hold everywhere, and changes that break them will not be mer
 - Update `README.md` when a feature, limit or requirement changes, and add a line under Unreleased in `CHANGELOG.md`.
 
 By contributing, you agree that your contribution is licensed under the [MIT License](LICENSE).
+
+## Releasing
+
+GitHub Actions builds each release from a version tag (`.github/workflows/release.yml`). To cut one:
+
+1. Set the new version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, then run `cargo check` in `src-tauri` so `Cargo.lock` follows. The workflow stops if any of the three differs from the tag.
+2. Move the Unreleased entries in `CHANGELOG.md` under the new version, and commit.
+3. Tag that commit and push the tag:
+
+```sh
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The workflow runs CI first. Then it builds on Windows (`.msi`, `.exe`), Ubuntu 22.04 (`.deb`, `.rpm`, AppImage) and macOS (`.dmg`, for Apple Silicon and for Intel), and uploads everything to a draft release. Check the assets, then publish the draft from the Releases page.
+
+The builds are not code-signed, so Windows SmartScreen and macOS Gatekeeper ask before the first start. The macOS builds are ad-hoc signed (`signingIdentity` in `src-tauri/tauri.macos.conf.json`); without that, macOS on Apple Silicon reports a downloaded app as damaged.
