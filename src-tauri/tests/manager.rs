@@ -1,6 +1,7 @@
 //! Session manager end to end, against `fake-cli` (src/bin/fake-cli.rs), which prints the
 //! event formats captured from the real CLIs in the M0 spike.
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -219,6 +220,56 @@ fn interactive_session_streams_output_and_takes_input() {
     assert_eq!(done.last_event.as_deref(), Some("Terminal closed"));
     // You closed it yourself, so no "finished" notification says so.
     assert!(r.rec.notes.lock().unwrap().is_empty(), "{:?}", r.rec.notes.lock().unwrap());
+}
+
+#[test]
+fn a_terminal_with_no_cli_left_is_at_its_shell_prompt_and_can_be_deleted() {
+    let r = rig("shell");
+    let s = start(&r, CliKind::Opencode, Mode::Interactive, "");
+    wait_until(&r, &s.id, "prompt on screen", |_| r.rec.output.lock().unwrap().contains("fake ready"));
+    let status = || r.db.session(&s.id).unwrap().unwrap();
+    let (this, none) = (HashSet::from([s.id.clone()]), HashSet::new());
+
+    // The process list finds the CLI in the terminal: it runs, and Delete waits for it.
+    r.manager.sync_clis(&this, &this);
+    assert_eq!(status().status, Status::Running);
+    assert!(r.manager.cli_in_terminal(&s.id));
+    assert!(r.manager.delete(&s.id).is_err());
+
+    // Its terminal is back at the prompt while a shell tab runs a CLI: still running, but text
+    // typed into the terminal would reach the shell. One read alone is not enough to say so.
+    r.manager.sync_clis(&none, &this);
+    assert!(r.manager.cli_in_terminal(&s.id));
+    r.manager.sync_clis(&none, &this);
+    let s1 = status();
+    assert_eq!((s1.status, s1.last_event.as_deref()), (Status::Running, Some("Running in a terminal tab")));
+    assert!(!r.manager.cli_in_terminal(&s.id));
+
+    // Back in its own terminal as well.
+    r.manager.sync_clis(&this, &this);
+    let s1 = status();
+    assert_eq!((s1.status, s1.last_event.as_deref()), (Status::Running, Some("Started in the terminal")));
+    assert!(r.manager.cli_in_terminal(&s.id));
+    r.manager.sync_clis(&none, &none);
+
+    // No CLI anywhere: the session is at its shell prompt, live but not running.
+    r.manager.sync_clis(&none, &none);
+    let s2 = status();
+    assert_eq!((s2.status, s2.last_event.as_deref()), (Status::Shell, Some("Back at the shell prompt")));
+    assert!(s2.status.is_live() && !s2.status.runs_cli());
+
+    // Typed again in the terminal: running again.
+    r.manager.sync_clis(&this, &this);
+    assert_eq!(status().status, Status::Running);
+    r.manager.sync_clis(&none, &none);
+    r.manager.sync_clis(&none, &none);
+    assert_eq!(status().status, Status::Shell);
+
+    // Delete closes the shell, and nothing stores the session again afterwards.
+    r.manager.delete(&s.id).unwrap();
+    thread::sleep(Duration::from_millis(1500));
+    assert!(r.db.session(&s.id).unwrap().is_none());
+    assert!(r.manager.live_pids().is_empty());
 }
 
 #[test]

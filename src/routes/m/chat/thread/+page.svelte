@@ -25,7 +25,7 @@
   import PhoneDispatchCard from "$lib/PhoneDispatchCard.svelte";
   import PlannerModel, { type ModelSource } from "$lib/PlannerModel.svelte";
   import StatusChip from "$lib/StatusChip.svelte";
-  import { CLI_LABEL, ago, folderName, isLive } from "$lib/format";
+  import { CLI_LABEL, ago, folderName, runsCli } from "$lib/format";
   import { plural, t, tb } from "$lib/i18n.svelte";
   import { hardwareKeyboard, keyboard, watchKeyboard } from "$lib/keyboard.svelte";
   import { call, notify, onMessage, phone, PhoneError } from "$lib/phone.svelte";
@@ -79,7 +79,7 @@
 
   const thinkingHere = $derived(pending !== null && pending.threadId === id);
   const answeringHere = $derived(!thinkingHere && id !== null && answering.includes(id));
-  const liveSessions = $derived(phone.sessions.filter(isLive));
+  const liveSessions = $derived(phone.sessions.filter(runsCli));
 
   // The same choice as the desktop: the chat CLI from Settings when it can plan, else the first one that can.
   const planner = $derived.by(() => {

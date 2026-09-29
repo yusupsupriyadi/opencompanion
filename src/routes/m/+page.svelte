@@ -7,7 +7,7 @@
   import CliMark from "$lib/CliMark.svelte";
   import PhoneStatus from "$lib/PhoneStatus.svelte";
   import PhoneTopBar from "$lib/PhoneTopBar.svelte";
-  import { CLI_LABEL, ago, folderName, isLive, isToday, trackLine, waitingTitle } from "$lib/format";
+  import { CLI_LABEL, ago, folderName, isLive, isToday, runsCli, trackLine, waitingTitle } from "$lib/format";
   import { t, tb } from "$lib/i18n.svelte";
   import { answer as sendAnswer, phone } from "$lib/phone.svelte";
 
@@ -20,7 +20,9 @@
   });
 
   const waiting = $derived(phone.sessions.filter((s) => s.status === "waiting"));
-  const running = $derived(phone.sessions.filter((s) => isLive(s) && s.status !== "waiting"));
+  const running = $derived(phone.sessions.filter((s) => runsCli(s) && s.status !== "waiting"));
+  // Terminals left at their shell prompt: open on the computer, but nothing runs in them.
+  const atPrompt = $derived(phone.sessions.filter((s) => s.status === "shell"));
   const today = $derived(phone.sessions.filter((s) => !isLive(s) && isToday(s.endedAt ?? s.startedAt)));
 
   async function answer(id: string, allow: boolean) {
@@ -80,6 +82,18 @@
     <section class="m-sec" aria-labelledby="m-running">
       <h2 id="m-running">{t("phone.sessions.running")} · {running.length}</h2>
       {#each running as s (s.id)}
+        <a class="m-card m-press" href="/m/session?id={s.id}">
+          <span class="row"><CliMark kind={s.cli} small /><span class="task grow">{s.title}</span><PhoneStatus status={s.status} /></span>
+          <span class="meta">{CLI_LABEL[s.cli]} · {folderName(s.cwd)} · {trackLine(s, now)}</span>
+        </a>
+      {/each}
+    </section>
+  {/if}
+
+  {#if atPrompt.length}
+    <section class="m-sec" aria-labelledby="m-at-prompt">
+      <h2 id="m-at-prompt">{t("shell.status.shell")} · {atPrompt.length}</h2>
+      {#each atPrompt as s (s.id)}
         <a class="m-card m-press" href="/m/session?id={s.id}">
           <span class="row"><CliMark kind={s.cli} small /><span class="task grow">{s.title}</span><PhoneStatus status={s.status} /></span>
           <span class="meta">{CLI_LABEL[s.cli]} · {folderName(s.cwd)} · {trackLine(s, now)}</span>

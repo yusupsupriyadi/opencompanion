@@ -38,7 +38,7 @@ Warna status (selalu berpasangan dengan label teks):
 | `st-run` / `st-run-ink` | `#B5D07A` / `#33361F` | `#9CC45A` / `#1B1F1A` | Running | rumput padang |
 | `st-wait` / `st-wait-ink` | `#F2C94C` / `#33361F` | `#E9B92E` / `#1B1F1A` | Waiting for you | bunga kuning |
 | `st-err` / `st-err-ink` | `#A8472E` / `#FFF8E1` | `#E0876A` / `#1B1F1A` | Error | kulit kayu |
-| `st-idle` / `st-idle-ink` | `#EFE3AE` / `#5B5D3E` | `#2E3529` / `#BDB895` | Done, Idle, Stopped, Off | langit pucat |
+| `st-idle` / `st-idle-ink` | `#EFE3AE` / `#5B5D3E` | `#2E3529` / `#BDB895` | Done, Idle, No CLI running, Stopped, Off | langit pucat |
 | read-only | tanpa isi, border `line-strong` / `ink-2` | sama | Read-only | |
 
 Terminal (panel gelap di kedua tema, "teduh di bawah pohon"):
@@ -442,4 +442,5 @@ Bottom tab bar di dua layar utama (Sessions, Chat): tinggi 52 + safe area, isi `
 - Viewer di tab gelap di atas terminal: kode dan diff butuh latar gelap yang sama dengan terminal, dan tab strip shell sudah jadi bahasa visual untuk "panel gelap dengan tutup".
 - Shell biasa sebagai tab di sesi, bukan layar Terminal sendiri: pemilik produk meminta keduanya disatukan (2026-09-28), seperti tab terminal per worktree di Orca. Shell selalu mulai di folder sesi, jadi dialog New terminal tidak lagi menanyakan folder.
 - Sesi tanpa header, dan terminal sesi berdiri di atas shell: pemilik produk ingin keluar lalu menjalankan CLI lagi seperti di terminal biasa, tanpa Resume, Stop dan Mark done, dan tampilan yang lebih ringkas karena sidebar sudah menampilkan nama dan status sesi (2026-09-28).
+- Sesi dianggap berjalan hanya selama ada CLI AI di terminalnya, termasuk tab shell-nya (keputusan pemilik produk 2026-09-30): daftar proses dibaca tiap 2 detik, sama dengan hitungan "×2" di sidebar. Terminal yang tinggal di prompt shell berstatus "No CLI running" (chip idle, tanpa gradasi, tidak dihitung di Running Overview dan HP, diurutkan bersama sesi selesai) dan boleh dihapus; shell-nya dan tab-tabnya ikut ditutup. Selama CLI hanya jalan di tab shell, sesi tetap Running, tetapi kartu Chat tidak diketik ke terminal sesi karena di sana teksnya akan dijalankan shell sebagai perintah.
 - Mobile dengan bottom tab bar (Sessions, Chat): owner meminta Chat dan New session di HP (2026-09-25), jadi tujuan utama harus satu ketukan; tab Board ikut hilang saat Board dihapus (2026-09-28); layar detail menyembunyikannya karena memakai tepi bawah untuk bar aksi.

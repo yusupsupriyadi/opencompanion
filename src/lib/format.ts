@@ -20,6 +20,7 @@ export const STATUS: Record<Status, { chip: string; label: string; dot: string }
   running: { chip: "run", dot: "run", get label() { return t("shell.status.running"); } },
   waiting: { chip: "wait", dot: "wait", get label() { return t("shell.status.waiting"); } },
   idle: { chip: "idle", dot: "run", get label() { return t("shell.status.idle"); } },
+  shell: { chip: "idle", dot: "done", get label() { return t("shell.status.shell"); } },
   done: { chip: "idle", dot: "done", get label() { return t("shell.status.done"); } },
   error: { chip: "err", dot: "err", get label() { return t("shell.status.error"); } },
   stopped: { chip: "idle", dot: "done", get label() { return t("shell.status.stopped"); } },
@@ -47,8 +48,14 @@ function locale(): string | undefined {
   return i18n.lang === "id" ? "id-ID" : undefined;
 }
 
+/** A process is attached: the CLI, or the shell a terminal runs in. The terminal takes typing. */
 export function isLive(s: Pick<SessionInfo, "status">): boolean {
-  return s.status === "starting" || s.status === "running" || s.status === "waiting" || s.status === "idle";
+  return s.status === "starting" || s.status === "running" || s.status === "waiting" || s.status === "idle" || s.status === "shell";
+}
+
+/** An AI CLI runs in the session's terminals. A terminal left at its shell prompt is live but not running. */
+export function runsCli(s: Pick<SessionInfo, "status">): boolean {
+  return isLive(s) && s.status !== "shell";
 }
 
 export function folderName(path: string): string {

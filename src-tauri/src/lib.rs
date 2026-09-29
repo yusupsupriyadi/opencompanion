@@ -46,6 +46,8 @@ struct AppState {
     companion: Arc<Companion>,
     monitor: Arc<Mutex<monitor::Monitor>>,
     terminals: Arc<terminal::Terminals>,
+    /// The AI CLIs in each session's terminals, from the last process list read (`follow_clis`).
+    clis: Arc<Mutex<HashMap<String, Vec<CliKind>>>>,
     data_dir: PathBuf,
 }
 
@@ -393,11 +395,32 @@ async fn session_usage(state: State<'_, AppState>, id: String) -> Res<Option<mon
 /// The AI CLIs running in each session's terminals: its own and the shells in its tabs. Sessions
 /// with none are left out.
 #[tauri::command]
-async fn session_clis(state: State<'_, AppState>) -> Res<HashMap<String, Vec<CliKind>>> {
-    let mut roots = state.manager.live_pids();
-    roots.extend(state.terminals.list().into_iter().filter_map(|t| Some((t.session_id, t.pid?))));
-    let monitor = Arc::clone(&state.monitor);
-    blocking(move || Ok(monitor.lock().map_err(|e| e.to_string())?.clis_under(&roots))).await
+fn session_clis(state: State<'_, AppState>) -> Res<HashMap<String, Vec<CliKind>>> {
+    Ok(state.clis.lock().map_err(|e| e.to_string())?.clone())
+}
+
+/// How often the process list is read for the CLIs in sessions' terminals.
+const CLIS_EVERY: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Reads which AI CLIs run in each session's terminals, keeps the counts for the sidebar, and
+/// lets the manager mark a session whose terminals run none as being at its shell prompt.
+fn follow_clis(state: &AppState) {
+    let mut roots: Vec<((String, bool), u32)> = state.manager.live_pids().into_iter().map(|(id, pid)| ((id, true), pid)).collect();
+    roots.extend(state.terminals.list().into_iter().filter_map(|t| Some(((t.session_id, false), t.pid?))));
+    let Ok(found) = state.monitor.lock().map(|mut m| m.clis_under(&roots)) else { return };
+    let (mut own, mut any) = (HashSet::new(), HashSet::new());
+    let mut counts: HashMap<String, Vec<CliKind>> = HashMap::new();
+    for ((id, is_own), kinds) in found {
+        if is_own {
+            own.insert(id.clone());
+        }
+        any.insert(id.clone());
+        counts.entry(id).or_default().extend(kinds);
+    }
+    if let Ok(mut c) = state.clis.lock() {
+        *c = counts;
+    }
+    state.manager.sync_clis(&own, &any);
 }
 
 #[tauri::command]
@@ -560,8 +583,8 @@ async fn git_branches(state: State<'_, AppState>, id: String) -> Res<git::Branch
     blocking(move || git::branches(&root)).await
 }
 
-/// Refused while any OpenCompanion session in the folder is live: its CLI holds the files as
-/// they are on this branch.
+/// Refused while any OpenCompanion session in the folder runs its CLI: the CLI holds the files
+/// as they are on this branch.
 #[tauri::command]
 async fn git_switch(state: State<'_, AppState>, id: String, branch: String) -> Res<git::Status> {
     let root = session_folder(&state, &id)?;
@@ -570,7 +593,7 @@ async fn git_switch(state: State<'_, AppState>, id: String, branch: String) -> R
         .db
         .sessions(u32::MAX)?
         .into_iter()
-        .any(|s| s.status.is_live() && projects::norm(&s.cwd) == folder);
+        .any(|s| s.status.runs_cli() && projects::norm(&s.cwd) == folder);
     if busy {
         return Err("Stop or finish the sessions in this folder before switching branches.".into());
     }
@@ -893,8 +916,18 @@ pub fn run() {
                 companion,
                 monitor: Arc::new(Mutex::new(monitor::Monitor::new())),
                 terminals: terminal::Terminals::new(Arc::new(TerminalEvents { app: app.handle().clone() })),
+                clis: Arc::new(Mutex::new(HashMap::new())),
                 data_dir,
             });
+            {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || loop {
+                    std::thread::sleep(CLIS_EVERY);
+                    if let Some(state) = handle.try_state::<AppState>() {
+                        follow_clis(&state);
+                    }
+                });
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

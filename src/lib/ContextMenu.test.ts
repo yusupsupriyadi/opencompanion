@@ -66,6 +66,23 @@ test("Delete opens the confirm dialog; a live session's Delete says to stop it f
   expect(screen.queryByRole("menu")).toBeNull();
 });
 
+test("a terminal's CLI is exited in the terminal first; one left at its shell prompt can be deleted", async () => {
+  const user = userEvent.setup();
+  sidebar(
+    session({ id: "a", title: "Fix the login bug", mode: "interactive", status: "idle" }),
+    session({ id: "b", title: "Write API docs", mode: "interactive", status: "shell" }),
+  );
+
+  await fireEvent.contextMenu(screen.getByRole("link", { name: /Fix the login bug/ }));
+  const refused = screen.getByRole("menuitem", { name: /Delete session/ });
+  expect(refused).toHaveAttribute("aria-disabled", "true");
+  expect(refused).toHaveTextContent("Exit its CLI first");
+
+  await fireEvent.contextMenu(screen.getByRole("link", { name: /Write API docs/ }));
+  await user.click(screen.getByRole("menuitem", { name: "Delete session" }));
+  expect(pendingDelete.session?.id).toBe("b");
+});
+
 test("the arrow keys, Home and End move through the menu; Escape closes it and returns to the row", async () => {
   const user = userEvent.setup();
   sidebar(session({ id: "a", title: "Write API docs", status: "done" }));

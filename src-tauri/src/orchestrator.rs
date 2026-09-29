@@ -237,15 +237,16 @@ pub fn extract_plan(text: &str) -> Option<Value> {
         .filter(|v| v.get("reply").is_some())
 }
 
-/// Why a message cannot go to `s` right now (PRD FR-25), or `None` when it can: a running
-/// terminal takes typed text, a running Claude Code turn takes a message, and a finished headless
-/// session continues its conversation.
+/// Why a message cannot go to `s` right now (PRD FR-25), or `None` when it can: a terminal with
+/// its CLI running takes typed text, a running Claude Code turn takes a message, and a finished
+/// headless session continues its conversation.
 pub fn session_problem(s: &SessionInfo) -> Option<String> {
     let who = s.cli.label();
     match (s.mode, s.status.is_live()) {
         (_, true) if s.status == crate::db::Status::Waiting => {
             Some(format!("{who} is waiting for an answer in this session. Answer it first, then send this."))
         }
+        (Mode::Interactive, true) if s.status == crate::db::Status::Shell => Some(not_in_terminal(who)),
         (Mode::Interactive, true) => None,
         (Mode::Interactive, false) => Some("This terminal has closed. Resume the session, then send this card.".into()),
         (Mode::Headless, true) if s.cli.runs_claude_code() => None,
@@ -253,6 +254,11 @@ pub fn session_problem(s: &SessionInfo) -> Option<String> {
         (Mode::Headless, false) if s.cli_session_id.is_some() => None,
         (Mode::Headless, false) => Some(format!("{who} did not report a session id, so this conversation cannot continue.")),
     }
+}
+
+/// A card typed into a terminal at its shell prompt would run as a command.
+pub fn not_in_terminal(who: &str) -> String {
+    format!("{who} is not running in this session's terminal. Start it there, then send this card.")
 }
 
 /// A follow-up card is checked against its session: it has to exist and take a message now.
@@ -735,6 +741,11 @@ mod tests {
         assert!(session_problem(&s).unwrap().contains("still on this session's turn"));
         s.status = Status::Waiting;
         assert!(session_problem(&s).unwrap().contains("waiting for an answer"));
+        s.mode = Mode::Interactive;
+        s.status = Status::Idle;
+        assert_eq!(session_problem(&s), None);
+        s.status = Status::Shell;
+        assert!(session_problem(&s).unwrap().contains("not running in this session's terminal"));
     }
 
     #[test]

@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 export type CliKind = "claude" | "codex" | "opencode" | "gemini" | "ccs" | "pi" | "omp";
 export type Mode = "interactive" | "headless";
-export type Status = "starting" | "running" | "waiting" | "idle" | "done" | "error" | "stopped";
+export type Status = "starting" | "running" | "waiting" | "idle" | "shell" | "done" | "error" | "stopped";
 export type PermMode = "ask" | "plan" | "auto" | "bypass";
 
 /** Mirrors `cli::CliInstall`. */

@@ -31,6 +31,9 @@ pub enum Status {
     Running,
     Waiting,
     Idle,
+    /// An interactive session's terminal is open at its shell prompt, and no AI CLI runs in it
+    /// or in the session's shell tabs.
+    Shell,
     Done,
     Error,
     Stopped,
@@ -43,6 +46,7 @@ impl Status {
             Status::Running => "running",
             Status::Waiting => "waiting",
             Status::Idle => "idle",
+            Status::Shell => "shell",
             Status::Done => "done",
             Status::Error => "error",
             Status::Stopped => "stopped",
@@ -54,13 +58,19 @@ impl Status {
             "running" => Status::Running,
             "waiting" => Status::Waiting,
             "idle" => Status::Idle,
+            "shell" => Status::Shell,
             "done" => Status::Done,
             "error" => Status::Error,
             _ => Status::Stopped,
         }
     }
+    /// A process is attached: the CLI, or the shell its terminal runs in.
     pub fn is_live(self) -> bool {
-        matches!(self, Status::Starting | Status::Running | Status::Waiting | Status::Idle)
+        matches!(self, Status::Starting | Status::Running | Status::Waiting | Status::Idle | Status::Shell)
+    }
+    /// An AI CLI runs in the session. A terminal left at its shell prompt is live but not running.
+    pub fn runs_cli(self) -> bool {
+        self.is_live() && self != Status::Shell
     }
 }
 
@@ -684,7 +694,7 @@ impl Db {
             c.execute(
                 "UPDATE sessions SET status = 'stopped', waiting = NULL, ended_at = COALESCE(ended_at, ?1),
                    last_event = 'OpenCompanion was closed while this session ran', updated_at = ?1
-                 WHERE status IN ('starting', 'running', 'waiting', 'idle')",
+                 WHERE status IN ('starting', 'running', 'waiting', 'idle', 'shell')",
                 [now],
             )
         })
@@ -1078,11 +1088,14 @@ mod tests {
         });
         db.upsert_session(&s).unwrap();
         db.upsert_session(&session("b", Status::Done)).unwrap();
+        db.upsert_session(&session("c", Status::Shell)).unwrap();
         let got = db.session("a").unwrap().unwrap();
         assert_eq!(got.waiting.unwrap().request_id.as_deref(), Some("r1"));
-        assert_eq!(db.close_orphans().unwrap(), 1);
+        assert_eq!(db.session("c").unwrap().unwrap().status, Status::Shell);
+        assert_eq!(db.close_orphans().unwrap(), 2);
         assert_eq!(db.session("a").unwrap().unwrap().status, Status::Stopped);
         assert_eq!(db.session("b").unwrap().unwrap().status, Status::Done);
+        assert_eq!(db.session("c").unwrap().unwrap().status, Status::Stopped);
     }
 
     #[test]

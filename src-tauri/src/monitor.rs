@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -217,9 +218,9 @@ impl Monitor {
 }
 
 impl Monitor {
-    /// The AI CLIs running under each root, keyed by what the root belongs to: a session's own
-    /// terminal and the shells in its tabs share the session's key. Keys with none are left out.
-    pub fn clis_under(&mut self, roots: &[(String, u32)]) -> HashMap<String, Vec<CliKind>> {
+    /// The AI CLIs running under each root, keyed by what the root belongs to: roots that share
+    /// a key add up. Keys with none are left out.
+    pub fn clis_under<K: Clone + Eq + Hash>(&mut self, roots: &[(K, u32)]) -> HashMap<K, Vec<CliKind>> {
         if roots.is_empty() {
             return HashMap::new();
         }
@@ -242,7 +243,7 @@ impl Monitor {
             let p = procs.get(&Pid::from_u32(pid))?;
             classify(&p.name().to_string_lossy(), &arg_strings(p))
         };
-        let mut out: HashMap<String, Vec<CliKind>> = HashMap::new();
+        let mut out: HashMap<K, Vec<CliKind>> = HashMap::new();
         for (key, pid) in roots {
             if !procs.contains_key(&Pid::from_u32(*pid)) {
                 continue;
@@ -410,7 +411,7 @@ mod tests {
         let with_self = monitor.scan(&HashSet::from([std::process::id()]));
         let found = find(child.id());
         let usage = monitor.usage(std::process::id());
-        let under_self = monitor.clis_under(&[("s1".into(), std::process::id()), ("s2".into(), child.id())]);
+        let under_self = monitor.clis_under(&[("s1", std::process::id()), ("s2", child.id())]);
         let _ = child.kill();
         let _ = child.wait();
         let _ = std::fs::remove_dir_all(&dir);

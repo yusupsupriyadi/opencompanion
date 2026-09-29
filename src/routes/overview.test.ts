@@ -38,6 +38,20 @@ test("a waiting session is the focal point, running and finished ones follow", (
   expect(screen.getByText("1 running, 1 finished today")).toBeInTheDocument();
 });
 
+test("a terminal left at its shell prompt is listed but not counted as running", () => {
+  app.sessions = [
+    session({ id: "r", title: "Fix tests", status: "running" }),
+    session({ id: "p", title: "Add week view", mode: "interactive", status: "shell", lastEvent: "Back at the shell prompt" }),
+  ];
+  render(Overview);
+  const row = screen.getByRole("link", { name: /Add week view/ });
+  expect(within(row).getByText("No CLI running")).toBeInTheDocument();
+  expect(screen.getByText("1 running, 0 finished today")).toBeInTheDocument();
+  // No CLI runs in it, so it can go.
+  expect(screen.getByRole("button", { name: "Delete session: Add week view" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Delete session: Fix tests" })).toBeNull();
+});
+
 test("with nothing from today, the hint links to all sessions inside its sentence", () => {
   const old = Date.now() - 3 * 86_400_000;
   app.sessions = [session({ id: "old", status: "done", startedAt: old, endedAt: old })];

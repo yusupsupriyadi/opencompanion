@@ -17,7 +17,7 @@
   import Horizon from "$lib/Horizon.svelte";
   import PlannerModel from "$lib/PlannerModel.svelte";
   import StatusChip from "$lib/StatusChip.svelte";
-  import { CLI_LABEL, ago, folderName, isLive } from "$lib/format";
+  import { CLI_LABEL, ago, folderName, runsCli } from "$lib/format";
   import { plural, t, tb } from "$lib/i18n.svelte";
   import { app, showToast } from "$lib/store.svelte";
 
@@ -73,7 +73,7 @@
   const canPlan = $derived(provider ? provider.ready : planner !== null);
   // PRD FR-26 asks for a plain sign whenever cards can start without Run.
   const autoRun = $derived(app.settings?.autoRunFolders ?? []);
-  const liveSessions = $derived(app.sessions.filter(isLive));
+  const liveSessions = $derived(app.sessions.filter(runsCli));
 
   // A wide window docks the rail and remembers when it was hidden; a narrower one opens it over the conversation.
   const RAIL_KEY = "air-chat-rail-hidden";

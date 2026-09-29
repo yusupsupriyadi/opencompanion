@@ -24,7 +24,7 @@
   import Terminal from "$lib/Terminal.svelte";
   import TerminalForm from "$lib/TerminalForm.svelte";
   import Timeline from "$lib/Timeline.svelte";
-  import { CLI_LABEL, SIGNAL_TEXT, clock, duration, folderName, isLive, memory, modeLabel, shortPath } from "$lib/format";
+  import { CLI_LABEL, SIGNAL_TEXT, clock, duration, folderName, isLive, memory, modeLabel, runsCli, shortPath } from "$lib/format";
   import { plural, t, tb, type Key } from "$lib/i18n.svelte";
   import { pasteKey } from "$lib/platform";
   import { SessionShells } from "$lib/shells.svelte";
@@ -549,7 +549,7 @@
           {/if}
           {#if built.has("branch")}
             <div class="side-panel" role="tabpanel" id="side-panel-branch" aria-labelledby="side-tab-branch" hidden={sideTab !== "branch"}>
-              <BranchPanel {id} cwd={s.cwd} {watch} busyCli={live ? CLI_LABEL[s.cli] : null} />
+              <BranchPanel {id} cwd={s.cwd} {watch} busyCli={runsCli(s) ? CLI_LABEL[s.cli] : null} />
             </div>
           {/if}
         {/key}

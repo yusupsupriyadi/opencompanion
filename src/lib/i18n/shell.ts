@@ -38,6 +38,7 @@ export const en = {
   "shell.menu.revealLinux": "Show in file manager",
   "shell.menu.revealFailed": "Could not open {folder}: {error}",
   "shell.menu.stopFirst": "Stop it first",
+  "shell.menu.exitFirst": "Exit its CLI first",
 
   // Title bar
   "shell.titlebar.minimize": "Minimize",
@@ -49,6 +50,7 @@ export const en = {
   "shell.status.running": "Running",
   "shell.status.waiting": "Waiting for you",
   "shell.status.idle": "Idle",
+  "shell.status.shell": "No CLI running",
   "shell.status.done": "Done",
   "shell.status.error": "Error",
   "shell.status.stopped": "Stopped",
@@ -184,6 +186,7 @@ export const id: Record<keyof typeof en, string> = {
   "shell.menu.revealLinux": "Tampilkan di pengelola file",
   "shell.menu.revealFailed": "{folder} tidak bisa dibuka: {error}",
   "shell.menu.stopFirst": "Hentikan dulu",
+  "shell.menu.exitFirst": "Keluar dari CLI-nya dulu",
 
   // Windows' own Indonesian names for the window buttons.
   "shell.titlebar.minimize": "Minimalkan",
@@ -194,6 +197,7 @@ export const id: Record<keyof typeof en, string> = {
   "shell.status.running": "Berjalan",
   "shell.status.waiting": "Menunggu Anda",
   "shell.status.idle": "Diam",
+  "shell.status.shell": "Tidak ada CLI",
   "shell.status.done": "Selesai",
   "shell.status.error": "Error",
   "shell.status.stopped": "Dihentikan",

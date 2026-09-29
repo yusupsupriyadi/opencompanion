@@ -8,7 +8,7 @@ import PushPinSlash from "phosphor-svelte/lib/PushPinSlash";
 import TerminalWindow from "phosphor-svelte/lib/TerminalWindow";
 import Trash from "phosphor-svelte/lib/Trash";
 import { errorText, type SessionView } from "./api";
-import { folderName, isLive } from "./format";
+import { folderName, runsCli } from "./format";
 import { t } from "./i18n.svelte";
 import { currentPlatform } from "./platform";
 import { askDelete, askNewSession, showToast } from "./store.svelte";
@@ -86,7 +86,9 @@ async function reveal(path: string) {
 
 /** A session row's menu. The sidebar passes `pin`; lists without pins leave it out. */
 export function sessionMenu(s: SessionView, pin?: { pinned: boolean; toggle: () => void }): MenuEntry[] {
-  const live = isLive(s);
+  const running = runsCli(s);
+  // Headless sessions have Stop; a terminal's CLI is exited in the terminal.
+  const hint = s.mode === "headless" ? t("shell.menu.stopFirst") : t("shell.menu.exitFirst");
   return [
     { label: t("shell.menu.open"), icon: TerminalWindow, action: () => goto(`/session?id=${encodeURIComponent(s.id)}`) },
     { label: t("shell.sidebar.newSessionIn", { folder: folderName(s.cwd) }), icon: Plus, action: () => askNewSession(s.cwd) },
@@ -96,7 +98,8 @@ export function sessionMenu(s: SessionView, pin?: { pinned: boolean; toggle: () 
     null,
     ...folderEntries(s.cwd),
     null,
-    // The backend refuses to delete a live session, so the item says so up front.
-    { label: t("shell.deleteSession"), icon: Trash, danger: true, disabled: live, hint: live ? t("shell.menu.stopFirst") : undefined, action: () => askDelete(s) },
+    // The backend refuses to delete a session while a CLI runs in it, so the item says so up
+    // front. A terminal at its shell prompt closes with the session.
+    { label: t("shell.deleteSession"), icon: Trash, danger: true, disabled: running, hint: running ? hint : undefined, action: () => askDelete(s) },
   ];
 }

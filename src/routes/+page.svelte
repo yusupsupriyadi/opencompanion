@@ -6,7 +6,7 @@
   import CliMark from "$lib/CliMark.svelte";
   import NeedsYou from "$lib/NeedsYou.svelte";
   import SessionRow from "$lib/SessionRow.svelte";
-  import { CLI_LABEL, clock, duration, isLive, isToday, memory, shortPath } from "$lib/format";
+  import { CLI_LABEL, clock, duration, isLive, isToday, memory, runsCli, shortPath } from "$lib/format";
   import { t, tb } from "$lib/i18n.svelte";
   import { app, askNewSession, refreshSessions } from "$lib/store.svelte";
 
@@ -15,7 +15,9 @@
   });
 
   const waiting = $derived(app.sessions.filter((s) => s.status === "waiting"));
-  const running = $derived(app.sessions.filter((s) => isLive(s) && s.status !== "waiting"));
+  const running = $derived(app.sessions.filter((s) => runsCli(s) && s.status !== "waiting"));
+  // Terminals left at their shell prompt: open, but nothing runs in them.
+  const atPrompt = $derived(app.sessions.filter((s) => s.status === "shell"));
   const today = $derived(app.sessions.filter((s) => !isLive(s) && isToday(s.endedAt ?? s.startedAt)));
   const liveCount = $derived(waiting.length + running.length);
 
@@ -72,10 +74,13 @@
         {#each running as s (s.id)}
           <SessionRow {s} />
         {/each}
+        {#each atPrompt as s (s.id)}
+          <SessionRow {s} />
+        {/each}
         {#each today as s (s.id)}
           <SessionRow {s} />
         {/each}
-        {#if running.length === 0 && today.length === 0}
+        {#if running.length === 0 && atPrompt.length === 0 && today.length === 0}
           {@const [before, after] = t("sessions.overview.nothingRunning").split("{link}")}
           <p class="hint">{before}<a class="link" href="/history">{t("sessions.overview.allSessions")}</a>{after}</p>
         {/if}

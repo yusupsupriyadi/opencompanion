@@ -62,6 +62,11 @@ enum Runner {
 pub(crate) const OUTPUT_KEEP: usize = 512 * 1024;
 /// Output silence after which an interactive session counts as Idle.
 const IDLE_AFTER: Duration = Duration::from_secs(8);
+/// How long a new terminal's shell may take to start its CLI before a missing one counts.
+const CLI_START_GRACE: Duration = Duration::from_secs(15);
+/// Process list reads in a row that must miss the terminal's CLI before it counts as gone, so
+/// one read taken while a CLI restarts itself does not end its state.
+const CLI_MISSES: u64 = 2;
 
 struct Live {
     info: Mutex<SessionInfo>,
@@ -86,6 +91,16 @@ struct Live {
     /// Claude Code's Stop hook said the turn is over. Terminal redraws do not make it Running
     /// again; the next hook report does.
     hook_idle: AtomicBool,
+    /// The process list last saw an AI CLI in this session's own terminal. Until it is read the
+    /// CLI is taken to be there, so the terminal's screen and output are followed.
+    own_cli: AtomicBool,
+    /// The process list has seen a CLI in this terminal since it was spawned.
+    cli_seen: AtomicBool,
+    /// Reads in a row that found no CLI in this terminal.
+    cli_misses: AtomicU64,
+    spawned_at: Mutex<Instant>,
+    /// Set by Delete, under the `info` lock: no later update stores the session again.
+    deleted: AtomicBool,
 }
 
 pub struct Manager {
@@ -292,6 +307,69 @@ impl Manager {
             .collect()
     }
 
+    /// Follows the process list, read every few seconds by the app, for sessions whose terminal
+    /// runs in a shell. With no AI CLI in the terminal or its shell tabs the session is at its
+    /// shell prompt (Shell); a CLI started again makes it Running. `own` holds the sessions whose
+    /// own terminal runs a CLI, `any` those with one in any of their terminals.
+    pub fn sync_clis(&self, own: &HashSet<String>, any: &HashSet<String>) {
+        let lives: Vec<Arc<Live>> = match self.live.lock() {
+            Ok(map) => map.values().cloned().collect(),
+            Err(_) => return,
+        };
+        for live in lives {
+            let in_shell = live.runner.lock().map(|r| matches!(&*r, Runner::Pty(p) if p.stays())).unwrap_or(false);
+            let info = self.info(&live);
+            if !in_shell || !info.status.is_live() {
+                continue;
+            }
+            let (own_cli, any_cli) = (own.contains(&info.id), any.contains(&info.id));
+            if own_cli {
+                live.cli_seen.store(true, Ordering::SeqCst);
+                live.cli_misses.store(0, Ordering::SeqCst);
+            } else {
+                let starting = !live.cli_seen.load(Ordering::SeqCst)
+                    && live.spawned_at.lock().map(|t| t.elapsed() < CLI_START_GRACE).unwrap_or(false);
+                let misses = live.cli_misses.fetch_add(1, Ordering::SeqCst) + 1;
+                if starting || misses < CLI_MISSES {
+                    continue;
+                }
+            }
+            let was_own = live.own_cli.swap(own_cli, Ordering::SeqCst);
+            match (any_cli, own_cli, info.status) {
+                (false, _, status) if status != Status::Shell => {
+                    self.update(&live, |i| {
+                        i.status = Status::Shell;
+                        i.waiting = None;
+                        i.last_event = Some("Back at the shell prompt".into());
+                    });
+                }
+                // Only a shell tab runs one: whether it works or waits there is not visible here.
+                (true, false, status) if status != Status::Running || was_own => {
+                    self.update(&live, |i| {
+                        i.status = Status::Running;
+                        i.waiting = None;
+                        i.last_event = Some("Running in a terminal tab".into());
+                    });
+                }
+                // Started again in its own terminal, unless its CLI already asks you something.
+                (true, true, status) if status == Status::Shell || (!was_own && status != Status::Waiting) => {
+                    live.hook_idle.store(false, Ordering::SeqCst);
+                    self.update(&live, |i| {
+                        i.status = Status::Running;
+                        i.last_event = Some("Started in the terminal".into());
+                    });
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Whether text typed into the session's own terminal reaches a CLI rather than its shell.
+    pub fn cli_in_terminal(&self, id: &str) -> bool {
+        self.get_live(id)
+            .is_ok_and(|l| l.own_cli.load(Ordering::SeqCst) && self.info(&l).status.runs_cli())
+    }
+
     /// Claims `id` for a spawn; `None` while another Resume or follow-up is starting it.
     fn claim_spawn(&self, id: &str) -> Option<Spawning<'_>> {
         let mut set = self.spawning.lock().ok()?;
@@ -438,6 +516,11 @@ impl Manager {
             pending_input: Mutex::new(None),
             hook_file,
             hook_idle: AtomicBool::new(false),
+            own_cli: AtomicBool::new(true),
+            cli_seen: AtomicBool::new(false),
+            cli_misses: AtomicU64::new(0),
+            spawned_at: Mutex::new(Instant::now()),
+            deleted: AtomicBool::new(false),
         });
         if let Ok(mut map) = self.live.lock() {
             map.insert(id, Arc::clone(&live));
@@ -456,6 +539,9 @@ impl Manager {
             let before = info.status;
             f(&mut info);
             info.updated_at = db::now_ms();
+            if live.deleted.load(Ordering::SeqCst) {
+                return info.clone();
+            }
             // Stored and announced under the lock: a reader thread's copy taken just before a
             // finish can then never land after it and show the session running again.
             let _ = self.db.upsert_session(&info);
@@ -616,6 +702,12 @@ impl Manager {
         if let Ok(mut r) = live.runner.lock() {
             *r = Runner::Pty(session);
         }
+        live.own_cli.store(true, Ordering::SeqCst);
+        live.cli_seen.store(false, Ordering::SeqCst);
+        live.cli_misses.store(0, Ordering::SeqCst);
+        if let Ok(mut t) = live.spawned_at.lock() {
+            *t = Instant::now();
+        }
         self.update(live, |i| {
             i.pid = pid;
             i.status = Status::Running;
@@ -671,6 +763,11 @@ impl Manager {
             }
 
             let info = self.info(&live);
+            // The terminal is at its shell prompt: nothing on its screen asks you anything, and
+            // its output is the shell's. `sync_clis` follows the process list meanwhile.
+            if info.status == Status::Shell || !live.own_cli.load(Ordering::SeqCst) {
+                continue;
+            }
             let screen = match live.runner.lock() {
                 Ok(r) => match &*r {
                     Runner::Pty(p) => p.screen_text(),
@@ -1207,13 +1304,24 @@ impl Manager {
     pub fn delete(&self, id: &str) -> Result<(), String> {
         let info = self.db.session(id)?.ok_or("Session not found.")?;
         let mut map = self.live.lock().map_err(|e| e.to_string())?;
-        let running = map.get(id).map_or(info.status, |l| self.info(l).status);
-        if running.is_live() {
+        let status = map.get(id).map_or(info.status, |l| self.info(l).status);
+        if status.runs_cli() {
             return Err("Stop this session before deleting it.".into());
         }
         // Holding the map lock keeps a Resume from registering it again mid-delete. Closing
         // the log here lets Windows remove the file while a stale watcher still holds `Live`.
         if let Some(live) = map.remove(id) {
+            // A terminal left at its shell prompt closes with its session. The new generation
+            // sends its watcher away, and `deleted` keeps a late update from storing it again.
+            live.generation.fetch_add(1, Ordering::SeqCst);
+            {
+                let _info = live.info.lock().unwrap_or_else(|p| p.into_inner());
+                live.deleted.store(true, Ordering::SeqCst);
+            }
+            let runner = live.runner.lock().map(|mut r| std::mem::replace(&mut *r, Runner::None));
+            if let Ok(Runner::Pty(mut shell)) = runner {
+                thread::spawn(move || shell.kill());
+            }
             if let Ok(mut log) = live.log.lock() {
                 *log = None;
             }

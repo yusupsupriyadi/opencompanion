@@ -51,6 +51,19 @@ test("waiting sessions come first in the session list, named by their task", () 
   expect(screen.getByRole("link", { name: /Add week view/ })).toHaveAttribute("href", "/session?id=c");
 });
 
+test("a terminal left at its shell prompt is not running: it sorts after running sessions and says so", () => {
+  app.sessions = [
+    session({ id: "a", title: "Write API docs", cwd: "C:\\p\\uninote", mode: "interactive", status: "shell" }),
+    session({ id: "b", title: "Fix the login bug", cwd: "C:\\p\\uninote", mode: "interactive", status: "idle" }),
+  ];
+  render(Sidebar);
+  const names = [...document.querySelectorAll(".mini b")].map((b) => b.textContent);
+  expect(names).toEqual(["Fix the login bug", "Write API docs"]);
+  const row = screen.getByRole("link", { name: /Write API docs/ });
+  expect(row).toHaveAccessibleName("Write API docs Claude Code, No CLI running");
+  expect(row.querySelector("b")).not.toHaveClass("shimmer");
+});
+
 test("a session row shows only its provider mark and title; the running one shimmers", () => {
   app.sessions = [
     session({ id: "a", title: "Write API docs", status: "done" }),
@@ -72,7 +85,7 @@ test("a session row counts the CLIs running in its terminals", () => {
   app.sessions = [
     session({ id: "a", title: "Fix the login bug", status: "running" }),
     session({ id: "b", title: "Add week view", status: "running", cli: "codex" }),
-    session({ id: "c", title: "Write API docs", status: "running" }),
+    session({ id: "c", title: "Write API docs", mode: "interactive", status: "shell" }),
   ];
   app.sessionClis = { a: ["claude", "codex", "claude"], b: ["codex"] };
   render(Sidebar);
@@ -84,7 +97,7 @@ test("a session row counts the CLIs running in its terminals", () => {
   // A terminal whose CLI has exited back to the shell shows no count.
   const c = screen.getByRole("link", { name: /Write API docs/ });
   expect(c.querySelector(".clis")).toBeNull();
-  expect(c).toHaveAttribute("title", "Write API docs · Claude Code · Running");
+  expect(c).toHaveAttribute("title", "Write API docs · Claude Code · No CLI running");
 });
 
 test("the CLI counts follow the backend, and a failed read shows none rather than old ones", async () => {

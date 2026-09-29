@@ -14,7 +14,7 @@
   import AppLogo from "./AppLogo.svelte";
   import CliMark from "./CliMark.svelte";
   import { folderEntries, menu, openMenu, sessionMenu } from "./context-menu.svelte";
-  import { CLI_LABEL, STATUS, folderName, isLive } from "./format";
+  import { CLI_LABEL, STATUS, folderName, runsCli } from "./format";
   import { plural, t } from "./i18n.svelte";
   import { app, askNewSession } from "./store.svelte";
 
@@ -104,13 +104,14 @@
       .join(", ");
   }
 
-  // Every session is shown, most urgent first: live (waiting on top), then finished, newest first.
+  // Every session is shown, most urgent first: running (waiting on top), then the rest, newest
+  // first. A terminal left at its shell prompt runs nothing, so it sorts with the finished ones.
   // Pinned folders lead, even empty; the rest follow their most urgent session. Inside a folder,
   // pinned sessions come first.
   const groups = $derived.by(() => {
-    const live = app.sessions.filter(isLive);
-    live.sort((a, b) => Number(b.status === "waiting") - Number(a.status === "waiting"));
-    const ordered = [...live, ...app.sessions.filter((s) => !isLive(s))];
+    const running = app.sessions.filter(runsCli);
+    running.sort((a, b) => Number(b.status === "waiting") - Number(a.status === "waiting"));
+    const ordered = [...running, ...app.sessions.filter((s) => !runsCli(s))];
     const pinned = new Set(pinnedSessions);
 
     const byFolder = new Map<string, Group>();

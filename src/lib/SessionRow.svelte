@@ -5,7 +5,7 @@
   import { menu, openMenu, sessionMenu } from "./context-menu.svelte";
   import Horizon from "./Horizon.svelte";
   import StatusChip from "./StatusChip.svelte";
-  import { CLI_LABEL, isLive, shortPath, trackLine } from "./format";
+  import { CLI_LABEL, runsCli, shortPath, trackLine } from "./format";
   import { t } from "./i18n.svelte";
   import { app, askDelete } from "./store.svelte";
 
@@ -34,7 +34,7 @@
     <span class="status-col"><StatusChip status={s.status} /></span>
   </a>
   <!-- Outside the link: a button inside <a> is invalid and would open the session too. -->
-  {#if !isLive(s)}
+  {#if !runsCli(s)}
     <button class="icon-btn del" type="button" aria-label={t("sessions.row.deleteNamed", { title: s.title })} title={t("sessions.row.delete")} onclick={() => askDelete(s)}>
       <Trash size={18} aria-hidden="true" />
     </button>

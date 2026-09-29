@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use serde::Serialize;
 
 use crate::cli::{self, CliInstall, CliKind};
-use crate::db::{self, ChatMessage, ChatModel, ChatThread, Db, DispatchCard, PlannerSource, Settings};
+use crate::db::{self, ChatMessage, ChatModel, ChatThread, Db, DispatchCard, Mode, PlannerSource, Settings};
 use crate::headless::PermMode;
 use crate::monitor;
 use crate::models;
@@ -341,6 +341,10 @@ pub fn run_card(db: &Db, manager: &Arc<Manager>, message_id: &str, card_id: &str
         orchestrator::validate_target(&mut card, &clis, session.as_ref());
         if let Some(problem) = card.problem {
             return Err(problem);
+        }
+        // The session runs its CLI only in a shell tab: its own terminal is at the shell prompt.
+        if let Some(s) = session.as_ref().filter(|s| s.mode == Mode::Interactive && !manager.cli_in_terminal(&s.id)) {
+            return Err(orchestrator::not_in_terminal(s.cli.label()));
         }
         manager.send_message(&target, &card.prompt)?;
         return with_card(db, message_id, card_id, |c| {
