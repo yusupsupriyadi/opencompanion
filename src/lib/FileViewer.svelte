@@ -1,8 +1,10 @@
 <script lang="ts">
   import ArrowClockwise from "phosphor-svelte/lib/ArrowClockwise";
-  import { tick } from "svelte";
+  import ArrowUDownLeft from "phosphor-svelte/lib/ArrowUDownLeft";
+  import { onDestroy, tick } from "svelte";
   import { api, errorText, type FileText, type GitChange, type GitDiff } from "./api";
   import { parseDiff } from "./diff";
+  import { LANG_NAME, highlight, langFor, type Lang, type Token } from "./highlight";
   import { t, tb } from "./i18n.svelte";
   import { splitPath, type ViewTarget } from "./workspace.svelte";
 
@@ -78,9 +80,97 @@
   const rows = $derived(diff && !diff.binary && !diff.tooLarge ? parseDiff(diff.patch) : []);
   const total = $derived(target.kind === "file" ? lines.length : rows.length);
   const wantsAll = $derived(showAll || (target.line ?? 0) > LINE_LIMIT);
+  const shownLines = $derived(wantsAll ? lines : lines.slice(0, LINE_LIMIT));
+  const shownRows = $derived(wantsAll ? rows : rows.slice(0, LINE_LIMIT));
   const digits = $derived(
     String(target.kind === "file" ? lines.length : rows.reduce((n, r) => ("new" in r ? Math.max(n, r.new ?? 0, r.old ?? 0) : n), 0)).length,
   );
+  const hasText = $derived(
+    phase === "ready" && (target.kind === "file" ? !!file && !file.binary && !file.tooLarge && lines.length > 0 : rows.length > 0),
+  );
+
+  const lang = $derived(langFor(target.path));
+  /** Syntax colors per shown row. They arrive after the plain text is on screen; until then a row shows as text. */
+  let colors = $state.raw<(Token[] | undefined)[]>([]);
+  let painted = "";
+  let paintRun = 0;
+
+  type Job = { lines: string[]; rows: number[] };
+
+  function jobs(): Job[] {
+    if (target.kind === "file") return [{ lines: shownLines, rows: shownLines.map((_, i) => i) }];
+    // Each side of a diff is read as its own run of code, so a removed line colors the way the old file had it.
+    const now: Job = { lines: [], rows: [] };
+    const before: Job = { lines: [], rows: [] };
+    shownRows.forEach((r, i) => {
+      if (r.kind === "hunk" || r.kind === "note") return;
+      if (r.kind !== "del") {
+        now.lines.push(r.text);
+        now.rows.push(i);
+      }
+      if (r.kind !== "add") {
+        before.lines.push(r.text);
+        before.rows.push(r.kind === "del" ? i : -1);
+      }
+    });
+    return [now, before];
+  }
+
+  async function paint(run: number, l: Lang, work: Job[]) {
+    const out: (Token[] | undefined)[] = [];
+    try {
+      for (const job of work) {
+        if (job.lines.length === 0) continue;
+        await highlight(job.lines, l, (done) => {
+          if (run !== paintRun) return false;
+          done.forEach((line, k) => {
+            if (job.rows[k] >= 0) out[job.rows[k]] = line;
+          });
+          colors = out.slice();
+          return true;
+        });
+        if (run !== paintRun) return;
+      }
+    } catch {
+      // Without its grammar the file stays plain text, as it shows while the colors load; Refresh tries again.
+      if (run === paintRun) painted = "";
+    }
+  }
+
+  $effect(() => {
+    const l = hasText ? lang : null;
+    const work = l ? jobs() : [];
+    const key = l ? `${target.kind}:${l}\n${work.map((j) => j.lines.join("\n")).join("\n\0\n")}` : "";
+    // The same text read again (the git status moved) keeps its colors instead of flashing plain.
+    if (key === painted) return;
+    painted = key;
+    colors = [];
+    const run = ++paintRun;
+    if (l) paint(run, l, work);
+  });
+  // A viewer that closes mid-way stops coloring.
+  onDestroy(() => paintRun++);
+
+  const WRAP_KEY = "oc-viewer-wrap";
+  let wrap = $state(readWrap());
+
+  function readWrap() {
+    try {
+      return localStorage.getItem(WRAP_KEY) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function toggleWrap() {
+    wrap = !wrap;
+    try {
+      if (wrap) localStorage.setItem(WRAP_KEY, "1");
+      else localStorage.removeItem(WRAP_KEY);
+    } catch {
+      // Private windows can refuse storage; the choice still holds while this viewer is open.
+    }
+  }
 
   // A search hit opens its file at the matching line.
   $effect(() => {
@@ -90,13 +180,24 @@
   });
 </script>
 
+<!-- One line: `.tx` keeps whitespace, so nothing may sit between the tokens. -->
+{#snippet code(text: string, tokens: Token[] | undefined)}{#if tokens}{#each tokens as tok, k (k)}<span class:i={tok.italic} class:b={tok.bold} style:color={tok.color || undefined}>{tok.text}</span>{/each}{:else}{text}{/if}{/snippet}
+
 <div class="viewer-bar">
   <span class="path mono" title={target.path}>{target.path}</span>
+  {#if hasText}
+    <span class="lang">{lang ? LANG_NAME[lang] : t("workspace.viewer.plain")}</span>
+  {/if}
   {#if change && change.code !== "D" && change.code !== "?"}
     <div class="seg dark" role="group" aria-label={t("workspace.viewer.show")}>
       <button type="button" aria-pressed={target.kind === "file"} onclick={() => onkind("file")}>{t("workspace.viewer.showFile")}</button>
       <button type="button" aria-pressed={target.kind === "diff"} onclick={() => onkind("diff")}>{t("workspace.viewer.showDiff")}</button>
     </div>
+  {/if}
+  {#if hasText}
+    <button class="icon-btn sm" type="button" aria-pressed={wrap} aria-label={t("workspace.viewer.wrap")} title={t("workspace.viewer.wrap")} onclick={toggleWrap}>
+      <ArrowUDownLeft size={16} weight={wrap ? "bold" : "regular"} aria-hidden="true" />
+    </button>
   {/if}
   <button class="icon-btn sm" type="button" aria-label={t("workspace.refreshNamed", { what: name })} title={t("workspace.refresh")} onclick={() => load(target.kind, target.path, change)}>
     <ArrowClockwise size={16} aria-hidden="true" />
@@ -121,9 +222,11 @@
     {:else if lines.length === 0}
       <p class="v-note">{t("workspace.viewer.empty", { name })}</p>
     {:else}
-      <div class="code" style:--digits={digits}>
-        {#each wantsAll ? lines : lines.slice(0, LINE_LIMIT) as text, i (i)}
-          <div class="cl" class:hit={i + 1 === target.line} data-line={i + 1}><span class="no" aria-hidden="true">{i + 1}</span><span class="tx">{text}</span></div>
+      <div class="code" class:wrap style:--digits={digits}>
+        {#each shownLines as text, i (i)}
+          <div class="cl" class:hit={i + 1 === target.line} data-line={i + 1}>
+            <span class="gut" aria-hidden="true"><span class="no">{i + 1}</span></span><span class="tx">{@render code(text, colors[i])}</span>
+          </div>
         {/each}
       </div>
     {/if}
@@ -135,19 +238,21 @@
     {:else if rows.length === 0}
       <p class="v-note">{t("workspace.viewer.noDiff", { name })}</p>
     {:else}
-      <div class="code diff" style:--digits={digits}>
-        {#each wantsAll ? rows : rows.slice(0, LINE_LIMIT) as row, i (i)}
+      <div class="code diff" class:wrap style:--digits={digits}>
+        {#each shownRows as row, i (i)}
           {#if row.kind === "hunk"}
             <div class="cl hunk"><span class="tx">{row.text}</span></div>
           {:else if row.kind === "note"}
             <div class="cl note"><span class="tx">{row.text}</span></div>
           {:else}
             <div class="cl {row.kind}">
-              <span class="no" aria-hidden="true">{row.old ?? ""}</span>
-              <span class="no" aria-hidden="true">{row.new ?? ""}</span>
-              <span class="sign" aria-hidden="true">{row.kind === "add" ? "+" : row.kind === "del" ? "−" : ""}</span>
+              <span class="gut" aria-hidden="true">
+                <span class="no">{row.old ?? ""}</span>
+                <span class="no">{row.new ?? ""}</span>
+                <span class="sign">{row.kind === "add" ? "+" : row.kind === "del" ? "−" : ""}</span>
+              </span>
               {#if row.kind !== "ctx"}<span class="sr-only">{row.kind === "add" ? t("workspace.viewer.added") : t("workspace.viewer.removed")}:</span>{/if}
-              <span class="tx">{row.text}</span>
+              <span class="tx">{@render code(row.text, colors[i])}</span>
             </div>
           {/if}
         {/each}
@@ -185,6 +290,15 @@
   .viewer-bar .icon-btn:hover {
     background: #ffffff1a;
     color: var(--term-text);
+  }
+  .viewer-bar .icon-btn[aria-pressed="true"] {
+    background: #ffffff1f;
+    color: var(--term-text);
+  }
+  .lang {
+    flex: none;
+    font: 600 12px var(--font-ui);
+    color: var(--term-dim);
   }
   .viewer-bar :focus-visible,
   .viewer-body:focus-visible,
@@ -242,7 +356,20 @@
   }
   /* Whitespace between the spans of a flex row is not drawn, so only the text keeps its spaces. */
   .cl {
+    --row: transparent;
     display: flex;
+    background: var(--row);
+  }
+  /* The line numbers stay in view while a long line scrolls sideways, as in an editor. The gutter is opaque, so it
+     repeats the row's tint over the panel color. */
+  .gut {
+    position: sticky;
+    left: 0;
+    flex: none;
+    display: flex;
+    background: linear-gradient(var(--row), var(--row)), var(--term-bg);
+    box-shadow: inset -1px 0 #ede6c41f;
+    user-select: none;
   }
   .no {
     flex: none;
@@ -250,25 +377,38 @@
     padding-right: 12px;
     text-align: right;
     color: var(--term-dim);
-    user-select: none;
   }
   .sign {
     flex: none;
     width: 2ch;
-    user-select: none;
   }
   .tx {
-    padding-right: 20px;
+    padding: 0 20px 0 12px;
     white-space: pre;
   }
+  .tx .i {
+    font-style: italic;
+  }
+  .tx .b {
+    font-weight: 600;
+  }
+  .code.wrap {
+    width: auto;
+  }
+  .code.wrap .tx {
+    flex: 1;
+    min-width: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
   .cl.add {
-    background: #a6cf6a29;
+    --row: #a6cf6a29;
   }
   .cl.add .sign {
     color: var(--term-green);
   }
   .cl.del {
-    background: #e88b6b29;
+    --row: #e88b6b29;
   }
   .cl.del .sign {
     color: var(--term-red);
@@ -287,8 +427,10 @@
     color: var(--term-dim);
     font-style: italic;
   }
+  /* On the yellow tint the dim color drops under 4.5:1, so the line number and comments take the full text color. */
   .cl.hit {
-    background: #f0c23a2e;
+    --row: #f0c23a2e;
+    --syn-comment: var(--term-text);
   }
   .cl.hit .no {
     color: var(--term-text);

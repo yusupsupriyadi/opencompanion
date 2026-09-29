@@ -1,10 +1,16 @@
 import { fireEvent, render, screen, within } from "@testing-library/svelte";
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { FolderEntry, GitChange, GitStatus } from "$lib/api";
+import { highlight, type Token } from "$lib/highlight";
 import { app } from "$lib/store.svelte";
 import { setUrl } from "../../test/app-state.svelte";
 import { CLIS, backend, session } from "../../test/fixtures";
 import SessionPage from "./+page.svelte";
+
+// Colors come from Shiki in the app; here a test hands in its own, and by default a file stays plain text.
+vi.mock("$lib/highlight", async (actual) => ({ ...(await actual<typeof import("$lib/highlight")>()), highlight: vi.fn() }));
+
+const tok = (text: string, color = ""): Token => ({ text, color, italic: false, bold: false });
 
 const dir = (name: string, path = name, ignored = false): FolderEntry => ({ name, path, dir: true, ignored });
 const file = (name: string, path = name, ignored = false): FolderEntry => ({ name, path, dir: false, ignored });
@@ -50,8 +56,10 @@ function narrowWindow() {
 }
 
 beforeEach(() => {
+  vi.mocked(highlight).mockReset();
   localStorage.removeItem("oc-session-side-tab");
   localStorage.removeItem("oc-session-side-hidden");
+  localStorage.removeItem("oc-viewer-wrap");
   app.clis = CLIS;
   app.sessions = [];
   app.now = Date.now();
@@ -129,6 +137,56 @@ test("Changes lists what changed since the last commit and shows a file's diff",
   expect(screen.getByText("const b = 2;").closest(".cl")).toHaveClass("del");
   // The viewer can also show the whole file, since the file still exists.
   expect(screen.getByRole("button", { name: "File" })).toHaveAttribute("aria-pressed", "false");
+});
+
+test("a file shows in its language's colors, names the language, and long lines can wrap", async () => {
+  vi.mocked(highlight).mockImplementation(async (lines, _lang, show) => {
+    show(lines.map((text) => [tok("#", "var(--syn-func)"), tok(text.slice(1))]));
+  });
+  folder({ folder_read: () => ({ text: "# Notes\n", size: 8, binary: false, tooLarge: false }) });
+  render(SessionPage);
+  const tree = await screen.findByRole("tree");
+  await fireEvent.click(within(tree).getByRole("treeitem", { name: /README\.md/ }));
+
+  const viewer = await screen.findByRole("region", { name: "README.md, read-only" });
+  const mark = await within(viewer).findByText("#");
+  expect(mark.getAttribute("style")).toContain("var(--syn-func)");
+  expect(mark.closest(".tx")).toHaveTextContent("# Notes");
+  expect(highlight).toHaveBeenCalledWith(["# Notes"], "markdown", expect.any(Function));
+  expect(screen.getByText("Markdown")).toBeInTheDocument();
+
+  const wrap = screen.getByRole("button", { name: "Wrap long lines" });
+  expect(wrap).toHaveAttribute("aria-pressed", "false");
+  await fireEvent.click(wrap);
+  expect(wrap).toHaveAttribute("aria-pressed", "true");
+  expect(mark.closest(".code")).toHaveClass("wrap");
+  expect(localStorage.getItem("oc-viewer-wrap")).toBe("1");
+});
+
+test("a diff colors kept and added lines as the new file and removed lines as the old one", async () => {
+  const patch = ["@@ -1,2 +1,2 @@", " const a = 1;", "-const b = 2;", "+const b = 3;", ""].join("\n");
+  const sides: string[][] = [];
+  vi.mocked(highlight).mockImplementation(async (lines, _lang, show) => {
+    const color = sides.length === 0 ? "var(--syn-string)" : "var(--syn-tag)";
+    sides.push(lines);
+    show(lines.map((text) => [tok(text, color)]));
+  });
+  folder({ git_diff: () => ({ patch, binary: false, tooLarge: false }) });
+  render(SessionPage);
+  await fireEvent.click(await screen.findByRole("tab", { name: "Changes, 1 file" }));
+  await fireEvent.click(await screen.findByRole("button", { name: /^src\/app\.ts, Modified/ }));
+
+  const viewer = await screen.findByRole("region", { name: "src/app.ts, read-only" });
+  await within(viewer).findByText("const b = 3;");
+  expect(sides).toEqual([
+    ["const a = 1;", "const b = 3;"],
+    ["const a = 1;", "const b = 2;"],
+  ]);
+  const color = (text: string) => within(viewer).getByText(text).getAttribute("style");
+  expect(color("const a = 1;")).toContain("var(--syn-string)");
+  expect(color("const b = 3;")).toContain("var(--syn-string)");
+  expect(color("const b = 2;")).toContain("var(--syn-tag)");
+  expect(screen.getByText("TypeScript")).toBeInTheDocument();
 });
 
 test("a folder outside git still has Files, and Changes says why it is empty", async () => {

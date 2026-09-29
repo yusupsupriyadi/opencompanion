@@ -111,6 +111,8 @@ export const en = {
   "workspace.viewer.showAll": "Show all {n} lines",
   "workspace.viewer.added": "Added",
   "workspace.viewer.removed": "Removed",
+  "workspace.viewer.plain": "Plain text",
+  "workspace.viewer.wrap": "Wrap long lines",
 };
 
 export const id: Record<keyof typeof en, string> = {
@@ -220,4 +222,6 @@ export const id: Record<keyof typeof en, string> = {
   "workspace.viewer.showAll": "Tampilkan semua {n} baris",
   "workspace.viewer.added": "Ditambah",
   "workspace.viewer.removed": "Dihapus",
+  "workspace.viewer.plain": "Teks biasa",
+  "workspace.viewer.wrap": "Lipat baris panjang",
 };

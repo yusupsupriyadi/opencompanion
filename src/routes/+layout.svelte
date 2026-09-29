@@ -4,6 +4,7 @@
   import "@fontsource/nunito/700.css";
   import "@fontsource/nunito/800.css";
   import "@fontsource/ibm-plex-mono/400.css";
+  import "@fontsource/ibm-plex-mono/400-italic.css";
   import "@fontsource/ibm-plex-mono/600.css";
   import "@fontsource/pixelify-sans/400.css";
   import "../app.css";
