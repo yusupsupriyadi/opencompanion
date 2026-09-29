@@ -16,7 +16,6 @@
   import GitBranch from "phosphor-svelte/lib/GitBranch";
   import GitDiff from "phosphor-svelte/lib/GitDiff";
   import Info from "phosphor-svelte/lib/Info";
-  import Play from "phosphor-svelte/lib/Play";
   import Plus from "phosphor-svelte/lib/Plus";
   import Rows from "phosphor-svelte/lib/Rows";
   import RowsPlusBottom from "phosphor-svelte/lib/RowsPlusBottom";
@@ -57,7 +56,7 @@
   let followUp = $state("");
   let sendError = $state("");
   let sending = $state(false);
-  let resuming = $state(false);
+  let reopening = $state(false);
   let termKey = $state(0);
 
   // The panel is the right column at every width. Hiding it gives the terminal the whole row, and that choice is
@@ -551,7 +550,15 @@
 
   // The store receives every status change; fall back to the loaded copy.
   const s: SessionInfo | null = $derived(app.sessions.find((x) => x.id === id) ?? detail?.session ?? null);
-  const live = $derived(s ? isLive(s) : false);
+  // A terminal typed back open counts as live until its status next changes, so the next keys reach the CLI even
+  // before the store hears it started.
+  let woke = $state(false);
+  const status = $derived(s?.status);
+  const live = $derived(s ? isLive(s) || woke : false);
+  $effect(() => {
+    void status;
+    woke = false;
+  });
   const version = $derived(s ? app.clis.find((c) => c.kind === s.cli)?.version : null);
   const files = $derived.by(() => {
     const counts = new Map<string, number>();
@@ -644,19 +651,22 @@
     }
   }
 
-  // A terminal session's shell outlives its CLI, so it closes only with `exit`; this opens it again,
-  // with the CLI's own history when it has one.
-  async function resume() {
-    if (!s) return;
-    resuming = true;
+  // A terminal session's shell outlives its CLI and closes only with `exit`. Typing into a closed one starts it again
+  // at its size, with the CLI's own history when it has one, and the keys go to it from then on.
+  async function reopen(cols: number, rows: number) {
+    if (!s || reopening) return;
+    reopening = true;
     try {
-      await api.resumeSession(s.id, 120, 32);
+      const info = await api.resumeSession(s.id, cols, rows);
+      woke = isLive(info);
       termKey += 1;
       detail = await api.getSession(s.id);
+      await tick();
+      document.querySelector<HTMLElement>("#session-term .xterm-helper-textarea")?.focus();
     } catch (err) {
       showToast(tb(errorText(err)));
     } finally {
-      resuming = false;
+      reopening = false;
     }
   }
 </script>
@@ -846,16 +856,19 @@
                   {@render paneHead(TERM, null)}
                   {#if s.mode === "interactive"}
                     {#key `${id}-${termKey}`}
-                      <Terminal id={s.id} {live} label={t("sessions.detail.terminalLabel", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) })} onmenu={(e, m) => termMenu(e, TERM, m)} />
+                      <Terminal
+                        id={s.id}
+                        {live}
+                        label={t("sessions.detail.terminalLabel", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) })}
+                        onmenu={(e, m) => termMenu(e, TERM, m)}
+                        onwake={reopen}
+                      />
                     {/key}
                     {#if live}
                       {#if !inSplit.has(TERM)}<div class="term-note">{liveNote(TERM)}</div>{/if}
                     {:else}
-                      <div class="term-note exit-row">
-                        <span class="grow">{t("sessions.detail.terminalClosed")}</span>
-                        <button class="btn primary sm" type="button" id="btn-open-terminal-again" disabled={resuming} onclick={resume}>
-                          <Play size={14} aria-hidden="true" />{resuming ? t("sessions.detail.opening") : t("sessions.detail.openAgain")}
-                        </button>
+                      <div class="term-note" role="status">
+                        {reopening ? t("sessions.detail.reopening", { cli: CLI_LABEL[s.cli] }) : t("sessions.detail.terminalClosed", { cli: CLI_LABEL[s.cli] })}
                       </div>
                     {/if}
                   {:else}

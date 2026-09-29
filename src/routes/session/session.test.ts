@@ -70,13 +70,14 @@ test("events that arrive while the page loads are kept, once each", async () => 
   expect(screen.getAllByText(/Edit src\/app\.ts/)).toHaveLength(1);
 });
 
-test("a terminal session has no header buttons: its shell starts the CLI again, and a closed one opens in place", async () => {
+test("a terminal session has no header buttons: its shell starts the CLI again, and a closed one opens when typed into", async () => {
   const s = session({ mode: "interactive", status: "idle" });
   app.sessions = [s];
   const calls = backend({
     get_session: () => ({ session: s, events: [], output: "" }),
     session_output: () => ({ data: "", seq: 0 }),
     resume_session: () => ({ ...s, status: "running" }),
+    send_input: () => undefined,
   });
   const { unmount } = render(SessionPage);
 
@@ -90,9 +91,19 @@ test("a terminal session has no header buttons: its shell starts the CLI again, 
 
   app.sessions = [{ ...s, status: "done", endedAt: Date.now() }];
   render(SessionPage);
-  expect(await screen.findByText(/This terminal is closed/)).toBeInTheDocument();
-  await fireEvent.click(screen.getByRole("button", { name: "Open terminal" }));
-  expect(calls.calls("resume_session")).toEqual([{ id: "s1", cols: 120, rows: 32 }]);
+  expect(await screen.findByText("This terminal is closed. Type in it to start Claude Code again, with its own history when it has one.")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Open terminal" })).not.toBeInTheDocument();
+
+  // A key only wakes it: the CLI starts at the terminal's size, and the next keys reach it.
+  const enter = () =>
+    document.querySelector("#session-term textarea")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", keyCode: 13, bubbles: true, cancelable: true }));
+  enter();
+  await vi.waitFor(() => expect(calls.calls("resume_session")).toEqual([{ id: "s1", cols: expect.any(Number), rows: expect.any(Number) }]));
+  expect(calls.calls("send_input")).toEqual([]);
+  await vi.waitFor(() => expect(document.querySelector("#session-term textarea")).toHaveFocus());
+  enter();
+  await vi.waitFor(() => expect(calls.calls("send_input")).toEqual([{ id: "s1", text: "\r" }]));
+  expect(calls.calls("resume_session")).toHaveLength(1);
 });
 
 test("a running headless session is stopped from its output bar, after a confirmation", async () => {

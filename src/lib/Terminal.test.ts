@@ -104,3 +104,28 @@ test("pasted text still goes straight to the terminal", async () => {
   await vi.waitFor(() => expect(sent()).toEqual(["npm run dev"]));
   expect(vi.mocked(invoke).mock.calls.some(([cmd]) => cmd === "save_pasted_image")).toBe(false);
 });
+
+test("a closed terminal sends nothing; a typed key wakes it once, and cursor keys or Ctrl+C do not", async () => {
+  const calls = backend({ session_output: () => ({ data: "", seq: 1 }) });
+  let done: () => void = () => undefined;
+  const onwake = vi.fn(() => new Promise<void>((r) => (done = r)));
+  const { container } = render(Terminal, { id: "t1", live: false, label: "Terminal", kind: "session", onwake });
+  const input = container.querySelector("textarea") as HTMLTextAreaElement;
+
+  key(input, { key: "ArrowUp", keyCode: 38 });
+  key(input, { key: "c", keyCode: 67, ctrlKey: true });
+  await tick();
+  expect(onwake).not.toHaveBeenCalled();
+
+  key(input, { key: "Enter", keyCode: 13 });
+  key(input, { key: "Enter", keyCode: 13 });
+  await vi.waitFor(() => expect(onwake).toHaveBeenCalledTimes(1));
+  expect(onwake).toHaveBeenCalledWith(expect.any(Number), expect.any(Number));
+  expect(calls.calls("send_input")).toEqual([]);
+
+  // Once that start settles and the terminal is still closed, the next key tries again.
+  done();
+  await tick();
+  key(input, { key: "Enter", keyCode: 13 });
+  await vi.waitFor(() => expect(onwake).toHaveBeenCalledTimes(2));
+});

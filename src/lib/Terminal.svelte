@@ -15,21 +15,36 @@
   import { pastedImage, pathForPaste, shiftEnter } from "./term-input";
 
   // `session` is an AI CLI session; `terminal` a plain shell opened in a tab beside it. `onmenu` takes the right-click
-  // in place of the webview's own menu.
+  // in place of the webview's own menu. `onwake` is called with the terminal's size when someone types into it while
+  // it is closed, so it can be started again.
   let {
     id,
     live,
     label,
     kind = "session",
     onmenu,
-  }: { id: string; live: boolean; label: string; kind?: "session" | "terminal"; onmenu?: (e: MouseEvent, menu: TermMenu) => void } = $props();
+    onwake,
+  }: {
+    id: string;
+    live: boolean;
+    label: string;
+    kind?: "session" | "terminal";
+    onmenu?: (e: MouseEvent, menu: TermMenu) => void;
+    onwake?: (cols: number, rows: number) => Promise<unknown> | void;
+  } = $props();
 
   let host: HTMLDivElement | undefined = $state();
   // Read inside the xterm callbacks, which outlive the first render.
   let acceptInput = false;
+  // Tells the process its size once it runs, when the terminal opened before it did.
+  let fitProcess: (() => void) | null = null;
   $effect(() => {
     acceptInput = live;
+    if (live) fitProcess?.();
   });
+
+  /** A key someone typed, or text they pasted: not a lone control key, and not a cursor or function key. */
+  const typed = (d: string) => d === "\r" || (!d.startsWith("\x1b") && /[^\x00-\x1f\x7f]/.test(d));
 
   // Rust answers ConPTY's cursor query itself (docs/spike/M0-results.md), so xterm's own
   // answer is dropped instead of being typed into the CLI.
@@ -158,15 +173,25 @@
     const send = (data: string) => {
       chain = chain.then(() => io.send(id, data)).catch(() => undefined);
     };
+    // What is typed while the terminal is closed only wakes it; the process that starts gets the keys after that.
+    let waking = false;
     term.onData((d) => {
-      if (!acceptInput) return;
+      if (!acceptInput) {
+        if (onwake && !waking && typed(d)) {
+          waking = true;
+          // A start that failed can be tried again with the next key.
+          Promise.resolve(onwake(term.cols, term.rows)).finally(() => (waking = false));
+        }
+        return;
+      }
       const clean = d.replace(CURSOR_REPORT, "");
       if (clean) send(clean);
     });
     term.onResize(({ cols, rows }) => {
       if (acceptInput) io.resize(id, cols, rows).catch(() => undefined);
     });
-    if (acceptInput) io.resize(id, term.cols, term.rows).catch(() => undefined);
+    fitProcess = () => io.resize(id, term.cols, term.rows).catch(() => undefined);
+    if (acceptInput) fitProcess();
 
     // Listening starts before the snapshot is read, and chunks up to the snapshot's last one are
     // skipped, so output that arrives in between is neither lost nor written twice.
@@ -228,6 +253,7 @@
 
     return () => {
       gone = true;
+      fitProcess = null;
       box.removeEventListener("paste", onPaste, true);
       box.removeEventListener("contextmenu", onContext);
       ro.disconnect();
