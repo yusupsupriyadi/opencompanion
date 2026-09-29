@@ -114,6 +114,7 @@ export function whenText(at: number, now = Date.now()): string {
   const days = Math.round((dayStart(at) - dayStart(now)) / 86_400_000);
   if (days === 0) return t("auto.when.today", { time });
   if (days === 1) return t("auto.when.tomorrow", { time });
-  const month = d.toLocaleDateString(i18n.lang === "id" ? "id-ID" : "en-GB", { month: "short" }).replace(".", "");
+  // en-US writes "Sep", as the backend titles a run's session; en-GB would write "Sept".
+  const month = d.toLocaleDateString(i18n.lang === "id" ? "id-ID" : "en-US", { month: "short" }).replace(".", "");
   return `${dayShort(d.getDay())} ${d.getDate()} ${month} ${time}`;
 }

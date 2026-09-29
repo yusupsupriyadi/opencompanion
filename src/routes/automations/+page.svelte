@@ -301,6 +301,12 @@
   .page-head {
     flex-wrap: wrap;
   }
+  /* A link inside a sentence needs more than its color to read as one. */
+  .note a {
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
   .active {
     display: inline-flex;
     align-items: center;

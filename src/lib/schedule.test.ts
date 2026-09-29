@@ -57,4 +57,7 @@ test("a run time says today or tomorrow when it is close", () => {
   expect(whenText(new Date(2026, 8, 30, 9, 0).getTime(), now)).toBe("today 09:00");
   expect(whenText(new Date(2026, 9, 1, 9, 0).getTime(), now)).toBe("tomorrow 09:00");
   expect(whenText(new Date(2026, 9, 5, 9, 0).getTime(), now)).toBe("Mon 5 Oct 09:00");
+  expect(whenText(new Date(2026, 8, 27, 2, 19).getTime(), now)).toBe("Sun 27 Sep 02:19");
+  i18n.lang = "id";
+  expect(whenText(new Date(2026, 9, 5, 9, 0).getTime(), now)).toBe("Sen 5 Okt 09:00");
 });
