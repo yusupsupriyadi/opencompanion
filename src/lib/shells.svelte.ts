@@ -56,14 +56,26 @@ export class SessionShells {
   #upsert(info: TerminalInfo, keep = false) {
     if (info.sessionId !== this.sessionId || this.#closed.has(info.id)) return;
     const i = this.list.findIndex((x) => x.id === info.id);
-    if (i < 0) this.list.push(info);
-    else if (!keep) this.list[i] = info;
+    if (i < 0) {
+      this.#place?.(info.id);
+      this.#place = null;
+      this.list.push(info);
+    } else if (!keep) this.list[i] = info;
   }
 
-  async open(shell: string): Promise<TerminalInfo> {
-    const info = await api.terminalOpen(this.sessionId, shell);
-    this.#upsert(info, true);
-    return info;
+  // Called with a shell opened here just before it is listed, so a split puts it in its tab without a tab of its own
+  // showing first. Its "changed" event can arrive before `terminalOpen` answers.
+  #place: ((id: string) => void) | null = null;
+
+  async open(shell: string, place?: (id: string) => void): Promise<TerminalInfo> {
+    this.#place = place ?? null;
+    try {
+      const info = await api.terminalOpen(this.sessionId, shell);
+      this.#upsert(info, true);
+      return info;
+    } finally {
+      this.#place = null;
+    }
   }
 
   /** Ends the shell and what it started, then drops its tab. */

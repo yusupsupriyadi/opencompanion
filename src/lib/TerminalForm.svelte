@@ -6,8 +6,13 @@
   import { folderName } from "./format";
   import { t, tb } from "./i18n.svelte";
 
-  // A shell always opens in the session's folder; only the shell is picked here.
-  let { folder, onsubmit, oncancel }: { folder: string; onsubmit: (shell: string) => Promise<void>; oncancel: () => void } = $props();
+  // A shell always opens in the session's folder; only the shell is picked here. `split` opens it in the shown tab.
+  let {
+    folder,
+    split = false,
+    onsubmit,
+    oncancel,
+  }: { folder: string; split?: boolean; onsubmit: (shell: string) => Promise<void>; oncancel: () => void } = $props();
 
   // The dialog remounts the form every time it opens.
   let shells = $state<ShellInfo[]>([]);
@@ -46,7 +51,7 @@
 
 <form class="d-body" novalidate onsubmit={submit}>
   <div class="row">
-    <h2 id="nt-title" class="grow">{t("terminal.new")}</h2>
+    <h2 id="nt-title" class="grow">{split ? t("terminal.split") : t("terminal.new")}</h2>
     <button class="icon-btn" type="button" aria-label={t("shell.close")} onclick={oncancel}><X size={18} aria-hidden="true" /></button>
   </div>
 
