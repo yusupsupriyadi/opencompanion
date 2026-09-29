@@ -80,6 +80,12 @@ The rest of the macOS column says what the code does: the app compiles and its t
 - If Linux has no AppIndicator library for the tray icon, OpenCompanion still starts, and closing the window quits it, so the window cannot end up hidden with no way back.
 - On Linux, folder rules (auto-run folders, notification rules) compare folder names with case, as the file system does. On Windows and macOS they ignore case.
 
+## Download
+
+Installers for each version are on the [Releases page](https://github.com/yusupsupriyadi/opencompanion/releases): `.msi` and `.exe` for Windows, `.deb`, `.rpm` and AppImage for Linux, and `.dmg` for macOS on Apple Silicon or Intel. They are not code-signed yet. On Windows, SmartScreen asks before the first start: choose More info, then Run anyway. On macOS, allow the app once in System Settings, Privacy & Security, Open Anyway.
+
+To build it yourself instead, see [Requirements](#requirements) and [Build from source](#build-from-source).
+
 ## Requirements
 
 - Windows 11, a Linux desktop with WebKitGTK 4.1, or macOS (tested in CI only, see [Platforms](#platforms)).

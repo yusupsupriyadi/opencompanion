@@ -4,7 +4,9 @@ Notable changes to OpenCompanion are listed here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
-Planned as 0.1.0, the first public release. Windows 11 is tested by hand, Linux end to end in Docker, and macOS builds and passes its tests in GitHub Actions.
+## [0.1.1] - 2026-09-30
+
+The first public release. Windows 11 is tested by hand, Linux end to end in Docker, and macOS builds and passes its tests in GitHub Actions.
 
 ### Added
 
@@ -46,4 +48,5 @@ Planned as 0.1.0, the first public release. Windows 11 is tested by hand, Linux 
 - On a GNOME desktop the tray icon shows only with the AppIndicator extension.
 - On macOS and Linux, a child that detaches into a session of its own outlives Stop.
 
-[Unreleased]: https://github.com/yusupsupriyadi/opencompanion/commits/main
+[Unreleased]: https://github.com/yusupsupriyadi/opencompanion/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/yusupsupriyadi/opencompanion/releases/tag/v0.1.1
