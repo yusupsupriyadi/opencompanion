@@ -446,6 +446,9 @@ export type Load<T> =
   | { state: "ready"; data: T }
   | { state: "error"; message: string };
 
+/** Mirrors `files::MEDIA_TOO_LARGE`. */
+export const MEDIA_TOO_LARGE = "This file is larger than 50 MB.";
+
 export function errorText(e: unknown): string {
   if (typeof e === "string") return e;
   if (e instanceof Error) return e.message;
@@ -487,6 +490,8 @@ export const api = {
   folderList: (id: string, dir: string) => invoke<FolderListing>("folder_list", { id, dir }),
   folderFind: (id: string, query: string, contents: boolean) => invoke<FindResult>("folder_find", { id, query, contents }),
   folderRead: (id: string, path: string) => invoke<FileText>("folder_read", { id, path }),
+  /** An image or a PDF as bytes. A file over 50 MB is refused with `MEDIA_TOO_LARGE`. */
+  folderReadBytes: (id: string, path: string) => invoke<ArrayBuffer>("folder_read_bytes", { id, path }),
   gitStatus: (id: string) => invoke<GitStatus>("git_status", { id }),
   gitDiff: (id: string, change: Pick<GitChange, "path" | "oldPath" | "code">) =>
     invoke<GitDiff>("git_diff", { id, path: change.path, oldPath: change.oldPath, untracked: change.code === "?" }),

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import type { FolderEntry, GitChange, GitStatus } from "$lib/api";
+import { MEDIA_TOO_LARGE, type FolderEntry, type GitChange, type GitStatus } from "$lib/api";
 import { highlight, type Token } from "$lib/highlight";
 import { app } from "$lib/store.svelte";
 import { setUrl } from "../../test/app-state.svelte";
@@ -9,6 +9,17 @@ import SessionPage from "./+page.svelte";
 
 // Colors come from Shiki in the app; here a test hands in its own, and by default a file stays plain text.
 vi.mock("$lib/highlight", async (actual) => ({ ...(await actual<typeof import("$lib/highlight")>()), highlight: vi.fn() }));
+
+// pdf.js needs a real canvas; a test hands in a document whose pages report their size and draw nothing.
+const pdf = vi.hoisted(() => ({ getDocument: vi.fn() }));
+vi.mock("pdfjs-dist/legacy/build/pdf.mjs", () => ({
+  GlobalWorkerOptions: { workerSrc: "" },
+  getDocument: pdf.getDocument,
+  TextLayer: class {
+    render = async () => undefined;
+    cancel() {}
+  },
+}));
 
 const tok = (text: string, color = ""): Token => ({ text, color, italic: false, bold: false });
 
@@ -57,6 +68,9 @@ function narrowWindow() {
 
 beforeEach(() => {
   vi.mocked(highlight).mockReset();
+  pdf.getDocument.mockReset();
+  URL.createObjectURL = vi.fn(() => "blob:picture");
+  URL.revokeObjectURL = vi.fn();
   localStorage.removeItem("oc-session-side-tab");
   localStorage.removeItem("oc-session-side-hidden");
   localStorage.removeItem("oc-viewer-wrap");
@@ -187,6 +201,111 @@ test("a diff colors kept and added lines as the new file and removed lines as th
   expect(color("const b = 3;")).toContain("var(--syn-string)");
   expect(color("const b = 2;")).toContain("var(--syn-tag)");
   expect(screen.getByText("TypeScript")).toBeInTheDocument();
+});
+
+const PICTURES: FolderEntry[] = [file("icon.svg"), file("huge.pdf"), file("logo.png"), file("spec.pdf")];
+
+function pictures(extra: Record<string, (args: Record<string, unknown> | undefined) => unknown> = {}) {
+  return folder(
+    {
+      folder_list: (a) => ({ entries: a?.dir === "" ? PICTURES : [], truncated: false }),
+      folder_read_bytes: (a) => (a?.path === "huge.pdf" ? new Error(MEDIA_TOO_LARGE) : new Uint8Array([1, 2, 3]).buffer),
+      ...extra,
+    },
+    gitStatus(),
+  );
+}
+
+async function openFile(name: string) {
+  const tree = await screen.findByRole("tree");
+  await fireEvent.click(within(tree).getByRole("treeitem", { name: new RegExp(`^${name.replace(".", "\\.")}`) }));
+  return screen.findByRole("region", { name: `${name}, read-only` });
+}
+
+test("a picture opens as itself with its size, and zooms in from fitted and back", async () => {
+  const calls = pictures();
+  render(SessionPage);
+  const viewer = await openFile("logo.png");
+  const img = await within(viewer).findByRole("img", { name: "logo.png" });
+  expect(img).toHaveAttribute("src", "blob:picture");
+  expect(calls.calls("folder_read_bytes")).toEqual([{ id: "s1", path: "logo.png" }]);
+  expect(calls.calls("folder_read")).toEqual([]);
+
+  // Drawn fitted at its own 64 px width.
+  for (const [key, value] of [["naturalWidth", 64], ["naturalHeight", 32], ["clientWidth", 64]] as const) Object.defineProperty(img, key, { value });
+  await fireEvent.load(img);
+  expect(screen.getByText("PNG · 64 × 32")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Fit to the panel" })).toHaveAttribute("aria-pressed", "true");
+
+  await fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+  const zoomed = screen.getByRole("button", { name: "Fit to the panel, now 125%" });
+  expect(zoomed).toHaveTextContent("125%");
+  expect(img.style.width).toBe("80px");
+  await fireEvent.click(zoomed);
+  expect(img.style.width).toBe("");
+  expect(screen.getByRole("button", { name: "Fit to the panel" })).toHaveTextContent("Fit");
+});
+
+test("an SVG opens as a picture and shows its code on request", async () => {
+  const calls = pictures({ folder_read: () => ({ text: "<svg/>\n", size: 7, binary: false, tooLarge: false }) });
+  render(SessionPage);
+  const viewer = await openFile("icon.svg");
+  expect(await within(viewer).findByRole("img", { name: "icon.svg" })).toBeInTheDocument();
+  const preview = screen.getByRole("button", { name: "Preview" });
+  expect(preview).toHaveAttribute("aria-pressed", "true");
+
+  await fireEvent.click(screen.getByRole("button", { name: "Code" }));
+  expect(await within(viewer).findByText("<svg/>")).toBeInTheDocument();
+  expect(calls.calls("folder_read")).toEqual([{ id: "s1", path: "icon.svg" }]);
+  expect(screen.getByText("XML")).toBeInTheDocument();
+
+  await fireEvent.click(preview);
+  expect(await within(viewer).findByRole("img", { name: "icon.svg" })).toBeInTheDocument();
+});
+
+test("a PDF lays out every page, counts them, and draws the ones in view", async () => {
+  const page = {
+    getViewport: ({ scale }: { scale: number }) => ({ width: 612 * scale, height: 792 * scale }),
+    render: vi.fn(() => ({ promise: Promise.resolve(), cancel() {} })),
+    streamTextContent: vi.fn(),
+  };
+  pdf.getDocument.mockReturnValue({ promise: Promise.resolve({ numPages: 2, getPage: async () => page }), destroy: vi.fn(async () => undefined) });
+  // Every watched page counts as in view.
+  const real = globalThis.IntersectionObserver;
+  globalThis.IntersectionObserver = class {
+    constructor(private seen: (entries: { target: Element; isIntersecting: boolean }[]) => void) {}
+    observe(target: Element) {
+      this.seen([{ target, isIntersecting: true }]);
+    }
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof IntersectionObserver;
+  try {
+    pictures();
+    render(SessionPage);
+    const viewer = await openFile("spec.pdf");
+    const pages = await within(viewer).findAllByRole("group", { name: /^Page \d of 2$/ });
+    expect(pages).toHaveLength(2);
+    expect(screen.getByText("PDF · 2 pages")).toBeInTheDocument();
+    expect(pdf.getDocument).toHaveBeenCalledWith({ data: new Uint8Array([1, 2, 3]) });
+    await vi.waitFor(() => expect(pages[0].querySelector("canvas")).not.toBeNull());
+    expect(page.render).toHaveBeenCalledTimes(2);
+  } finally {
+    globalThis.IntersectionObserver = real;
+  }
+});
+
+test("a PDF over 50 MB or behind a password says so", async () => {
+  const locked = Object.assign(new Error("No password given"), { name: "PasswordException" });
+  pdf.getDocument.mockImplementation(() => ({ promise: Promise.reject(locked), destroy: vi.fn(async () => undefined) }));
+  pictures();
+  render(SessionPage);
+  const huge = await openFile("huge.pdf");
+  expect(await within(huge).findByText("huge.pdf is larger than 50 MB, so it is not shown here.")).toBeInTheDocument();
+  expect(within(huge).queryByRole("button", { name: "Try again" })).toBeNull();
+
+  const spec = await openFile("spec.pdf");
+  expect(await within(spec).findByText("spec.pdf could not be read: it is protected with a password.")).toBeInTheDocument();
 });
 
 test("a folder outside git still has Files, and Changes says why it is empty", async () => {

@@ -1,11 +1,15 @@
 <script lang="ts">
   import ArrowClockwise from "phosphor-svelte/lib/ArrowClockwise";
   import ArrowUDownLeft from "phosphor-svelte/lib/ArrowUDownLeft";
-  import { onDestroy, tick } from "svelte";
-  import { api, errorText, type FileText, type GitChange, type GitDiff } from "./api";
+  import MagnifyingGlassMinus from "phosphor-svelte/lib/MagnifyingGlassMinus";
+  import MagnifyingGlassPlus from "phosphor-svelte/lib/MagnifyingGlassPlus";
+  import { onDestroy, tick, untrack } from "svelte";
+  import { MEDIA_TOO_LARGE, api, errorText, type FileText, type GitChange, type GitDiff } from "./api";
   import { parseDiff } from "./diff";
   import { LANG_NAME, highlight, langFor, type Lang, type Token } from "./highlight";
-  import { t, tb } from "./i18n.svelte";
+  import { plural, t, tb } from "./i18n.svelte";
+  import { mediaFor, zoomStep } from "./media";
+  import PdfPages from "./PdfPages.svelte";
   import { splitPath, type ViewTarget } from "./workspace.svelte";
 
   let {
@@ -36,39 +40,123 @@
   let body: HTMLDivElement | undefined = $state();
   let shownKey = "";
 
-  async function load(kind: "file" | "diff", path: string, c: GitChange | undefined) {
-    const key = `${kind}:${path}`;
+  /** An SVG is a picture and code at once; it opens as the picture, and the code view holds for that file only. */
+  let codeFor = $state<string | null>(null);
+  const svgCode = $derived(codeFor === target.path);
+  const isSvg = $derived(mediaFor(target.path)?.label === "SVG");
+  const media = $derived(target.kind === "file" && !(isSvg && svgCode) ? mediaFor(target.path) : null);
+  let bytes = $state.raw<ArrayBuffer | null>(null);
+  let url = $state("");
+  let tooBig = $state(false);
+  let shownSig = "";
+  /** Null fits the picture or the widest page to the panel; 1 is the file's own size. */
+  let zoom = $state<number | null>(null);
+  let img: HTMLImageElement | undefined = $state();
+  let natural = $state<{ w: number; h: number } | null>(null);
+  let pdfFit = $state(1);
+  let pdfPages = $state(0);
+
+  const canDiff = $derived(!!change && change.code !== "D" && change.code !== "?");
+
+  function showSvg(code: boolean) {
+    codeFor = code ? target.path : null;
+    if (target.kind !== "file") onkind("file");
+  }
+
+  const viewKey = (kind: "file" | "diff", path: string, asMedia: boolean) => `${kind}:${path}:${asMedia ? "media" : "text"}`;
+  const sig = (c: GitChange | undefined) => (c ? `${c.code}:${c.added}:${c.removed}` : "");
+
+  function dropPicture() {
+    if (url) URL.revokeObjectURL(url);
+    url = "";
+    bytes = null;
+    natural = null;
+    pdfPages = 0;
+  }
+
+  async function load(kind: "file" | "diff", path: string, c: GitChange | undefined, asMedia: boolean, force = false) {
+    const key = viewKey(kind, path, asMedia);
+    // A picture is read again only when git says the file changed or on Refresh: it can be 50 MB.
+    if (asMedia && !force && key === shownKey && phase === "ready" && sig(c) === shownSig) return;
     // Reading the same view again keeps it on screen; a different one starts from its loading state.
     if (key !== shownKey) {
       phase = "loading";
       file = null;
       diff = null;
       showAll = false;
+      tooBig = false;
+      zoom = null;
+      dropPicture();
     }
+    const stale = () => viewKey(target.kind, target.path, !!media) !== key;
     try {
-      if (kind === "file") {
+      if (asMedia) {
+        const b = await api.folderReadBytes(id, path);
+        if (stale()) return;
+        dropPicture();
+        tooBig = false;
+        bytes = b;
+        const m = mediaFor(path);
+        if (m?.kind === "image") url = URL.createObjectURL(new Blob([b], { type: m.mime }));
+      } else if (kind === "file") {
         const f = await api.folderRead(id, path);
-        if (`${target.kind}:${target.path}` !== key) return;
+        if (stale()) return;
         file = f;
       } else {
         const d = await api.gitDiff(id, c ?? { path, oldPath: null, code: "M" });
-        if (`${target.kind}:${target.path}` !== key) return;
+        if (stale()) return;
         diff = d;
       }
       shownKey = key;
+      shownSig = sig(c);
       phase = "ready";
     } catch (e) {
-      if (`${target.kind}:${target.path}` !== key) return;
+      if (stale()) return;
       shownKey = key;
+      shownSig = sig(c);
       error = errorText(e);
-      phase = "error";
+      // Over the size limit is a state of the file, not a failure to retry.
+      tooBig = asMedia && error === MEDIA_TOO_LARGE;
+      phase = tooBig ? "ready" : "error";
     }
   }
+
+  const reload = () => load(target.kind, target.path, change, !!media, true);
 
   $effect(() => {
     // Read again when the view changes and whenever the git status does.
     void version;
-    load(target.kind, target.path, change);
+    const kind = target.kind;
+    const path = target.path;
+    const c = change;
+    const asMedia = !!media;
+    untrack(() => load(kind, path, c, asMedia));
+  });
+  onDestroy(() => {
+    if (url) URL.revokeObjectURL(url);
+  });
+
+  function pictureFailed() {
+    error = t("workspace.viewer.imageBroken");
+    phase = "error";
+  }
+
+  function pictureLoaded() {
+    if (img) natural = { w: img.naturalWidth || img.clientWidth, h: img.naturalHeight || img.clientHeight };
+  }
+
+  function zoomBy(dir: 1 | -1) {
+    const fitted = media?.kind === "pdf" ? pdfFit : img && natural?.w ? img.clientWidth / natural.w : 1;
+    const next = zoomStep(zoom ?? fitted, dir);
+    if (next !== null) zoom = next;
+  }
+
+  const zoomLabel = $derived(zoom === null ? t("workspace.viewer.fitLabel") : `${Math.round(zoom * 100)}%`);
+  const canZoom = $derived(phase === "ready" && !tooBig && (media?.kind === "pdf" ? pdfPages > 0 : !!url));
+  const mediaInfo = $derived.by(() => {
+    if (!media || !canZoom) return "";
+    if (media.kind === "pdf") return `${media.label} · ${plural(pdfPages, "workspace.viewer.pagesOne", "workspace.viewer.pagesMany")}`;
+    return natural ? `${media.label} · ${natural.w} × ${natural.h}` : media.label;
   });
 
   const lines = $derived.by(() => {
@@ -187,19 +275,45 @@
   <span class="path mono" title={target.path}>{target.path}</span>
   {#if hasText}
     <span class="lang">{lang ? LANG_NAME[lang] : t("workspace.viewer.plain")}</span>
+  {:else if mediaInfo}
+    <span class="lang">{mediaInfo}</span>
   {/if}
-  {#if change && change.code !== "D" && change.code !== "?"}
+  {#if (isSvg && change?.code !== "D") || canDiff}
     <div class="seg dark" role="group" aria-label={t("workspace.viewer.show")}>
-      <button type="button" aria-pressed={target.kind === "file"} onclick={() => onkind("file")}>{t("workspace.viewer.showFile")}</button>
-      <button type="button" aria-pressed={target.kind === "diff"} onclick={() => onkind("diff")}>{t("workspace.viewer.showDiff")}</button>
+      {#if isSvg && change?.code !== "D"}
+        <button type="button" aria-pressed={target.kind === "file" && !svgCode} onclick={() => showSvg(false)}>{t("workspace.viewer.preview")}</button>
+        <button type="button" aria-pressed={target.kind === "file" && svgCode} onclick={() => showSvg(true)}>{t("workspace.viewer.code")}</button>
+      {:else}
+        <button type="button" aria-pressed={target.kind === "file"} onclick={() => onkind("file")}>{t("workspace.viewer.showFile")}</button>
+      {/if}
+      {#if canDiff}
+        <button type="button" aria-pressed={target.kind === "diff"} onclick={() => onkind("diff")}>{t("workspace.viewer.showDiff")}</button>
+      {/if}
     </div>
   {/if}
   {#if hasText}
     <button class="icon-btn sm" type="button" aria-pressed={wrap} aria-label={t("workspace.viewer.wrap")} title={t("workspace.viewer.wrap")} onclick={toggleWrap}>
       <ArrowUDownLeft size={16} weight={wrap ? "bold" : "regular"} aria-hidden="true" />
     </button>
+  {:else if media && canZoom}
+    <div class="zoom" role="group" aria-label={t("workspace.viewer.zoom")}>
+      <button class="icon-btn sm" type="button" aria-label={t("workspace.viewer.zoomOut")} title={t("workspace.viewer.zoomOut")} disabled={zoom !== null && zoomStep(zoom, -1) === null} onclick={() => zoomBy(-1)}>
+        <MagnifyingGlassMinus size={16} aria-hidden="true" />
+      </button>
+      <button
+        class="fit"
+        type="button"
+        aria-pressed={zoom === null}
+        aria-label={zoom === null ? t("workspace.viewer.fit") : t("workspace.viewer.fitNow", { zoom: zoomLabel })}
+        title={t("workspace.viewer.fit")}
+        onclick={() => (zoom = null)}>{zoomLabel}</button
+      >
+      <button class="icon-btn sm" type="button" aria-label={t("workspace.viewer.zoomIn")} title={t("workspace.viewer.zoomIn")} disabled={zoom !== null && zoomStep(zoom, 1) === null} onclick={() => zoomBy(1)}>
+        <MagnifyingGlassPlus size={16} aria-hidden="true" />
+      </button>
+    </div>
   {/if}
-  <button class="icon-btn sm" type="button" aria-label={t("workspace.refreshNamed", { what: name })} title={t("workspace.refresh")} onclick={() => load(target.kind, target.path, change)}>
+  <button class="icon-btn sm" type="button" aria-label={t("workspace.refreshNamed", { what: name })} title={t("workspace.refresh")} onclick={reload}>
     <ArrowClockwise size={16} aria-hidden="true" />
   </button>
 </div>
@@ -212,8 +326,36 @@
   {:else if phase === "error"}
     <div class="v-note" role="alert">
       <p class="v-err">{t("workspace.viewer.failed", { name })}: {tb(error)}</p>
-      <button class="btn secondary sm" type="button" onclick={() => load(target.kind, target.path, change)}>{t("sessions.tryAgain")}</button>
+      <button class="btn secondary sm" type="button" onclick={reload}>{t("sessions.tryAgain")}</button>
     </div>
+  {:else if media && tooBig}
+    <p class="v-note">{t("workspace.viewer.mediaTooLarge", { name })}</p>
+  {:else if media?.kind === "image" && url}
+    <div class="picture" class:zoomed={zoom !== null && natural} class:sharp={(zoom ?? 0) >= 2}>
+      <img
+        src={url}
+        alt={name}
+        bind:this={img}
+        onload={pictureLoaded}
+        onerror={pictureFailed}
+        style:width={zoom !== null && natural ? `${Math.round(natural.w * zoom)}px` : undefined}
+      />
+    </div>
+  {:else if media?.kind === "pdf" && bytes}
+    {#if pdfPages === 0}
+      <p class="v-note" role="status">{t("workspace.viewer.loading", { name })}</p>
+    {/if}
+    <PdfPages
+      data={bytes}
+      {zoom}
+      scroller={body}
+      bind:fit={pdfFit}
+      bind:pages={pdfPages}
+      onfail={(message) => {
+        error = message;
+        phase = "error";
+      }}
+    />
   {:else if target.kind === "file" && file}
     {#if file.binary}
       <p class="v-note">{t("workspace.viewer.binary", { name })}</p>
@@ -299,6 +441,63 @@
     flex: none;
     font: 600 12px var(--font-ui);
     color: var(--term-dim);
+  }
+  .viewer-bar .icon-btn:disabled {
+    background: transparent;
+    color: var(--term-dim);
+    cursor: default;
+  }
+  .zoom {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .fit {
+    min-width: 52px;
+    height: 32px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: var(--r-btn);
+    background: transparent;
+    color: var(--term-text);
+    font: 600 12px var(--font-ui);
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+  .fit:hover {
+    background: #ffffff1a;
+  }
+  .fit[aria-pressed="true"] {
+    background: #ffffff1f;
+  }
+  /* Fitted, a picture never grows past its own size and stays whole in the panel. */
+  .picture {
+    height: 100%;
+    padding: 16px;
+    display: grid;
+    place-items: center;
+  }
+  .picture img {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    /* Transparent parts show as a checkerboard, so a dark icon with no background is not lost on the dark panel. */
+    background: repeating-conic-gradient(#ffffff26 0% 25%, #ffffff0d 0% 50%) 0 0 / 16px 16px;
+  }
+  .picture.zoomed {
+    height: auto;
+    min-height: 100%;
+    width: max-content;
+    min-width: 100%;
+  }
+  .picture.zoomed img {
+    max-width: none;
+    max-height: none;
+    height: auto;
+  }
+  /* Zoomed in, pixels stay square, so an icon can be checked pixel by pixel. */
+  .picture.sharp img {
+    image-rendering: pixelated;
   }
   .viewer-bar :focus-visible,
   .viewer-body:focus-visible,

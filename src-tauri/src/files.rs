@@ -298,6 +298,24 @@ pub fn read(root: &Path, rel: &str) -> Result<FileText, String> {
     Ok(FileText { text: Some(text), size, binary: false, too_large: false })
 }
 
+/// Images and PDFs are shown from their bytes, and are often larger than a text file may be.
+pub const MEDIA_LIMIT: u64 = 50 * 1024 * 1024;
+/// The viewer knows this one and shows it as a state rather than as a failure.
+pub const MEDIA_TOO_LARGE: &str = "This file is larger than 50 MB.";
+
+/// A file's bytes, for the viewer to draw as a picture or as pages.
+pub fn read_bytes(root: &Path, rel: &str) -> Result<Vec<u8>, String> {
+    let path = inside(root, rel)?;
+    let meta = std::fs::metadata(&path).map_err(|_| GONE.to_string())?;
+    if meta.is_dir() {
+        return Err("This is a folder.".into());
+    }
+    if meta.len() > MEDIA_LIMIT {
+        return Err(MEDIA_TOO_LARGE.into());
+    }
+    std::fs::read(&path).map_err(|e| format!("Could not read this file: {e}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -397,6 +415,23 @@ mod tests {
         assert!(big.too_large && big.text.is_none());
         assert_eq!(read(&root, "gone.txt").unwrap_err(), GONE);
         assert_eq!(read(&root, "../t.txt").unwrap_err(), OUTSIDE);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn bytes_are_read_for_pictures_within_the_folder_and_the_media_limit() {
+        let root = scratch("bytes");
+        std::fs::write(root.join("b.png"), b"\x89PNG\0\0").unwrap();
+        let big = std::fs::File::create(root.join("big.pdf")).unwrap();
+        big.set_len(MEDIA_LIMIT + 1).unwrap();
+        drop(big);
+        std::fs::create_dir(root.join("dir")).unwrap();
+
+        assert_eq!(read_bytes(&root, "b.png").unwrap(), b"\x89PNG\0\0");
+        assert_eq!(read_bytes(&root, "big.pdf").unwrap_err(), MEDIA_TOO_LARGE);
+        assert_eq!(read_bytes(&root, "dir").unwrap_err(), "This is a folder.");
+        assert_eq!(read_bytes(&root, "gone.png").unwrap_err(), GONE);
+        assert_eq!(read_bytes(&root, "../b.png").unwrap_err(), OUTSIDE);
         let _ = std::fs::remove_dir_all(&root);
     }
 }

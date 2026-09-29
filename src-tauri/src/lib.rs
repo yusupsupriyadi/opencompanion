@@ -565,6 +565,13 @@ async fn folder_read(state: State<'_, AppState>, id: String, path: String) -> Re
     blocking(move || files::read(&root, &path)).await
 }
 
+/// Raw bytes, not JSON: an image or a PDF reaches the viewer without being encoded on the way.
+#[tauri::command]
+async fn folder_read_bytes(state: State<'_, AppState>, id: String, path: String) -> Res<tauri::ipc::Response> {
+    let root = session_folder(&state, &id)?;
+    blocking(move || files::read_bytes(&root, &path)).await.map(tauri::ipc::Response::new)
+}
+
 #[tauri::command]
 async fn git_status(state: State<'_, AppState>, id: String) -> Res<git::Status> {
     let root = session_folder(&state, &id)?;
@@ -958,6 +965,7 @@ pub fn run() {
             folder_list,
             folder_find,
             folder_read,
+            folder_read_bytes,
             git_status,
             git_diff,
             git_branches,
