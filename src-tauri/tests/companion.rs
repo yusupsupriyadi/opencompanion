@@ -252,6 +252,8 @@ fn the_phone_starts_sessions_sends_messages_and_runs_chat_cards() {
         session_id: None,
         target: Some(id.clone()),
         auto: false,
+        schedule: None,
+        automation_id: None,
     };
     db.add_chat(&ChatMessage {
         id: "msg-f".into(),
@@ -316,6 +318,8 @@ fn the_phone_starts_sessions_sends_messages_and_runs_chat_cards() {
         session_id: None,
         target: None,
         auto: false,
+        schedule: None,
+        automation_id: None,
     };
     let reply = ChatMessage {
         id: "msg-a".into(),
@@ -548,6 +552,8 @@ fn the_phone_chat_matches_the_desktop() {
         session_id: None,
         target,
         auto: false,
+        schedule: None,
+        automation_id: None,
     };
     db.add_chat(&ChatMessage {
         id: "msg-e".into(),

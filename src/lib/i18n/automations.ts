@@ -105,6 +105,12 @@ export const en = {
   "auto.when.today": "today {time}",
   "auto.when.tomorrow": "tomorrow {time}",
 
+  "auto.card.chip": "Automation",
+  "auto.card.chipCreated": "Created",
+  "auto.card.open": "Open automation",
+  "auto.card.createdToast": "{name} saved: {schedule}.",
+  "auto.card.createdNote": "It runs by itself from now on. Change or pause it in Automations.",
+
   "auto.m.back": "Back to automations",
   "auto.m.loading": "Reading the automations on your computer…",
 };
@@ -213,6 +219,12 @@ export const id: Record<keyof typeof en, string> = {
   "auto.dayLong.6": "Sabtu",
   "auto.when.today": "hari ini {time}",
   "auto.when.tomorrow": "besok {time}",
+
+  "auto.card.chip": "Otomasi",
+  "auto.card.chipCreated": "Dibuat",
+  "auto.card.open": "Buka otomasi",
+  "auto.card.createdToast": "{name} disimpan: {schedule}.",
+  "auto.card.createdNote": "Mulai sekarang jalan sendiri. Ubah atau jeda di Otomasi.",
 
   "auto.m.back": "Kembali ke otomasi",
   "auto.m.loading": "Membaca otomasi di komputer Anda…",

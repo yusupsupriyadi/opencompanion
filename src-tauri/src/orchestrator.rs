@@ -11,9 +11,10 @@ use std::time::Duration;
 
 use serde_json::Value;
 
+use crate::automations;
 use crate::ccs;
 use crate::cli::{CliInstall, CliKind};
-use crate::db::{self, ChatMessage, Db, DispatchCard, Mode, PlannerApi, SessionInfo};
+use crate::db::{self, Automation, ChatMessage, Db, DispatchCard, Mode, PlannerApi, SessionInfo};
 use crate::headless;
 use crate::monitor::ExternalSession;
 use crate::proc;
@@ -43,6 +44,23 @@ pub fn schema() -> Value {
                     "required": ["cli", "title", "folder", "prompt", "mode", "reason"]
                 }
             },
+            "automations": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "cli": { "type": "string", "enum": ["claude", "codex", "opencode", "gemini", "pi", "omp"] },
+                        "title": { "type": "string" },
+                        "folder": { "type": "string" },
+                        "prompt": { "type": "string" },
+                        "mode": { "type": "string", "enum": ["interactive", "headless"] },
+                        "schedule": { "type": "string" },
+                        "reason": { "type": "string" }
+                    },
+                    "required": ["cli", "title", "folder", "prompt", "mode", "schedule", "reason"]
+                }
+            },
             "follow_ups": {
                 "type": "array",
                 "items": {
@@ -57,7 +75,7 @@ pub fn schema() -> Value {
                 }
             }
         },
-        "required": ["reply", "dispatches", "follow_ups"]
+        "required": ["reply", "dispatches", "automations", "follow_ups"]
     })
 }
 
@@ -96,7 +114,19 @@ Follow-ups:\n\
 to...\"), put a card under `follow_ups` instead of `dispatches`: `session` is the session's id exactly as listed, \
 `prompt` the message to send it, in English, and `reason` one sentence. The user presses Send on it first.\n\
 - Only use a session whose line says `takes a message: yes`. Never invent an id. Otherwise propose a new session.\n\
-- `follow_ups` is empty when there is nothing to send to a session.";
+- `follow_ups` is empty when there is nothing to send to a session.\n\
+Automations:\n\
+- When the user wants a task to run by itself at set times or again and again (\"every weekday at 9\", \
+\"tiap pagi\", \"setiap 2 jam\", \"every night\"), put a card under `automations` instead of `dispatches`, with the \
+same fields plus `schedule`: five cron fields (minute, hour, day of month, month, day of week) in the computer's \
+local time, such as `0 9 * * 1-5` for weekdays at 09:00, `30 7 * * *` for every day at 07:30 or `0 */2 * * *` for \
+every two hours. The current local time is under Now.\n\
+- `title` names the automation; `prompt` is the task every run gets, self-contained. Prefer `headless`, since \
+nobody watches a scheduled run.\n\
+- The user presses Create on the card before anything is scheduled. A schedule cannot run once at a later time: \
+for a one-off, say so in `reply` and propose a normal card instead.\n\
+- For a question about automations, answer from the Automations list with every list empty.\n\
+- `automations` is empty when nothing should repeat.";
 
 const READ_HINT: &str = "You may use the Read, Glob and Grep tools to look inside the known folders \
 when it helps you pick the right folder or write a sharper prompt (for example to see the framework \
@@ -111,6 +141,7 @@ pub struct PlanInput<'a> {
     pub outside: &'a [ExternalSession],
     /// Folders the planner may read. Empty: no file access at all.
     pub read_dirs: &'a [PathBuf],
+    pub automations: &'a [Automation],
 }
 
 pub struct Plan {
@@ -154,6 +185,22 @@ pub fn prompt_text(input: &PlanInput) -> String {
             if session_problem(s).is_none() { "yes" } else { "no" }
         ));
     }
+    out.push_str("\n## Automations (sessions that start on a schedule)\n");
+    if input.automations.is_empty() {
+        out.push_str("- none\n");
+    }
+    for a in input.automations {
+        out.push_str(&format!(
+            "- {}: {} in {} ({}) · schedule `{}` · {}\n",
+            a.name,
+            a.cli.label(),
+            a.cwd,
+            if a.mode == Mode::Headless { "headless" } else { "interactive" },
+            a.schedule,
+            if a.enabled { "active" } else { "paused" }
+        ));
+    }
+    out.push_str(&format!("\n## Now\n{}, local time\n", chrono::Local::now().format("%A %-d %B %Y %H:%M")));
     if !input.outside.is_empty() {
         out.push_str("\n## CLIs open in other terminals (read-only for OpenCompanion)\n");
         for o in input.outside {
@@ -172,9 +219,10 @@ pub fn prompt_text(input: &PlanInput) -> String {
             let who = if m.role == "user" { "User" } else { "Planner" };
             out.push_str(&format!("{who}: {}\n", m.text.trim()));
             for c in &m.cards {
-                let kind = match &c.target {
-                    Some(id) => format!("follow-up for session {id}"),
-                    None => "card".to_string(),
+                let kind = match (&c.target, &c.schedule) {
+                    (Some(id), _) => format!("follow-up for session {id}"),
+                    (None, Some(schedule)) => format!("automation `{schedule}`"),
+                    (None, None) => "card".to_string(),
                 };
                 out.push_str(&format!(
                     "  ({kind}: {} in {} · {} · {})\n",
@@ -289,6 +337,16 @@ pub fn validate(card: &mut DispatchCard, clis: &[CliInstall]) {
     };
 }
 
+/// An automation card is checked like a session card, and its schedule has to come round.
+pub fn validate_automation(card: &mut DispatchCard, clis: &[CliInstall]) {
+    validate(card, clis);
+    if card.problem.is_some() {
+        return;
+    }
+    let schedule = card.schedule.as_deref().unwrap_or_default();
+    card.problem = automations::next_after(schedule, db::now_ms()).err();
+}
+
 /// Follow-ups for sessions the planner was shown. An id it made up names no session and is dropped.
 fn follow_ups_from(v: &Value, clis: &[CliInstall], sessions: &[SessionInfo]) -> Vec<DispatchCard> {
     v["follow_ups"]
@@ -311,6 +369,8 @@ fn follow_ups_from(v: &Value, clis: &[CliInstall], sessions: &[SessionInfo]) -> 
                 session_id: None,
                 target: Some(s.id.clone()),
                 auto: false,
+                schedule: None,
+                automation_id: None,
             };
             validate_target(&mut card, clis, Some(s));
             Some(card)
@@ -318,8 +378,9 @@ fn follow_ups_from(v: &Value, clis: &[CliInstall], sessions: &[SessionInfo]) -> 
         .collect()
 }
 
-fn cards_from(v: &Value, clis: &[CliInstall], known: &[ProjectFolder]) -> Vec<DispatchCard> {
-    v["dispatches"]
+/// Session cards from `dispatches`, or automation cards from `automations`, which carry a schedule.
+fn cards_from(v: &Value, key: &str, clis: &[CliInstall], known: &[ProjectFolder]) -> Vec<DispatchCard> {
+    v[key]
         .as_array()
         .into_iter()
         .flatten()
@@ -340,15 +401,25 @@ fn cards_from(v: &Value, clis: &[CliInstall], known: &[ProjectFolder]) -> Vec<Di
                 session_id: None,
                 target: None,
                 auto: false,
+                schedule: None,
+                automation_id: None,
             };
-            validate(&mut card, clis);
+            if key == "automations" {
+                // A card without a schedule still shows, with the reason it cannot be created.
+                let schedule = d["schedule"].as_str().unwrap_or_default();
+                card.schedule = Some(schedule.split_whitespace().collect::<Vec<_>>().join(" "));
+                validate_automation(&mut card, clis);
+            } else {
+                validate(&mut card, clis);
+            }
             Some(card)
         })
         .collect()
 }
 
 fn plan_from(v: &Value, input: &PlanInput) -> Plan {
-    let mut cards = cards_from(v, input.clis, input.folders);
+    let mut cards = cards_from(v, "dispatches", input.clis, input.folders);
+    cards.extend(cards_from(v, "automations", input.clis, input.folders));
     cards.extend(follow_ups_from(v, input.clis, input.sessions));
     Plan {
         reply: v["reply"].as_str().unwrap_or_default().trim().to_string(),
@@ -371,6 +442,7 @@ pub struct Context {
     pub folders: Vec<ProjectFolder>,
     pub read_dirs: Vec<PathBuf>,
     pub sessions: Vec<SessionInfo>,
+    pub automations: Vec<Automation>,
 }
 
 pub fn gather(db: &Db, outside: &[ExternalSession]) -> Result<Context, String> {
@@ -385,6 +457,7 @@ pub fn gather(db: &Db, outside: &[ExternalSession]) -> Result<Context, String> {
         folders,
         read_dirs,
         sessions,
+        automations: db.automations()?,
     })
 }
 
@@ -665,6 +738,7 @@ mod tests {
             sessions: &[],
             outside: &[],
             read_dirs: &[],
+            automations: &[],
         }
     }
 
@@ -773,6 +847,58 @@ mod tests {
     }
 
     #[test]
+    fn a_schedule_becomes_an_automation_card_and_a_bad_one_says_why() {
+        let dir = std::env::temp_dir().display().to_string();
+        let plan = serde_json::json!({
+            "reply": "Saved as an automation.",
+            "dispatches": [],
+            "automations": [
+                { "cli": "claude", "title": "Morning review", "folder": dir, "prompt": "review the open pull requests",
+                  "mode": "headless", "schedule": " 0  9 * * 1-5 ", "reason": "r" },
+                { "cli": "claude", "title": "Never", "folder": dir, "prompt": "x", "mode": "headless",
+                  "schedule": "0 0 30 2 *", "reason": "r" },
+                { "cli": "claude", "title": "No time", "folder": dir, "prompt": "x", "mode": "headless", "reason": "r" }
+            ],
+            "follow_ups": []
+        });
+        let c = clis();
+        let p = plan_from(&plan, &input(&c, &[]));
+        assert_eq!(p.cards.len(), 3);
+        let first = &p.cards[0];
+        assert_eq!((first.schedule.as_deref(), first.problem.as_deref(), first.state.as_str()), (Some("0 9 * * 1-5"), None, "proposed"));
+        assert_eq!(p.cards[1].problem.as_deref(), Some("This schedule never comes round."));
+        assert_eq!(p.cards[2].problem.as_deref(), Some("Choose when it runs."));
+        // Session cards carry no schedule, whatever the planner wrote.
+        let session = serde_json::json!({ "reply": "", "dispatches": [
+            { "cli": "claude", "title": "t", "folder": dir, "prompt": "p", "mode": "headless", "schedule": "0 9 * * *", "reason": "r" }
+        ] });
+        assert_eq!(plan_from(&session, &input(&c, &[])).cards[0].schedule, None);
+    }
+
+    #[test]
+    fn the_planner_is_told_the_automations_and_the_time() {
+        let c = clis();
+        let saved = vec![Automation {
+            id: "a1".into(),
+            name: "Morning review".into(),
+            cli: CliKind::Claude,
+            cwd: "C:/p/uninote".into(),
+            mode: Mode::Headless,
+            prompt: "review".into(),
+            permission_mode: "ask".into(),
+            schedule: "0 9 * * 1-5".into(),
+            enabled: false,
+            next_run_at: None,
+            created_at: 1,
+            updated_at: 1,
+        }];
+        let text = prompt_text(&PlanInput { automations: &saved, ..input(&c, &[]) });
+        assert!(text.contains("- Morning review: Claude Code in C:/p/uninote (headless) · schedule `0 9 * * 1-5` · paused"), "{text}");
+        assert!(text.contains("## Now\n"), "{text}");
+        assert!(schema()["required"].as_array().unwrap().iter().any(|k| k == "automations"));
+    }
+
+    #[test]
     fn a_bare_project_name_lands_on_the_known_folder() {
         let base = std::env::temp_dir().join(format!("air-orch-{}", std::process::id()));
         let project = base.join("ai-remote");
@@ -805,6 +931,8 @@ mod tests {
             session_id: None,
             target: None,
             auto: false,
+            schedule: None,
+            automation_id: None,
         };
         validate(&mut card, &clis());
         assert!(card.problem.unwrap().contains("does not exist"));

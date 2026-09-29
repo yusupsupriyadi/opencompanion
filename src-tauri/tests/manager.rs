@@ -7,9 +7,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use opencompanion_lib::actions::auto_run;
+use opencompanion_lib::actions::{auto_run, run_card};
 use opencompanion_lib::cli::CliKind;
-use opencompanion_lib::db::{Db, DispatchCard, EventRow, Mode, SessionInfo, Settings, Status};
+use opencompanion_lib::db::{ChatMessage, Db, DispatchCard, EventRow, Mode, SessionInfo, Settings, Status};
 use opencompanion_lib::events::SessionEvent;
 use opencompanion_lib::session::{Emit, Manager, StartRequest};
 
@@ -395,6 +395,8 @@ fn card(id: &str, folder: &str) -> DispatchCard {
         session_id: None,
         target: None,
         auto: false,
+        schedule: None,
+        automation_id: None,
     }
 }
 
@@ -423,4 +425,31 @@ fn cards_for_an_auto_run_folder_start_by_themselves_without_bypass() {
     assert_eq!((s.permission_mode.as_deref(), s.source.as_str(), s.title.as_str()), (Some("ask"), "chat", "Task here"));
     assert!(!cards[1].auto && cards[1].state == "proposed" && cards[1].session_id.is_none());
     assert!(!cards[2].auto && cards[2].state == "proposed");
+}
+
+/// An automation card never starts by itself, even in a folder whose cards run without asking.
+/// Create saves the automation it proposes, and the card then points at it.
+#[test]
+fn an_automation_card_waits_for_create_then_saves_the_automation() {
+    let r = rig("autocard");
+    let mut settings = r.db.settings().unwrap();
+    settings.auto_run_folders = vec![r.work.display().to_string()];
+    r.db.save_settings(&settings).unwrap();
+    let mut scheduled = card("sched", &r.work.display().to_string());
+    scheduled.schedule = Some("0 9 * * 1-5".into());
+    let mut cards = vec![scheduled];
+    auto_run(&r.manager, &settings, &mut cards);
+    assert!(!cards[0].auto && cards[0].state == "proposed");
+
+    let thread = r.db.create_thread("Schedules").unwrap();
+    let message = ChatMessage { id: "m1".into(), thread_id: thread.id, role: "planner".into(), text: String::new(), cards, created_at: 1 };
+    r.db.add_chat(&message).unwrap();
+    let after = run_card(&r.db, &r.manager, "m1", "sched").unwrap();
+    let c = &after.cards[0];
+    assert_eq!(c.state, "created");
+    let saved = r.db.automation(c.automation_id.as_deref().unwrap()).unwrap().unwrap();
+    assert_eq!((saved.name.as_str(), saved.schedule.as_str(), saved.enabled), ("Task sched", "0 9 * * 1-5", true));
+    assert!(saved.next_run_at.is_some());
+    assert!(r.db.sessions(10).unwrap().is_empty(), "Create schedules the work and starts nothing");
+    assert_eq!(run_card(&r.db, &r.manager, "m1", "sched").unwrap_err(), "This card already ran or was discarded.");
 }

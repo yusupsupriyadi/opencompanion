@@ -360,6 +360,7 @@ fn main() {
                 sessions: &ctx.sessions,
                 outside: &outside,
                 read_dirs: &ctx.read_dirs,
+                automations: &[],
             };
             let work = std::env::temp_dir().join("air-spike-planner");
             let t = Instant::now();

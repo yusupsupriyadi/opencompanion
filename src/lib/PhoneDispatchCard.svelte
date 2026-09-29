@@ -1,4 +1,5 @@
 <script lang="ts">
+  import CalendarCheck from "phosphor-svelte/lib/CalendarCheck";
   import PaperPlaneTilt from "phosphor-svelte/lib/PaperPlaneTilt";
   import PencilSimple from "phosphor-svelte/lib/PencilSimple";
   import Play from "phosphor-svelte/lib/Play";
@@ -7,6 +8,8 @@
   import type { ChatMessage, CliInstall, CliKind, DispatchCard, Mode } from "./api";
   import CliMark from "./CliMark.svelte";
   import { refocus } from "./focus";
+  import ScheduleField from "./ScheduleField.svelte";
+  import { describe } from "./schedule";
   import StatusChip from "./StatusChip.svelte";
   import { CLI_LABEL, ago, folderName, shortPath } from "./format";
   import { t, tb } from "./i18n.svelte";
@@ -25,13 +28,17 @@
   let editing = $state(false);
   let busy = $state(false);
   let failure = $state("");
-  let draft = $state({ cli: "claude" as CliKind, title: "", folder: "", prompt: "", mode: "headless" as Mode });
+  let draft = $state({ cli: "claude" as CliKind, title: "", folder: "", prompt: "", mode: "headless" as Mode, schedule: "" });
   let slot: HTMLDivElement | undefined = $state();
 
   const session = $derived(card.sessionId ? phone.sessions.find((s) => s.id === card.sessionId) : undefined);
   const labelId = $derived(`pcard-${card.id}`);
   // A follow-up goes to a session that already runs (PRD FR-25); it starts nothing.
   const follow = $derived(Boolean(card.target));
+  // An automation card saves a schedule with Create instead of starting a session with Run.
+  const scheduled = $derived(typeof card.schedule === "string");
+  const preview = (schedule: string) =>
+    call<{ times: number[] }>("/api/automations/preview", { method: "POST", body: JSON.stringify({ schedule }) }).then((r) => r.times);
   // A card that ran or went away elsewhere while it was open for editing shows what it is now.
   const editingNow = $derived(editing && card.state === "proposed");
   // Before the desktop has listed its CLIs, the picker still offers the card's own.
@@ -63,13 +70,18 @@
 
   const run = () => {
     const where = { cli: CLI_LABEL[card.cli], folder: folderName(card.folder) };
-    return update("/api/chat/cards/run", {}, follow ? t("phone.card.sent", where) : t("phone.card.started", where));
+    const done = scheduled
+      ? t("auto.card.createdToast", { name: card.title, schedule: describe(card.schedule ?? "") })
+      : follow
+        ? t("phone.card.sent", where)
+        : t("phone.card.started", where);
+    return update("/api/chat/cards/run", {}, done);
   };
   const discard = () => update("/api/chat/cards/discard");
   const undo = () => update("/api/chat/cards/discard", { undo: true });
 
   async function edit() {
-    draft = { cli: card.cli, title: card.title, folder: card.folder, prompt: card.prompt, mode: card.mode };
+    draft = { cli: card.cli, title: card.title, folder: card.folder, prompt: card.prompt, mode: card.mode, schedule: card.schedule ?? "" };
     failure = "";
     editing = true;
     await tick();
@@ -77,7 +89,7 @@
   }
 
   async function save() {
-    const r = await post<{ message: ChatMessage }>("/api/chat/cards/edit", { card: { ...card, ...draft } });
+    const r = await post<{ message: ChatMessage }>("/api/chat/cards/edit", { card: { ...card, ...draft, schedule: scheduled ? draft.schedule : card.schedule } });
     if (!r) return;
     editing = false;
     onchange(r.message);
@@ -105,8 +117,10 @@
       <div class="target grow">
         <b id={labelId}>{follow ? t("phone.card.followUpFor", { title: card.title }) : card.title || `${CLI_LABEL[card.cli]} · ${t(`phone.mode.${card.mode}`)}`}</b>
         <span>{#if card.title}{CLI_LABEL[card.cli]} · {t(`phone.mode.${card.mode}`)} · {/if}<span class="mono">{shortPath(card.folder)}</span></span>
+        {#if scheduled && !editingNow}<span class="when"><CalendarCheck size={14} aria-hidden="true" />{describe(card.schedule ?? "")}</span>{/if}
       </div>
-      {#if session}<StatusChip status={session.status} />{:else if card.state === "started"}<span class="chip idle">{follow ? t("phone.card.chipSent") : t("phone.card.chipStarted")}</span>{:else}<span class="chip idle">{follow ? t("phone.card.chipFollowUp") : t("phone.card.chipReady")}</span>{/if}
+      {#if scheduled}<span class="chip {card.state === 'created' ? 'run' : 'idle'}">{card.state === "created" ? t("auto.card.chipCreated") : t("auto.card.chip")}</span>
+      {:else if session}<StatusChip status={session.status} />{:else if card.state === "started"}<span class="chip idle">{follow ? t("phone.card.chipSent") : t("phone.card.chipStarted")}</span>{:else}<span class="chip idle">{follow ? t("phone.card.chipFollowUp") : t("phone.card.chipReady")}</span>{/if}
     </div>
 
     {#if editingNow && follow}
@@ -143,6 +157,7 @@
           <span class="label">{t("chat.card.promptLabel")}</span>
           <textarea class="textarea mono" bind:value={draft.prompt}></textarea>
         </label>
+        {#if scheduled}<ScheduleField bind:value={draft.schedule} idPrefix="pcs-{card.id}" {preview} />{/if}
       </div>
     {:else}
       <p class="prompt">{card.prompt}</p>
@@ -153,7 +168,12 @@
     {#if failure}<p class="err-text" role="alert" style="margin:0">{tb(failure)}</p>{/if}
 
     <div class="acts">
-      {#if card.state === "started"}
+      {#if card.state === "created"}
+        {#if card.automationId}
+          <a class="btn secondary wide" href="/m/automations/edit?id={card.automationId}"><CalendarCheck size={16} aria-hidden="true" />{t("auto.card.open")}</a>
+        {/if}
+        <p class="small wide">{t("auto.card.createdNote")}</p>
+      {:else if card.state === "started"}
         {#if card.sessionId}
           <a class="btn secondary wide" href="/m/session?id={card.sessionId}"><TerminalWindow size={16} aria-hidden="true" />{t("phone.openSession")}</a>
         {/if}
@@ -165,7 +185,7 @@
         <button class="btn ghost" type="button" disabled={busy} onclick={cancel}>{t("chat.card.cancel")}</button>
       {:else}
         <button class="btn primary wide" type="button" disabled={busy || Boolean(card.problem)} onclick={run}>
-          {#if follow}<PaperPlaneTilt size={16} weight="fill" aria-hidden="true" />{t("phone.card.sendToSession")}{:else}<Play size={16} aria-hidden="true" />{t("phone.runIn", { folder: folderName(card.folder) || "…" })}{/if}
+          {#if scheduled}<CalendarCheck size={16} aria-hidden="true" />{t("auto.form.create")}{:else if follow}<PaperPlaneTilt size={16} weight="fill" aria-hidden="true" />{t("phone.card.sendToSession")}{:else}<Play size={16} aria-hidden="true" />{t("phone.runIn", { folder: folderName(card.folder) || "…" })}{/if}
         </button>
         <button class="btn secondary" type="button" disabled={busy} onclick={edit}><PencilSimple size={16} aria-hidden="true" />{t("chat.card.edit")}</button>
         <button class="btn ghost" type="button" disabled={busy} onclick={discard}>{t("phone.card.discard")}</button>
@@ -178,5 +198,12 @@
 <style>
   .slot {
     display: contents;
+  }
+  .when {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 2px;
+    font-weight: 700;
   }
 </style>

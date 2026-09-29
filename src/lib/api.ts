@@ -265,12 +265,17 @@ export interface DispatchCard {
   mode: Mode;
   reason: string;
   problem: string | null;
-  state: "proposed" | "started" | "discarded";
+  /** `created`: an automation card whose automation was saved. */
+  state: "proposed" | "started" | "created" | "discarded";
   sessionId: string | null;
   /** A follow-up for this existing session: Send gives it the prompt instead of starting one. */
   target?: string | null;
   /** Started without Run, because its folder runs cards without asking. */
   auto?: boolean;
+  /** An automation card: Create saves an automation on this cron schedule instead of starting a session. */
+  schedule?: string | null;
+  /** The automation Create saved. */
+  automationId?: string | null;
 }
 
 export interface ChatMessage {

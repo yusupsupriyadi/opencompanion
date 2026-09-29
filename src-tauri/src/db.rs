@@ -160,7 +160,7 @@ pub struct DispatchCard {
     pub reason: String,
     /// Filled by validation (PRD FR-23). Run is disabled while this is set.
     pub problem: Option<String>,
-    /// `proposed`, `started`, `discarded`.
+    /// `proposed`, `started`, `created` (an automation card that was saved), `discarded`.
     pub state: String,
     pub session_id: Option<String>,
     /// A follow-up for a session that already exists (PRD FR-25): Run sends `prompt` to it
@@ -170,6 +170,13 @@ pub struct DispatchCard {
     /// Started without Run, because its folder runs cards without asking (PRD FR-26).
     #[serde(default)]
     pub auto: bool,
+    /// An automation card: Create saves an automation with this cron schedule (five fields, local
+    /// time) instead of starting a session now.
+    #[serde(default)]
+    pub schedule: Option<String>,
+    /// The automation Create saved.
+    #[serde(default)]
+    pub automation_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1398,6 +1405,8 @@ mod tests {
             session_id: Some(session.into()),
             target: None,
             auto: false,
+            schedule: None,
+            automation_id: None,
         };
         db.add_chat(&ChatMessage {
             id: "m1".into(),

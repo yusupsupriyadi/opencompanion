@@ -142,3 +142,33 @@ test("the card switches to Indonesian when the UI language changes", async () =>
     i18n.lang = "en";
   }
 });
+
+test("an automation card shows its schedule and Create saves the automation instead of starting a session", async () => {
+  const created = card({ schedule: "0 9 * * 1-5", state: "created", automationId: "a9" });
+  const api = backend({ chat_run_card: () => msg(created) });
+  const onchange = vi.fn();
+  const { unmount } = render(DispatchCard, { card: card({ schedule: "0 9 * * 1-5" }), messageId: "m1", onchange });
+  const article = screen.getByRole("article", { name: "README run section" });
+  expect(article).toHaveTextContent("Weekdays at 09:00");
+  expect(screen.getByText("Automation")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Run in comic-translate" })).not.toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Create automation" }));
+  expect(api.calls("chat_run_card")).toEqual([{ messageId: "m1", cardId: "c1" }]);
+  expect(onchange).toHaveBeenCalledWith(msg(created));
+  unmount();
+
+  render(DispatchCard, { card: created, messageId: "m1", onchange });
+  expect(screen.getByRole("link", { name: "Open automation" })).toHaveAttribute("href", "/automations?id=a9");
+  expect(screen.getByText("Created")).toBeInTheDocument();
+});
+
+test("editing an automation card changes its schedule too", async () => {
+  const api = backend({ chat_update_card: (a) => msg(a?.card as Card), preview_schedule: () => [Date.now() + 86_400_000] });
+  const user = userEvent.setup();
+  render(DispatchCard, { card: card({ schedule: "0 9 * * 1-5" }), messageId: "m1", onchange: vi.fn() });
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  expect(screen.getByLabelText("Time")).toHaveValue("09:00");
+  await user.click(screen.getByRole("button", { name: "Saturday" }));
+  await user.click(screen.getByRole("button", { name: "Save card" }));
+  expect(api.calls("chat_update_card")[0]).toMatchObject({ card: { id: "c1", schedule: "0 9 * * 1,2,3,4,5,6" } });
+});

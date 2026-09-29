@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 
+use crate::automations;
 use crate::cli::{self, CliInstall, CliKind};
 use crate::db::{self, ChatMessage, ChatModel, ChatThread, Db, DispatchCard, Mode, PlannerSource, Settings};
 use crate::headless::PermMode;
@@ -115,6 +116,7 @@ pub fn chat_send(manager: &Arc<Manager>, own: &HashSet<u32>, thread_id: Option<S
                 sessions: &ctx.sessions,
                 outside: &outside,
                 read_dirs: &[],
+                automations: &ctx.automations,
             };
             match orchestrator::run_api(api, &input) {
                 Ok(plan) => msg("planner", plan.reply, plan.cards),
@@ -157,6 +159,7 @@ pub fn chat_send(manager: &Arc<Manager>, own: &HashSet<u32>, thread_id: Option<S
                 sessions: &ctx.sessions,
                 outside: &outside,
                 read_dirs: &ctx.read_dirs,
+                automations: &ctx.automations,
             };
             match orchestrator::run(kind, &exe, &data_dir.join("planner"), &extra, &input) {
                 Ok(plan) => msg("planner", plan.reply, plan.cards),
@@ -181,7 +184,9 @@ pub fn auto_run(manager: &Arc<Manager>, settings: &Settings, cards: &mut [Dispat
         m => m,
     };
     for card in cards.iter_mut() {
-        if card.state != "proposed" || card.problem.is_some() || card.target.is_some() || !settings.auto_runs(&card.folder) {
+        // An automation card waits for Create: nothing is scheduled without the owner.
+        let scheduled = card.schedule.is_some();
+        if card.state != "proposed" || card.problem.is_some() || card.target.is_some() || scheduled || !settings.auto_runs(&card.folder) {
             continue;
         }
         let started = manager.start(StartRequest {
@@ -240,6 +245,12 @@ pub fn update_card(db: &Db, message_id: &str, card: DispatchCard) -> Res<ChatMes
         c.title = card.title.trim().to_string();
         c.folder = card.folder.trim().to_string();
         c.mode = card.mode;
+        // An automation card stays one, with the schedule as edited.
+        if c.schedule.is_some() {
+            c.schedule = Some(card.schedule.unwrap_or_default().split_whitespace().collect::<Vec<_>>().join(" "));
+            orchestrator::validate_automation(c, &clis);
+            return Ok(());
+        }
         orchestrator::validate(c, &clis);
         Ok(())
     })
@@ -353,6 +364,9 @@ pub fn run_card(db: &Db, manager: &Arc<Manager>, message_id: &str, card_id: &str
             Ok(())
         });
     }
+    if card.schedule.is_some() {
+        return create_automation(db, manager, message_id, card, &clis);
+    }
     orchestrator::validate(&mut card, &clis);
     if let Some(problem) = card.problem {
         return Err(problem);
@@ -371,6 +385,37 @@ pub fn run_card(db: &Db, manager: &Arc<Manager>, message_id: &str, card_id: &str
     with_card(db, message_id, card_id, |c| {
         c.state = "started".into();
         c.session_id = Some(session.id.clone());
+        Ok(())
+    })
+}
+
+/// Create on an automation card: saves the automation it proposes, with the default permission mode
+/// from Settings, as Run gives a session card. It runs on its schedule from then on.
+fn create_automation(db: &Db, manager: &Arc<Manager>, message_id: &str, mut card: DispatchCard, clis: &[CliInstall]) -> Res<ChatMessage> {
+    orchestrator::validate_automation(&mut card, clis);
+    if let Some(problem) = card.problem {
+        return Err(problem);
+    }
+    let name = if card.title.trim().is_empty() {
+        format!("{} in {}", card.cli.label(), crate::session::folder_name(&card.folder))
+    } else {
+        card.title.clone()
+    };
+    let draft = automations::Draft {
+        name,
+        cli: card.cli,
+        cwd: card.folder.clone(),
+        mode: card.mode,
+        prompt: card.prompt.clone(),
+        permission_mode: db.settings()?.permission_mode,
+        schedule: card.schedule.clone().unwrap_or_default(),
+        enabled: true,
+    };
+    let saved = automations::save(db, None, draft, |kind| manager.resolve_exe(kind).map(|_| ()))?;
+    manager.automations_changed();
+    with_card(db, message_id, &card.id, |c| {
+        c.state = "created".into();
+        c.automation_id = Some(saved.id.clone());
         Ok(())
     })
 }

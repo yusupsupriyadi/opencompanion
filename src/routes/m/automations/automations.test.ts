@@ -2,7 +2,8 @@ import { render, screen, within } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import { goto } from "$app/navigation";
-import type { Automation, AutomationView, CliInstall } from "$lib/api";
+import type { Automation, AutomationView, ChatMessage, CliInstall, DispatchCard } from "$lib/api";
+import PhoneDispatchCard from "$lib/PhoneDispatchCard.svelte";
 import { receive } from "$lib/phone.svelte";
 import { setUrl } from "../../../test/app-state.svelte";
 import { phoneServer, sent } from "../../../test/phone-server";
@@ -141,4 +142,33 @@ test("an automation opens filled in, saves changes, runs now and is deleted afte
   await user.click(within(sheet).getByRole("button", { name: "Delete automation" }));
   expect(sent(fetchMock, "DELETE /api/automations/a1")).toHaveLength(1);
   expect(goto).toHaveBeenCalledWith("/m/automations", { replaceState: true });
+});
+
+test("a Chat card that proposes an automation is created from the phone and links to it", async () => {
+  setUrl("/m/chat/thread?id=t1");
+  const card: DispatchCard = {
+    id: "c1",
+    cli: "claude",
+    title: "Morning review",
+    folder: String.raw`C:\Users\me\Project\uninote`,
+    prompt: "review the open pull requests",
+    mode: "headless",
+    reason: "Runs unattended.",
+    problem: null,
+    state: "proposed",
+    sessionId: null,
+    schedule: "0 9 * * 1-5",
+  };
+  const created: ChatMessage = { id: "m1", threadId: "t1", role: "planner", text: "", cards: [{ ...card, state: "created", automationId: "a1" }], createdAt: 1 };
+  const fetchMock = phoneServer({ "POST /api/chat/cards/run": () => [200, { message: created }] });
+  const onchange = vi.fn();
+  const { unmount } = render(PhoneDispatchCard, { card, messageId: "m1", onchange });
+  expect(screen.getByRole("article", { name: "Morning review" })).toHaveTextContent("Weekdays at 09:00");
+  await userEvent.setup().click(screen.getByRole("button", { name: "Create automation" }));
+  expect(sent(fetchMock, "POST /api/chat/cards/run")).toEqual([{ messageId: "m1", cardId: "c1" }]);
+  expect(onchange).toHaveBeenCalledWith(created);
+  unmount();
+
+  render(PhoneDispatchCard, { card: created.cards[0], messageId: "m1", onchange });
+  expect(screen.getByRole("link", { name: "Open automation" })).toHaveAttribute("href", "/m/automations/edit?id=a1");
 });
