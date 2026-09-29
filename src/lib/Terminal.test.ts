@@ -129,3 +129,26 @@ test("a closed terminal sends nothing; a typed key wakes it once, and cursor key
   key(input, { key: "Enter", keyCode: 13 });
   await vi.waitFor(() => expect(onwake).toHaveBeenCalledTimes(2));
 });
+
+test("a shell terminal closes without reading its id again, which its parent may have dropped by then", async () => {
+  backend({ terminal_output: () => ({ data: "", seq: 1 }) });
+  // The Session screen passes `id={x.id}`; once the shell leaves its list, `x` is null and reading the prop throws.
+  let gone = false;
+  let lateReads = 0;
+  const props = {
+    get id() {
+      if (!gone) return "s1";
+      lateReads++;
+      throw new TypeError("null is not an object (evaluating 'x.id')");
+    },
+    live: true,
+    label: "Terminal",
+    kind: "terminal" as const,
+  };
+  const { container, unmount } = render(Terminal, props);
+  await vi.waitFor(() => expect(container.querySelector("textarea")).not.toBeNull());
+  gone = true;
+  unmount();
+  await tick();
+  expect(lateReads).toBe(0);
+});

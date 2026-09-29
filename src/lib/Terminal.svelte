@@ -79,6 +79,9 @@
     acceptInput = live;
     if (!host) return;
     const box = host;
+    // Read once: the callbacks and the cleanup below can run after the parent has dropped what `id` comes from (a
+    // closed shell), and reading the prop then throws. The Session screen keys each terminal by its id anyway.
+    const tid = id;
     const io: {
       event: string;
       send: (id: string, data: string) => Promise<unknown>;
@@ -188,7 +191,7 @@
 
     let chain: Promise<unknown> = Promise.resolve();
     const send = (data: string) => {
-      chain = chain.then(() => io.send(id, data)).catch(() => undefined);
+      chain = chain.then(() => io.send(tid, data)).catch(() => undefined);
     };
     // What is typed while the terminal is closed only wakes it; the process that starts gets the keys after that.
     let waking = false;
@@ -205,9 +208,9 @@
       if (clean) send(clean);
     });
     term.onResize(({ cols, rows }) => {
-      if (acceptInput) io.resize(id, cols, rows).catch(() => undefined);
+      if (acceptInput) io.resize(tid, cols, rows).catch(() => undefined);
     });
-    fitProcess = () => io.resize(id, term.cols, term.rows).catch(() => undefined);
+    fitProcess = () => io.resize(tid, term.cols, term.rows).catch(() => undefined);
     if (acceptInput) fitProcess();
 
     // Listening starts before the snapshot is read, and chunks up to the snapshot's last one are
@@ -221,12 +224,12 @@
       shown = chunk.seq;
     };
     const unlisten = listen<{ id: string; data: string; seq: number }>(io.event, (e) => {
-      if (e.payload.id !== id) return;
+      if (e.payload.id !== tid) return;
       if (shown < 0) early.push(e.payload);
       else show(e.payload);
     });
     unlisten
-      .then(() => io.snapshot(id))
+      .then(() => io.snapshot(tid))
       .catch(() => ({ data: "", seq: 0 }))
       .then((snap) => {
         if (gone) return;
@@ -258,7 +261,7 @@
     };
     box.addEventListener("contextmenu", onContext);
     const clear = () => term.clear();
-    clearers.set(id, clear);
+    clearers.set(tid, clear);
 
     const ro = new ResizeObserver(() => {
       try {
@@ -274,7 +277,7 @@
       gone = true;
       fitProcess = null;
       // A remount for the same id may have taken the slot already.
-      if (clearers.get(id) === clear) clearers.delete(id);
+      if (clearers.get(tid) === clear) clearers.delete(tid);
       box.removeEventListener("paste", onPaste, true);
       box.removeEventListener("contextmenu", onContext);
       ro.disconnect();
