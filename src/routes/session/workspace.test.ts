@@ -106,6 +106,8 @@ test("Files lists folders first, marks ignored and changed entries, and opens a 
   expect(await screen.findByText("const b = 2;")).toBeInTheDocument();
   expect(calls.calls("folder_read")).toEqual([{ id: "s1", path: "src/app.ts" }]);
   expect(screen.getByRole("region", { name: "src/app.ts, read-only" })).toBeInTheDocument();
+  // The tab shows the file's type glyph before its name, hidden from screen readers.
+  expect(document.querySelector("#view-tab-file .tab-icon svg")).toHaveAttribute("aria-hidden", "true");
   expect(document.getElementById("session-term")).not.toBeVisible();
 
   await fireEvent.click(screen.getByRole("button", { name: /^Claude Code\s*output$/ }));

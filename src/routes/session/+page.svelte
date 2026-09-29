@@ -32,6 +32,7 @@
   import { openMenu, type MenuEntry } from "$lib/context-menu.svelte";
   import Dialog from "$lib/Dialog.svelte";
   import FilesPanel from "$lib/FilesPanel.svelte";
+  import FileIcon from "$lib/FileIcon.svelte";
   import FileViewer from "$lib/FileViewer.svelte";
   import { refocus } from "$lib/focus";
   import NeedsYou from "$lib/NeedsYou.svelte";
@@ -748,6 +749,7 @@
               {@const name = splitPath(viewer.path).name}
               <div class="tab" class:current={shownTab === "viewer"}>
                 <button class="tab-pick" type="button" id="view-tab-file" aria-current={shownTab === "viewer" ? "true" : undefined} aria-controls="session-viewer" title={viewer.path} onclick={() => (mainTab = "viewer")}>
+                  <span class="tab-icon"><FileIcon path={viewer.path} size={18} /></span>
                   <b class="mono">{name}</b>
                   <small>{viewer.kind === "diff" ? t("workspace.viewer.kindDiff") : t("workspace.viewer.kindFile")}</small>
                 </button>

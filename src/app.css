@@ -13,6 +13,7 @@
   --r-sm: 6px; --r-btn: 8px; --r-md: 10px; --r-lg: 14px;
   --titlebar: 36px;
   --rainbow: #A3262A, #8C4300, #276127, #2C5A8C, #6D3FA8, #A3262A;
+  --ft-red: #A3262A; --ft-orange: #8C4300; --ft-yellow: #735600; --ft-green: #276127; --ft-blue: #2C5A8C; --ft-purple: #6D3FA8;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
@@ -22,6 +23,7 @@
   --st-err: #E0876A; --st-err-ink: #1B1F1A; --st-idle: #2E3529; --st-idle-ink: #BDB895;
   --term-bg: #121710; --scrim: #000000A6; --glass: #242A2273; --glass-thin: #242A224D; --glass-2: #2E35298C; --glass-bg: #1B1F1A66; --glass-pop: #242A22A6; --glass-menu: #242A22D9; --glass-toast: #F3EBC8D9; --solid: #242A22; --glass-rim: inset 0 1px 0 #FFFFFF2E, inset 0 0 0 1px #FFFFFF14; --art-filter: brightness(.58); --haze: linear-gradient(#1B1F1A61, #1B1F1A61); --shadow-modal: 0 12px 40px #00000080;
   --rainbow: #F4A3A3, #F2BE7E, #E8DA7A, #A8D66E, #8FBCEB, #C9AEF5, #F4A3A3;
+  --ft-red: #F4A3A3; --ft-orange: #F2BE7E; --ft-yellow: #E8DA7A; --ft-green: #A8D66E; --ft-blue: #8FBCEB; --ft-purple: #C9AEF5;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -32,6 +34,7 @@
     --st-err: #E0876A; --st-err-ink: #1B1F1A; --st-idle: #2E3529; --st-idle-ink: #BDB895;
     --term-bg: #121710; --scrim: #000000A6; --glass: #242A2273; --glass-thin: #242A224D; --glass-2: #2E35298C; --glass-bg: #1B1F1A66; --glass-pop: #242A22A6; --glass-menu: #242A22D9; --glass-toast: #F3EBC8D9; --solid: #242A22; --glass-rim: inset 0 1px 0 #FFFFFF2E, inset 0 0 0 1px #FFFFFF14; --art-filter: brightness(.58); --haze: linear-gradient(#1B1F1A61, #1B1F1A61); --shadow-modal: 0 12px 40px #00000080;
     --rainbow: #F4A3A3, #F2BE7E, #E8DA7A, #A8D66E, #8FBCEB, #C9AEF5, #F4A3A3;
+    --ft-red: #F4A3A3; --ft-orange: #F2BE7E; --ft-yellow: #E8DA7A; --ft-green: #A8D66E; --ft-blue: #8FBCEB; --ft-purple: #C9AEF5;
     color-scheme: dark;
   }
 }
@@ -366,6 +369,12 @@ dialog[open] { animation: rise .18s ease-out; }
 .tab-pick b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
 .tab-pick small { flex-shrink: 0; font-size: 12px; color: var(--ink-2); }
 .tab.current .tab-pick small { color: var(--term-dim); }
+/* The viewer tab's file glyph. Its type color comes from --ft-*, the rainbow list: Day on light glass, Dusk on dark
+   glass and on the shown tab, which sits on the dark terminal panel in both themes. Other files take the note's color. */
+.tab-icon { display: flex; flex: none; margin-right: -2px; color: var(--ink-2); }
+.tab.current .tab-icon { color: var(--term-dim); --ft-red: #F4A3A3; --ft-orange: #F2BE7E; --ft-yellow: #E8DA7A; --ft-green: #A8D66E; --ft-blue: #8FBCEB; --ft-purple: #C9AEF5; }
+.ft-red { color: var(--ft-red); } .ft-orange { color: var(--ft-orange); } .ft-yellow { color: var(--ft-yellow); }
+.ft-green { color: var(--ft-green); } .ft-blue { color: var(--ft-blue); } .ft-purple { color: var(--ft-purple); }
 .tab-close { width: 28px; height: 28px; flex-shrink: 0; }
 .tab.current .tab-close { color: var(--term-dim); }
 .tab.current .tab-close:hover { background: #ffffff1a; color: var(--term-text); }
