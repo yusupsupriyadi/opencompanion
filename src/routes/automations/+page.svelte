@@ -308,11 +308,11 @@
     font-size: 14px;
     font-weight: 700;
   }
-  .danger-text {
-    color: var(--st-err);
-  }
+  /* Error red keeps 4.5:1 only with the surface-2 tint behind it (DESIGN.md, contrast table). */
+  .danger-text,
   .danger-text:hover {
     color: var(--st-err);
+    background: var(--surface-2);
   }
   .auto-wrap {
     max-width: 760px;

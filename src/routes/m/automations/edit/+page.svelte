@@ -315,8 +315,10 @@
     min-height: 44px;
     white-space: normal;
   }
+  /* Error red keeps 4.5:1 only with the surface-2 tint behind it (DESIGN.md, contrast table). */
   .m-danger {
     color: var(--st-err);
+    background: var(--surface-2);
   }
   .m-runs {
     list-style: none;
