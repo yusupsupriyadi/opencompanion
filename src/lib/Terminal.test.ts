@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { render } from "@testing-library/svelte";
+import type { ILinkProviderOptions } from "@xterm/addon-web-links";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { backend } from "../test/fixtures";
 import Terminal from "./Terminal.svelte";
@@ -8,6 +10,23 @@ import Terminal from "./Terminal.svelte";
 const SAVED = String.raw`C:\Temp\opencompanion-paste\pasted-1.png`;
 const WINDOWS_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36 Edg/140.0";
 const LINUX_UA = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15";
+const MAC_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)";
+
+// jsdom has no layout, so xterm cannot tell which link is under the mouse; the tests call the addon's callbacks.
+const links = vi.hoisted(() => ({
+  handler: undefined as ((e: MouseEvent, uri: string) => void) | undefined,
+  options: undefined as ILinkProviderOptions | undefined,
+}));
+vi.mock("@xterm/addon-web-links", () => ({
+  WebLinksAddon: class {
+    constructor(handler: (e: MouseEvent, uri: string) => void, options: ILinkProviderOptions) {
+      links.handler = handler;
+      links.options = options;
+    }
+    activate() {}
+    dispose() {}
+  },
+}));
 
 beforeEach(() => {
   vi.mocked(listen).mockImplementation(async () => () => undefined);
@@ -103,6 +122,38 @@ test("pasted text still goes straight to the terminal", async () => {
   paste(input, "npm run dev");
   await vi.waitFor(() => expect(sent()).toEqual(["npm run dev"]));
   expect(vi.mocked(invoke).mock.calls.some(([cmd]) => cmd === "save_pasted_image")).toBe(false);
+});
+
+const LINK = "http://localhost:5173/";
+const RANGE = { start: { x: 1, y: 1 }, end: { x: 22, y: 1 } };
+
+test("a link opens in the browser on Ctrl+click, and a plain or right click leaves it alone", async () => {
+  vi.mocked(openUrl).mockClear();
+  const { container } = mount("terminal");
+  const click = (init: MouseEventInit) => links.handler?.(new MouseEvent("mouseup", init), LINK);
+  click({ button: 0 });
+  click({ button: 2, ctrlKey: true });
+  expect(openUrl).not.toHaveBeenCalled();
+  click({ button: 0, ctrlKey: true });
+  expect(openUrl).toHaveBeenCalledExactlyOnceWith(LINK);
+
+  const host = container.querySelector(".xterm-host");
+  links.options?.hover?.(new MouseEvent("mousemove"), LINK, RANGE);
+  expect(host).toHaveAttribute("title", "Ctrl+click to open this link");
+  links.options?.leave?.(new MouseEvent("mouseleave"), LINK);
+  expect(host).not.toHaveAttribute("title");
+});
+
+test("on macOS a link opens on Cmd+click, which its tooltip names", async () => {
+  vi.mocked(openUrl).mockClear();
+  vi.spyOn(navigator, "userAgent", "get").mockReturnValue(MAC_UA);
+  const { container } = mount("session");
+  links.handler?.(new MouseEvent("mouseup", { button: 0, ctrlKey: true }), LINK);
+  expect(openUrl).not.toHaveBeenCalled();
+  links.handler?.(new MouseEvent("mouseup", { button: 0, metaKey: true }), LINK);
+  expect(openUrl).toHaveBeenCalledExactlyOnceWith(LINK);
+  links.options?.hover?.(new MouseEvent("mousemove"), LINK, RANGE);
+  expect(container.querySelector(".xterm-host")).toHaveAttribute("title", "⌘+click to open this link");
 });
 
 test("a closed terminal sends nothing; a typed key wakes it once, and cursor keys or Ctrl+C do not", async () => {

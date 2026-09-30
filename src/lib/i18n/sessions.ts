@@ -172,9 +172,10 @@ export const en = {
   "sessions.timeline.failed": "Failed: {summary}",
   "sessions.timeline.waiting": "Waiting for the first event…",
 
-  // lib/Terminal.svelte (xterm's own screen reader strings)
+  // lib/Terminal.svelte (xterm's own screen reader strings, and the tooltip over a link)
   "sessions.terminal.input": "Terminal input",
   "sessions.terminal.tooMuchOutput": "Too much output to announce, navigate to rows manually to read",
+  "sessions.terminal.openLink": "{key}+click to open this link",
 } as const;
 
 export const id: Record<keyof typeof en, string> = {
@@ -349,7 +350,8 @@ export const id: Record<keyof typeof en, string> = {
   "sessions.timeline.failed": "Gagal: {summary}",
   "sessions.timeline.waiting": "Menunggu event pertama…",
 
-  // lib/Terminal.svelte (xterm's own screen reader strings)
+  // lib/Terminal.svelte (xterm's own screen reader strings, and the tooltip over a link)
   "sessions.terminal.input": "Input terminal",
   "sessions.terminal.tooMuchOutput": "Output terlalu banyak untuk dibacakan, telusuri baris secara manual untuk membacanya",
+  "sessions.terminal.openLink": "{key}+klik untuk membuka tautan ini",
 };

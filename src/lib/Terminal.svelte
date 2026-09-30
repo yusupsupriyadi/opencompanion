@@ -20,7 +20,9 @@
 
 <script lang="ts">
   import { listen } from "@tauri-apps/api/event";
+  import { openUrl } from "@tauri-apps/plugin-opener";
   import { FitAddon } from "@xterm/addon-fit";
+  import { WebLinksAddon } from "@xterm/addon-web-links";
   import { Terminal } from "@xterm/xterm";
   import "@xterm/xterm/css/xterm.css";
   import { onMount } from "svelte";
@@ -94,7 +96,17 @@
     // xterm keeps its screen reader strings in one global; the input label is applied when the terminal opens.
     Terminal.strings.promptLabel = t("sessions.terminal.input");
     Terminal.strings.tooMuchOutput = t("sessions.terminal.tooMuchOutput");
+    // Links open in the default browser on Ctrl+click (Cmd+click on macOS), as in Windows Terminal and Orca, so a click
+    // that focuses the terminal or starts a selection opens nothing. The addon finds plain URLs; OSC 8 links, a URL
+    // behind other text, come through xterm's own handler, which passes only http and https.
+    const mac = currentPlatform() === "macos";
+    const openLink = (e: MouseEvent, uri: string) => {
+      if (e.button === 0 && (mac ? e.metaKey : e.ctrlKey)) openUrl(uri).catch(() => undefined);
+    };
+    const showLinkHint = () => (box.title = t("sessions.terminal.openLink", { key: mac ? "⌘" : "Ctrl" }));
+    const hideLinkHint = () => box.removeAttribute("title");
     const term = new Terminal({
+      linkHandler: { activate: openLink, hover: showLinkHint, leave: hideLinkHint },
       fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
       fontSize: 13,
       lineHeight: 1.25,
@@ -142,6 +154,7 @@
 
     const fit = new FitAddon();
     term.loadAddon(fit);
+    term.loadAddon(new WebLinksAddon(openLink, { hover: showLinkHint, leave: hideLinkHint }));
     term.open(box);
     try {
       fit.fit();
