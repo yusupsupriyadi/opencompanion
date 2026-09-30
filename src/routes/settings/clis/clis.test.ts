@@ -1,10 +1,17 @@
 import { render, screen, within } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { app } from "$lib/store.svelte";
 import { setUrl } from "../../../test/app-state.svelte";
 import { CLIS } from "../../../test/fixtures";
 import ClisPage from "./+page.svelte";
+
+const WINDOWS_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36 Edg/140.0";
+const LINUX_UA = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 test("CLIs is a Settings screen, named by its H1", () => {
   setUrl("/settings/clis");
@@ -55,5 +62,26 @@ test("omp installs with Bun, and once found, shows its JSON mode and the planner
   const row = screen.getByText("omp", { selector: "b" }).closest("tr")!;
   expect(row).toHaveTextContent("omp --mode json");
   expect(row).toHaveTextContent("18.3.5");
+  expect(within(row).getByRole("button", { name: "Use as planner" })).toBeInTheDocument();
+});
+
+test("Cursor CLI shows the installer for this OS, and once found, its stream-json mode and the planner button", () => {
+  setUrl("/settings/clis");
+  app.clis = CLIS;
+  app.clisState = "ready";
+  vi.spyOn(navigator, "userAgent", "get").mockReturnValue(WINDOWS_UA);
+  const windows = render(ClisPage);
+  expect(screen.getByText("irm 'https://cursor.com/install?win32=true' | iex")).toBeInTheDocument();
+  windows.unmount();
+  vi.spyOn(navigator, "userAgent", "get").mockReturnValue(LINUX_UA);
+  const linux = render(ClisPage);
+  expect(screen.getByText("curl https://cursor.com/install -fsS | bash")).toBeInTheDocument();
+  linux.unmount();
+  const path = String.raw`C:\Users\me\AppData\Local\cursor-agent\cursor-agent.cmd`;
+  app.clis = CLIS.map((c) => (c.kind === "cursor" ? { ...c, path, version: "2026.09.28", tested: true } : c));
+  render(ClisPage);
+  const row = screen.getByText("Cursor CLI", { selector: "b" }).closest("tr")!;
+  expect(row).toHaveTextContent("cursor-agent -p --output-format stream-json");
+  expect(row).toHaveTextContent("2026.09.28");
   expect(within(row).getByRole("button", { name: "Use as planner" })).toBeInTheDocument();
 });

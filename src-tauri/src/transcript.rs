@@ -79,6 +79,7 @@ pub fn read_in(home: &Path, kind: CliKind, cwd: Option<&Path>, started_at: u64) 
         CliKind::Opencode => opencode(home, cwd, since),
         CliKind::Gemini => return unavailable("Transcript not available for this CLI."),
         CliKind::Pi | CliKind::Omp => pi(kind, home, cwd, since),
+        CliKind::Cursor => cursor(home, cwd, since),
     };
     match found {
         Ok(Some(mut t)) => {
@@ -452,6 +453,43 @@ fn pi(kind: CliKind, home: &Path, cwd: &Path, since: SystemTime) -> Result<Optio
     }))
 }
 
+// Cursor CLI: ~/.cursor/projects/<folder>/agent-transcripts/<chat>/<chat>.jsonl, one message per
+// line with text and `tool_use` blocks, and no times.
+
+fn cursor_lines(v: &Value) -> Vec<Line> {
+    let speaker = match v["role"].as_str() {
+        Some("user") => Speaker::You,
+        Some("assistant") => Speaker::Cli,
+        _ => return vec![],
+    };
+    match &v["message"]["content"] {
+        Value::String(s) => say(speaker, s, None).into_iter().collect(),
+        Value::Array(blocks) => blocks
+            .iter()
+            .filter_map(|b| match b["type"].as_str() {
+                Some("text") => say(speaker, b["text"].as_str().unwrap_or_default(), None),
+                Some("tool_use") => tool(b["name"].as_str().unwrap_or("tool"), &b["input"], None),
+                _ => None,
+            })
+            .collect(),
+        _ => vec![],
+    }
+}
+
+fn cursor(home: &Path, cwd: &Path, since: SystemTime) -> Result<Option<Transcript>, String> {
+    let Some(file) = crate::cursor::newest_transcript(home, cwd, since) else { return Ok(None) };
+    let lines = tail_lines(&file).map_err(|e| e.to_string())?;
+    Ok(Some(Transcript {
+        source: Some(file.display().to_string()),
+        lines: lines
+            .iter()
+            .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+            .flat_map(|v| cursor_lines(&v))
+            .collect(),
+        note: None,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -650,6 +688,31 @@ mod tests {
         let got: Vec<(Speaker, &str)> = t.lines.iter().map(|l| (l.speaker, l.text.as_str())).collect();
         assert_eq!(got, [(Speaker::You, "hi"), (Speaker::Cli, "Hai! Mau dikerjakan apa?")]);
         assert!(read_in(&home, CliKind::Omp, Some(Path::new(r"C:\elsewhere")), now_secs()).note.unwrap().starts_with("omp has not written"));
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    // Lines as the transcript writer in Cursor CLI 2026.09.28-64d2043 builds them.
+    #[test]
+    fn cursor_transcript_is_read_from_its_project_folder() {
+        let home = temp_home("cursor");
+        let id = "4f0e2c1a-1b2c-4d3e-8f90-0a1b2c3d4e5f";
+        let dir = home.join(".cursor").join("projects").join("C-Users-me-Project-app").join("agent-transcripts").join(id);
+        fs::create_dir_all(&dir).unwrap();
+        let lines = [
+            r#"{"role":"user","message":{"content":[{"type":"text","text":"Create hello.txt"}]}}"#,
+            r#"{"role":"assistant","message":{"content":[{"type":"text","text":"Writing the file."},{"type":"tool_use","name":"Write","input":{"path":"hello.txt","contents":"hi"}}]}}"#,
+            r#"{"role":"assistant","message":{"content":[{"type":"text","text":"Wrote hello.txt."}]}}"#,
+            r#"{"type":"turn_ended","status":"success"}"#,
+        ];
+        fs::write(dir.join(format!("{id}.jsonl")), lines.join("\n")).unwrap();
+
+        let t = read_in(&home, CliKind::Cursor, Some(Path::new(r"C:\Users\me\Project\app")), now_secs());
+        let got: Vec<(Speaker, &str)> = t.lines.iter().map(|l| (l.speaker, l.text.as_str())).collect();
+        assert_eq!(
+            got,
+            [(Speaker::You, "Create hello.txt"), (Speaker::Cli, "Writing the file."), (Speaker::Tool, "Write hello.txt"), (Speaker::Cli, "Wrote hello.txt.")]
+        );
+        assert!(read_in(&home, CliKind::Cursor, Some(Path::new(r"C:\elsewhere")), now_secs()).note.unwrap().starts_with("Cursor CLI has not written"));
         let _ = fs::remove_dir_all(&home);
     }
 }

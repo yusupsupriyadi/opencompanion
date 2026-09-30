@@ -63,6 +63,7 @@ impl PermMode {
 /// on 2026-09-25 (Claude Code 2.1.282, Codex CLI 0.153.4, OpenCode 1.18.32). Gemini CLI is not
 /// installed on the test machine, so it gets none. Pi (0.87.1) never asks: only Plan changes
 /// anything, by giving it read-only tools. omp (18.3.5) sets `--approval-mode` for each mode.
+/// Cursor CLI (2026.09.28) was checked against its `--help` on 2026-09-30.
 /// Headless, it has no one to ask, so a tool that needs approval fails in the output.
 ///
 /// `headless_resume` covers `codex exec resume`, which accepts only the bypass flag: the
@@ -103,6 +104,13 @@ pub fn mode_flags(kind: CliKind, mode: PermMode, interactive: bool, headless_res
             PermMode::Plan => strings(&["--tools", crate::pi::read_only_tools(kind), "--approval-mode", "always-ask"]),
             PermMode::Auto => strings(&["--approval-mode", "write"]),
             PermMode::Bypass => strings(&["--approval-mode", "yolo"]),
+        },
+        // Ask me keeps Cursor's own approval setting, the allowlist unless you changed it.
+        CliKind::Cursor => match mode {
+            PermMode::Ask => vec![],
+            PermMode::Plan => strings(&["--mode", "plan"]),
+            PermMode::Auto => strings(&["--auto-review"]),
+            PermMode::Bypass => strings(&["--force"]),
         },
     };
     let env = if kind == CliKind::Opencode && mode == PermMode::Bypass {
@@ -250,6 +258,26 @@ pub fn pi_invocation(kind: CliKind, prompt: &str, opts: &TurnOptions) -> Invocat
     }
 }
 
+/// `cursor-agent -p` reads the prompt from stdin when it gets no prompt argument, so a prompt that
+/// starts with `-` or with a subcommand's name (`status`, `update`) is never read as one. Print
+/// mode stops at the workspace trust question, which `--trust` answers; that also marks the
+/// folder trusted for later Cursor runs.
+pub fn cursor_invocation(prompt: &str, opts: &TurnOptions) -> Invocation {
+    let mut args = strings(&["-p", "--output-format", "stream-json", "--trust"]);
+    if let Some(id) = opts.resume {
+        args.extend(strings(&["--resume", id]));
+    }
+    let (flags, env) = mode_flags(CliKind::Cursor, opts.mode, false, false);
+    args.extend(flags);
+    args.extend(opts.extra.iter().cloned());
+    Invocation {
+        args,
+        env,
+        stdin_first: Some(prompt.to_string()),
+        keep_stdin: false,
+    }
+}
+
 /// Splits the extra arguments from Settings into those that go right after the program and those
 /// that go before the prompt. CCS reads its profile from its first argument, so for CCS they lead.
 pub fn split_extra(kind: CliKind, extra: &[String]) -> (&[String], &[String]) {
@@ -266,6 +294,7 @@ pub fn invocation(kind: CliKind, cwd: &Path, prompt: &str, opts: &TurnOptions) -
         CliKind::Opencode => Some(opencode_invocation(cwd, prompt, opts)),
         CliKind::Gemini => None,
         CliKind::Pi | CliKind::Omp => Some(pi_invocation(kind, prompt, opts)),
+        CliKind::Cursor => Some(cursor_invocation(prompt, opts)),
     }
 }
 
@@ -311,6 +340,12 @@ pub fn interactive_args(
             }
             args.extend(flags);
         }
+        CliKind::Cursor => {
+            if let Some(id) = resume {
+                args.extend(strings(&["--resume", id]));
+            }
+            args.extend(flags);
+        }
     }
     args.extend(extra.iter().cloned());
     let prompt = prompt.trim();
@@ -323,6 +358,9 @@ pub fn interactive_args(
             CliKind::Pi if prompt.starts_with('@') => args.extend(["--".to_string(), format!(" {prompt}")]),
             // omp reads everything after `--` as text, `@` included.
             CliKind::Pi | CliKind::Omp => args.extend(["--".to_string(), prompt.to_string()]),
+            // `cursor-agent status of the repo` runs its `status` command, and `update` would
+            // update it. The `agent` command takes the rest as the prompt, with the same options.
+            CliKind::Cursor => args.extend(strings(&["agent", "--", prompt])),
             _ => args.push(prompt.to_string()),
         }
     }
@@ -525,5 +563,24 @@ mod tests {
         assert!(!inv.keep_stdin);
         let (args, _) = interactive_args(CliKind::Omp, "@src/app.ts fix it", Some("s1"), PermMode::Bypass, &[]);
         assert_eq!(args, ["--session", "s1", "--approval-mode", "yolo", "--", "@src/app.ts fix it"]);
+    }
+
+    #[test]
+    fn cursor_reads_headless_prompts_from_stdin_and_starts_terminals_through_its_agent_command() {
+        let flags = |m| mode_flags(CliKind::Cursor, m, true, false).0.join(" ");
+        assert_eq!(flags(PermMode::Ask), "");
+        assert_eq!(flags(PermMode::Plan), "--mode plan");
+        assert_eq!(flags(PermMode::Auto), "--auto-review");
+        assert_eq!(flags(PermMode::Bypass), "--force");
+        let extra = strings(&["--model", "gpt-5"]);
+        let opts = TurnOptions { resume: Some("4f0e2c1a"), mode: PermMode::Plan, extra: &extra };
+        let inv = invocation(CliKind::Cursor, Path::new("C:/w"), "status of the repo?", &opts).unwrap();
+        assert_eq!(inv.args, ["-p", "--output-format", "stream-json", "--trust", "--resume", "4f0e2c1a", "--mode", "plan", "--model", "gpt-5"]);
+        assert_eq!(inv.stdin_first.as_deref(), Some("status of the repo?"));
+        assert!(!inv.keep_stdin);
+        let (args, _) = interactive_args(CliKind::Cursor, "update the README", Some("4f0e2c1a"), PermMode::Auto, &extra);
+        assert_eq!(args, ["--resume", "4f0e2c1a", "--auto-review", "--model", "gpt-5", "agent", "--", "update the README"]);
+        let (args, _) = interactive_args(CliKind::Cursor, "", None, PermMode::Ask, &[]);
+        assert!(args.is_empty());
     }
 }

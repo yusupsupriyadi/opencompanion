@@ -12,7 +12,7 @@
     .replace("<path ", '<path fill="currentColor" ');
 </script>
 
-<span class="climark" class:sm={small} class:bare class:has-logo={kind !== "opencode" && kind !== "ccs" && kind !== "pi" && kind !== "omp"} aria-hidden="true">
+<span class="climark" class:sm={small} class:bare class:has-logo={kind !== "opencode" && kind !== "ccs" && kind !== "pi" && kind !== "omp" && kind !== "cursor"} aria-hidden="true">
   {#if kind === "claude"}
     <img src={claudeUrl} alt="" />
   {:else if kind === "gemini"}
@@ -25,6 +25,8 @@
     Pi
   {:else if kind === "omp"}
     omp
+  {:else if kind === "cursor"}
+    Cur
   {:else}
     OC
   {/if}

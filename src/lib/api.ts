@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export type CliKind = "claude" | "codex" | "opencode" | "gemini" | "ccs" | "pi" | "omp";
+export type CliKind = "claude" | "codex" | "opencode" | "gemini" | "ccs" | "pi" | "omp" | "cursor";
 export type Mode = "interactive" | "headless";
 export type Status = "starting" | "running" | "waiting" | "idle" | "shell" | "done" | "error" | "stopped";
 export type PermMode = "ask" | "plan" | "auto" | "bypass";

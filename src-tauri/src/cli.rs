@@ -19,10 +19,12 @@ pub enum CliKind {
     Pi,
     /// omp (`@oh-my-pi/pi-coding-agent`), a Pi fork with approval modes. Runs on Bun.
     Omp,
+    /// Cursor CLI (`cursor-agent`), installed by Cursor's own script with its own Node.
+    Cursor,
 }
 
 impl CliKind {
-    pub const ALL: [CliKind; 7] = [
+    pub const ALL: [CliKind; 8] = [
         CliKind::Claude,
         CliKind::Codex,
         CliKind::Opencode,
@@ -30,6 +32,7 @@ impl CliKind {
         CliKind::Ccs,
         CliKind::Pi,
         CliKind::Omp,
+        CliKind::Cursor,
     ];
 
     pub fn bin(self) -> &'static str {
@@ -41,6 +44,7 @@ impl CliKind {
             CliKind::Ccs => "ccs",
             CliKind::Pi => "pi",
             CliKind::Omp => "omp",
+            CliKind::Cursor => "cursor-agent",
         }
     }
 
@@ -53,6 +57,7 @@ impl CliKind {
             CliKind::Ccs => "CCS",
             CliKind::Pi => "Pi",
             CliKind::Omp => "omp",
+            CliKind::Cursor => "Cursor CLI",
         }
     }
 
@@ -66,6 +71,8 @@ impl CliKind {
             CliKind::Ccs => &["8.10"],
             CliKind::Pi => &["0.87"],
             CliKind::Omp => &["18.3"],
+            // Versions are build dates, `2026.09.28-64d2043`.
+            CliKind::Cursor => &["2026.09"],
         }
     }
 
@@ -110,6 +117,11 @@ fn extra_dirs() -> Vec<PathBuf> {
     }
     if let Some(appdata) = std::env::var_os("APPDATA") {
         dirs.push(PathBuf::from(appdata).join("npm"));
+    }
+    // Cursor's Windows installer puts its launchers here and adds the folder to the user's PATH,
+    // which an app started before the install does not see.
+    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+        dirs.push(PathBuf::from(local).join("cursor-agent"));
     }
     if cfg!(unix) {
         dirs.extend(crate::shell_env::fallback_dirs());
@@ -161,10 +173,10 @@ fn shim_target(text: &str) -> Option<PathBuf> {
         .then(|| PathBuf::from(rel.replace('\\', std::path::MAIN_SEPARATOR_STR)))
 }
 
-/// First `N.N` or `N.N.N` token, so "codex-cli 0.153.4", "2.1.282 (Claude Code)" and
-/// "omp/18.3.5" all work.
+/// First `N.N` or `N.N.N` token, so "codex-cli 0.153.4", "2.1.282 (Claude Code)",
+/// "omp/18.3.5" and Cursor's "2026.09.28-64d2043" all work.
 pub fn parse_version(raw: &str) -> Option<String> {
-    raw.split(|c: char| c.is_whitespace() || c == '(' || c == ')' || c == ',' || c == '/')
+    raw.split(|c: char| c.is_whitespace() || c == '(' || c == ')' || c == ',' || c == '/' || c == '-')
         .map(|t| t.trim_start_matches('v'))
         .find(|t| {
             let parts: Vec<&str> = t.split('.').collect();
@@ -284,5 +296,8 @@ mod tests {
         assert_eq!(parse_version("omp/18.3.5\n").as_deref(), Some("18.3.5"));
         assert_eq!(parse_version("0.87.1
 ").as_deref(), Some("0.87.1"));
+        assert_eq!(parse_version("2026.09.28-64d2043\n").as_deref(), Some("2026.09.28"));
+        assert!(is_tested(CliKind::Cursor, "2026.09.28"));
+        assert!(!is_tested(CliKind::Cursor, "2026.10.02"));
     }
 }

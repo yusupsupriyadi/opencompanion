@@ -113,6 +113,9 @@ pub fn launcher(program: &Path) -> (PathBuf, Vec<String>) {
         return unchanged;
     }
     let (Ok(text), Some(dir)) = (std::fs::read_to_string(program), program.parent()) else { return unchanged };
+    if text.contains("cursor-agent.ps1") {
+        return cursor_launch(dir).unwrap_or(unchanged);
+    }
     let Some(script) = shim_script(&text).map(|rel| dir.join(rel)).filter(|p| p.is_file()) else { return unchanged };
     // The shim prefers a node.exe next to itself, like npm's own shim does.
     let node = Some(dir.join("node.exe")).filter(|p| p.is_file()).or_else(|| which::which("node").ok());
@@ -120,6 +123,51 @@ pub fn launcher(program: &Path) -> (PathBuf, Vec<String>) {
         Some(node) => (node, vec![script.display().to_string()]),
         None => unchanged,
     }
+}
+
+/// Cursor's Windows launchers (`cursor-agent.cmd`, `agent.cmd`) hand their arguments to
+/// PowerShell, which runs the newest `versions\<date>-<commit>` folder's own `node.exe` on its
+/// `index.js`. The same folder choice is made here, so a prompt passes through neither shell.
+fn cursor_launch(dir: &Path) -> Option<(PathBuf, Vec<String>)> {
+    let run = |dir: &Path| {
+        let (node, script) = (dir.join("node.exe"), dir.join("index.js"));
+        (node.is_file() && script.is_file()).then(|| (node, vec![script.display().to_string()]))
+    };
+    // The launcher inside a version folder runs that folder's own copy.
+    if let Some(found) = run(dir) {
+        return Some(found);
+    }
+    let newest = std::fs::read_dir(dir.join("versions"))
+        .ok()?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().is_dir())
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            Some((cursor_build_date(&name)?, name))
+        })
+        .max()?;
+    run(&dir.join("versions").join(newest.1))
+}
+
+/// `2026.09.28-64d2043` or `2026.9.28-12-00-00-64d2043` as 20260928; `None` for a name the
+/// launcher's own pattern would skip.
+fn cursor_build_date(name: &str) -> Option<u32> {
+    let digits = |p: &str, len: std::ops::RangeInclusive<usize>| len.contains(&p.len()) && p.bytes().all(|b| b.is_ascii_digit());
+    let mut rest = name.split('-');
+    let date: Vec<&str> = rest.next()?.split('.').collect();
+    let after: Vec<&str> = rest.collect();
+    let time_ok = match after.len() {
+        1 => true,
+        4 => after[..3].iter().all(|p| digits(p, 2..=2)),
+        _ => false,
+    };
+    let commit = after.last()?;
+    let hex = !commit.is_empty() && commit.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b));
+    if date.len() != 3 || !digits(date[0], 4..=4) || !digits(date[1], 1..=2) || !digits(date[2], 1..=2) || !time_ok || !hex {
+        return None;
+    }
+    let n = |i: usize| date[i].parse::<u32>().ok();
+    Some(n(0)? * 10_000 + n(1)? * 100 + n(2)?)
 }
 
 /// The node script an npm cmd-shim runs: `"%dp0%\node_modules\@openai\codex\bin\codex.js" %*`.
@@ -315,6 +363,46 @@ endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\node_
         assert_eq!(lead, [bin.join("codex.js").display().to_string()]);
         let plain = dir.join("node.exe");
         assert_eq!(launcher(&plain), (plain.clone(), vec![]));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // The launcher Cursor's installer writes, trimmed (Cursor CLI 2026.09.28-64d2043).
+    const CURSOR_CMD: &str = "@echo off\r\nset \"SCRIPT_DIR=%~dp0\"\r\n%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%SCRIPT_DIR%\\cursor-agent.ps1\" %*\r\n";
+
+    #[test]
+    fn cursor_folders_are_ordered_by_their_build_date() {
+        assert_eq!(cursor_build_date("2026.09.28-64d2043"), Some(20260928));
+        assert_eq!(cursor_build_date("2026.10.2-12-30-00-ab12"), Some(20261002));
+        assert_eq!(cursor_build_date("2026.10.2-backup"), None);
+        assert_eq!(cursor_build_date("2026.10.2-1-30-00-ab12"), None);
+        assert_eq!(cursor_build_date("latest"), None);
+        assert_eq!(cursor_build_date("2026.09-64d2043"), None);
+        assert_eq!(cursor_build_date("2026.09.28"), None);
+        assert_eq!(shim_script(CURSOR_CMD), None);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_cursor_launcher_starts_the_newest_version_with_its_own_node() {
+        let dir = std::env::temp_dir().join(format!("air-cursor-{}", std::process::id()));
+        for v in ["2026.09.28-64d2043", "2026.10.2-aa11bb2", "2026.12.1-cc22dd3", "2027.01.1-backup"] {
+            std::fs::create_dir_all(dir.join("versions").join(v)).unwrap();
+        }
+        for v in ["2026.09.28-64d2043", "2026.10.2-aa11bb2"] {
+            std::fs::write(dir.join("versions").join(v).join("node.exe"), "").unwrap();
+            std::fs::write(dir.join("versions").join(v).join("index.js"), "").unwrap();
+        }
+        let shim = dir.join("cursor-agent.cmd");
+        std::fs::write(&shim, CURSOR_CMD).unwrap();
+        // The newest folder has no node.exe, so the launcher is left as it is.
+        assert_eq!(launcher(&shim), (shim.clone(), vec![]));
+
+        std::fs::remove_dir_all(dir.join("versions").join("2026.12.1-cc22dd3")).unwrap();
+        let newest = dir.join("versions").join("2026.10.2-aa11bb2");
+        assert_eq!(launcher(&shim), (newest.join("node.exe"), vec![newest.join("index.js").display().to_string()]));
+        let inner = newest.join("cursor-agent.cmd");
+        std::fs::write(&inner, CURSOR_CMD).unwrap();
+        assert_eq!(launcher(&inner).0, newest.join("node.exe"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

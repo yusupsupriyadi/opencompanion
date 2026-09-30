@@ -19,7 +19,7 @@ const SKIP_DIRS: [&str; 2] = [".git", "node_modules"];
 
 /// Id, label, owning CLI and path under the home folder. Columns are folders, not CLIs:
 /// which CLI reads which folder depends on its version, so the app does not guess.
-const ROOTS: [(&str, &str, Option<CliKind>, &str); 7] = [
+const ROOTS: [(&str, &str, Option<CliKind>, &str); 8] = [
     ("claude", "Claude Code", Some(CliKind::Claude), ".claude/skills"),
     ("codex", "Codex CLI", Some(CliKind::Codex), ".codex/skills"),
     ("agents", "Shared", None, ".agents/skills"),
@@ -27,6 +27,7 @@ const ROOTS: [(&str, &str, Option<CliKind>, &str); 7] = [
     ("gemini", "Gemini CLI", Some(CliKind::Gemini), ".gemini/skills"),
     ("pi", "Pi", Some(CliKind::Pi), ".pi/agent/skills"),
     ("omp", "omp", Some(CliKind::Omp), ".omp/agent/skills"),
+    ("cursor", "Cursor CLI", Some(CliKind::Cursor), ".cursor/skills"),
 ];
 
 #[derive(Debug, Clone, Serialize)]
@@ -448,7 +449,8 @@ mod tests {
         let home = PathBuf::from("home");
         let roots = default_roots(&home);
         let ids: Vec<&str> = roots.iter().map(|r| r.id.as_str()).collect();
-        assert_eq!(ids, ["claude", "codex", "agents", "opencode", "gemini", "pi", "omp"]);
+        assert_eq!(ids, ["claude", "codex", "agents", "opencode", "gemini", "pi", "omp", "cursor"]);
+        assert_eq!(roots[7].path, home.join(".cursor").join("skills"));
         assert_eq!(roots[3].path, home.join(".config").join("opencode").join("skills"));
         assert_eq!(roots[2].cli, None);
     }

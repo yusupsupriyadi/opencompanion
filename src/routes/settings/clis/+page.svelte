@@ -9,6 +9,7 @@
   import CliMark from "$lib/CliMark.svelte";
   import Dialog from "$lib/Dialog.svelte";
   import { shortPath } from "$lib/format";
+  import { currentPlatform } from "$lib/platform";
   import SettingsHead from "$lib/SettingsHead.svelte";
   import { t, tb } from "$lib/i18n.svelte";
   import { app, refreshClis, saveSettings, showToast } from "$lib/store.svelte";
@@ -22,8 +23,9 @@
     ccs: "ccs [profile] -p --output-format stream-json",
     pi: "pi --mode json",
     omp: "omp --mode json",
+    cursor: "cursor-agent -p --output-format stream-json",
   };
-  // Official npm packages. OpenCompanion never runs these itself (PRD FR-03).
+  // Official install commands. OpenCompanion never runs these itself (PRD FR-03).
   const INSTALL: Record<CliKind, string> = {
     claude: "npm install -g @anthropic-ai/claude-code",
     codex: "npm install -g @openai/codex",
@@ -33,6 +35,8 @@
     pi: "npm install -g --ignore-scripts @earendil-works/pi-coding-agent",
     // omp runs on Bun, not Node.
     omp: "bun install -g @oh-my-pi/pi-coding-agent",
+    // Cursor ships its own installer script instead of an npm package.
+    cursor: currentPlatform() === "windows" ? "irm 'https://cursor.com/install?win32=true' | iex" : "curl https://cursor.com/install -fsS | bash",
   };
 
   let configOpen = $state(false);

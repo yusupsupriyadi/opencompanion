@@ -1,7 +1,7 @@
 //! Models and thinking levels for the chat planner. Each CLI names them its own way: Claude
 //! Code takes an alias plus `--effort`, Codex a catalog slug plus `model_reasoning_effort`,
-//! OpenCode `provider/model` plus a per-model `--variant`, and Pi and omp `provider/model` plus
-//! `--thinking`.
+//! OpenCode `provider/model` plus a per-model `--variant`, Pi and omp `provider/model` plus
+//! `--thinking`, and Cursor CLI a model id that holds its thinking level.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -280,6 +280,7 @@ pub fn list(cli: &CliInstall, work_dir: &Path, extra: &[String]) -> Result<Model
             let text = output_when(kind, exe, work_dir, &["models", "--json"], crate::pi::omp_models_complete)?;
             Ok(crate::pi::parse_omp_models(&text))
         }
+        CliKind::Cursor => Ok(crate::cursor::parse_models(&output(kind, exe, work_dir, &["--list-models"])?)),
     }
 }
 
@@ -299,12 +300,14 @@ pub fn args(kind: CliKind, model: &str, effort: &str) -> Vec<String> {
         CliKind::Opencode => ("-m", "--variant"),
         CliKind::Gemini => return vec![],
         CliKind::Pi | CliKind::Omp => ("--model", "--thinking"),
+        // The thinking level is part of a Cursor model id, such as `sonnet-4-thinking`.
+        CliKind::Cursor => ("--model", ""),
     };
     let mut out = Vec::new();
     if let Some(m) = model {
         out.extend([model_flag.to_string(), m.to_string()]);
     }
-    if let Some(e) = effort {
+    if let Some(e) = effort.filter(|_| !effort_flag.is_empty()) {
         // Codex reads a `-c` value that is not valid TOML as a plain string, so no quotes.
         let value = if kind == CliKind::Codex { format!("model_reasoning_effort={e}") } else { e.to_string() };
         out.extend([effort_flag.to_string(), value]);
@@ -397,6 +400,7 @@ mod tests {
         assert_eq!(args(CliKind::Gemini, "gemini-pro", "high"), Vec::<String>::new());
         assert_eq!(args(CliKind::Pi, "anthropic/claude-sonnet-4-5", "high"), ["--model", "anthropic/claude-sonnet-4-5", "--thinking", "high"]);
         assert_eq!(args(CliKind::Omp, "amazon-bedrock/anthropic.claude-opus-4-6-v1", "max"), ["--model", "amazon-bedrock/anthropic.claude-opus-4-6-v1", "--thinking", "max"]);
+        assert_eq!(args(CliKind::Cursor, "sonnet-4-thinking", "high"), ["--model", "sonnet-4-thinking"]);
     }
 
     #[test]

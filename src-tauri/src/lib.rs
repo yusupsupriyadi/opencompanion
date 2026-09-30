@@ -4,6 +4,7 @@ pub mod autostart;
 pub mod ccs;
 pub mod cli;
 pub mod companion;
+pub mod cursor;
 pub mod db;
 pub mod events;
 pub mod files;

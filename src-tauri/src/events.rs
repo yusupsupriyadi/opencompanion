@@ -39,6 +39,7 @@ pub fn parse_line(kind: CliKind, line: &str) -> Vec<SessionEvent> {
         CliKind::Opencode => opencode(&v),
         CliKind::Gemini => None,
         CliKind::Pi | CliKind::Omp => crate::pi::events(&v),
+        CliKind::Cursor => crate::cursor::events(&v),
     };
     events.unwrap_or_else(|| vec![SessionEvent::Raw { line: line.to_string() }])
 }
@@ -47,7 +48,7 @@ pub fn parse_line(kind: CliKind, line: &str) -> Vec<SessionEvent> {
 pub fn cli_session_id(kind: CliKind, line: &str) -> Option<String> {
     let v: Value = serde_json::from_str(line.trim()).ok()?;
     let id = match kind {
-        CliKind::Claude | CliKind::Ccs => v["session_id"].as_str(),
+        CliKind::Claude | CliKind::Ccs | CliKind::Cursor => v["session_id"].as_str(),
         CliKind::Codex if v["type"] == "thread.started" => v["thread_id"].as_str(),
         CliKind::Opencode => v["sessionID"].as_str(),
         CliKind::Pi | CliKind::Omp => crate::pi::cli_session_id(&v),

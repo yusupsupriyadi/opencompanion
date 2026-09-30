@@ -35,12 +35,12 @@ Each one is described in full in [docs/features.md](docs/features.md).
 
 ## Supported CLIs
 
-| | Claude Code | Codex CLI | OpenCode | Gemini CLI | CCS | Pi | omp |
-|---|---|---|---|---|---|---|---|
-| Terminal session | Yes | Yes | Yes | Untested | Yes | Yes | Yes |
-| Headless session | Yes | Yes | Yes | No | Some profiles | Yes | Yes |
-| Approve/Deny here and on the phone | Yes | No | No | No | Yes | No | No |
-| Chat planner | Yes | Yes | Yes | No | Some profiles | Yes | Yes |
+| | Claude Code | Codex CLI | OpenCode | Gemini CLI | CCS | Pi | omp | Cursor CLI |
+|---|---|---|---|---|---|---|---|---|
+| Terminal session | Yes | Yes | Yes | Untested | Yes | Yes | Yes | Untested |
+| Headless session | Yes | Yes | Yes | No | Some profiles | Yes | Yes | Untested |
+| Approve/Deny here and on the phone | Yes | No | No | No | Yes | No | No | No |
+| Chat planner | Yes | Yes | Yes | No | Some profiles | Yes | Yes | Untested |
 
 OpenCompanion finds each CLI on your PATH and never installs one. [docs/clis.md](docs/clis.md) has the tested versions, the reason behind each "No" and the flags each permission mode sets.
 
@@ -84,4 +84,4 @@ Bug reports, fixes and ideas are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md
 
 [MIT](LICENSE) © 2026 Yusup Supriyadi.
 
-Claude Code, Codex CLI, OpenCode, Gemini CLI, CCS, Pi and omp are products of their respective owners. OpenCompanion is an independent project and is not affiliated with or endorsed by them.
+Claude Code, Codex CLI, OpenCode, Gemini CLI, CCS, Pi, omp and Cursor CLI are products of their respective owners. OpenCompanion is an independent project and is not affiliated with or endorsed by them.

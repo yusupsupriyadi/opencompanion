@@ -60,8 +60,18 @@ pub fn classify(name: &str, args: &[String]) -> Option<CliKind> {
         if joined.contains("/pi-coding-agent/") || joined.contains("/.pi/agent/bin/pi-launcher.js") {
             return Some(CliKind::Pi);
         }
+        // Cursor's launchers start its own node on `.../cursor-agent/versions/<build>/index.js`;
+        // the workers it starts from that folder run other scripts.
+        if args.iter().any(|a| cursor_script(a)) {
+            return Some(CliKind::Cursor);
+        }
     }
     None
+}
+
+fn cursor_script(arg: &str) -> bool {
+    let a = arg.replace('\\', "/").to_ascii_lowercase();
+    a.contains("/cursor-agent/versions/") && a.ends_with("/index.js")
 }
 
 /// Reads only the flags that decide the mode. The full command line is never stored: it can hold
@@ -72,10 +82,12 @@ pub fn run_mode(kind: CliKind, args: &[String]) -> RunMode {
     let first = args
         .iter()
         .skip(1)
-        .find(|a| !a.starts_with('-'))
+        .find(|a| !a.starts_with('-') && !cursor_script(a))
         .map(String::as_str);
     match kind {
-        CliKind::Claude | CliKind::Ccs | CliKind::Gemini if has("-p") || has("--print") => RunMode::Headless,
+        CliKind::Claude | CliKind::Ccs | CliKind::Gemini | CliKind::Cursor if has("-p") || has("--print") => RunMode::Headless,
+        // A self-hosted Cloud Agent worker waits for work from Cursor's servers.
+        CliKind::Cursor if first == Some("worker") => RunMode::Server,
         CliKind::Codex if matches!(first, Some("exec") | Some("e")) => RunMode::Headless,
         CliKind::Codex if matches!(first, Some("app-server") | Some("mcp-server")) => {
             RunMode::Server
@@ -383,6 +395,17 @@ mod tests {
         assert_eq!(run_mode(CliKind::Omp, &args(&["omp", "acp"])), RunMode::Server);
         assert_eq!(run_mode(CliKind::Omp, &args(&["omp", "--mode", "rpc-ui"])), RunMode::Server);
         assert_eq!(run_mode(CliKind::Omp, &args(&["omp", "--approval-mode", "write"])), RunMode::Interactive);
+        let dir = r"C:\Users\me\AppData\Local\cursor-agent\versions\2026.09.28-64d2043";
+        let (node, index) = (format!(r"{dir}\node.exe"), format!(r"{dir}\index.js"));
+        let cursor = args(&[&node, &index, "-p", "--output-format", "stream-json"]);
+        assert_eq!(classify("node.exe", &cursor), Some(CliKind::Cursor));
+        assert_eq!(run_mode(CliKind::Cursor, &cursor), RunMode::Headless);
+        assert_eq!(run_mode(CliKind::Cursor, &args(&[&node, &index, "worker"])), RunMode::Server);
+        let unix = args(&["node", "/home/me/.local/share/cursor-agent/versions/2026.09.28-64d2043/index.js", "--resume", "c1"]);
+        assert_eq!(classify("node", &unix), Some(CliKind::Cursor));
+        assert_eq!(run_mode(CliKind::Cursor, &unix), RunMode::Interactive);
+        assert_eq!(classify("node.exe", &args(&[&node, &format!(r"{dir}\diff-worker.js")])), None);
+        assert_eq!(classify("cursor-agent", &[]), Some(CliKind::Cursor));
     }
 
     /// Regression: the app's own `opencode --version` probe was listed as an outside session.

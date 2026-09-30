@@ -153,15 +153,19 @@ impl Drop for Spawning<'_> {
     }
 }
 
-/// The Pi or omp session an interactive session wrote, found by folder and start time: neither
-/// reports its session id in a terminal.
-fn pi_session(info: &SessionInfo) -> Option<String> {
-    if !info.cli.runs_pi() {
+/// The Pi, omp or Cursor session an interactive session wrote, found by folder and start time:
+/// none of them reports its session id in a terminal.
+fn session_on_disk(info: &SessionInfo) -> Option<String> {
+    if !info.cli.runs_pi() && info.cli != CliKind::Cursor {
         return None;
     }
     let since = std::time::UNIX_EPOCH + Duration::from_millis(u64::try_from(info.started_at).ok()?);
     let home = crate::projects::home()?;
-    crate::pi::session_id(&crate::pi::newest_session(info.cli, &home, Path::new(&info.cwd), since)?)
+    let cwd = Path::new(&info.cwd);
+    if info.cli == CliKind::Cursor {
+        return crate::cursor::session_id(&crate::cursor::newest_transcript(&home, cwd, since)?);
+    }
+    crate::pi::session_id(&crate::pi::newest_session(info.cli, &home, cwd, since)?)
 }
 
 fn title_for(kind: CliKind, cwd: &str, prompt: &str) -> String {
@@ -1210,6 +1214,7 @@ impl Manager {
             }
             Stream::Stderr if kind == CliKind::Opencode => events::opencode_stderr(line).into_iter().collect(),
             Stream::Stderr if kind.runs_pi() => crate::pi::stderr_event(line).into_iter().collect(),
+            Stream::Stderr if kind == CliKind::Cursor => crate::cursor::stderr_event(line).into_iter().collect(),
             Stream::Stderr => vec![],
         };
 
@@ -1445,7 +1450,7 @@ impl Manager {
                 let live = self.register(info.clone(), self.hooks(info.cli));
                 live.stop_requested.store(false, Ordering::SeqCst);
                 live.done_requested.store(false, Ordering::SeqCst);
-                let resume = info.cli_session_id.clone().or_else(|| pi_session(&info));
+                let resume = info.cli_session_id.clone().or_else(|| session_on_disk(&info));
                 if resume != info.cli_session_id {
                     self.update(&live, |i| i.cli_session_id = resume.clone());
                 }

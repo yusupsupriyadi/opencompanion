@@ -486,7 +486,9 @@ pub fn run(kind: CliKind, exe: &Path, work_dir: &Path, extra: &[String], input: 
         return Err(format!("CCS can plan in Chat only with its default profile or an account profile, not {profile}."));
     }
     fs::create_dir_all(work_dir).map_err(|e| e.to_string())?;
-    let can_read = !input.read_dirs.is_empty();
+    // Cursor's print mode has to be told to trust its folder, and it remembers that for good, so
+    // it plans from the folder list in its own empty folder rather than in a project root.
+    let can_read = !input.read_dirs.is_empty() && kind != CliKind::Cursor;
     let prompt = prompt_text(input);
     let system = if can_read { format!("{SYSTEM}\n{READ_HINT}") } else { SYSTEM.to_string() };
     let schema = schema().to_string();
@@ -553,6 +555,12 @@ pub fn run(kind: CliKind, exe: &Path, work_dir: &Path, extra: &[String], input: 
             cmd.args(extra);
             prompt
         }
+        // Ask mode is Cursor's read-only one. The prompt goes in on stdin.
+        CliKind::Cursor => {
+            cmd.args(["-p", "--output-format", "json", "--mode", "ask", "--trust"]);
+            cmd.args(extra);
+            format!("{}\n\n{prompt}", json_only(&system, &schema))
+        }
     };
 
     let out = proc::run_with_input(cmd, (!stdin.is_empty()).then_some(stdin.as_str()), PLAN_TIMEOUT)
@@ -598,6 +606,10 @@ pub fn run(kind: CliKind, exe: &Path, work_dir: &Path, extra: &[String], input: 
             Some(text) => Ok(plan_from_text(&text, input)),
             // Stdout starts with the session header, which says nothing to the user.
             None => Err(crate::pi::stderr_reason(&out.stderr).unwrap_or_else(|| format!("{} returned no answer.", kind.label()))),
+        },
+        CliKind::Cursor => match crate::cursor::final_answer(&out.stdout)? {
+            Some(text) => Ok(plan_from_text(&text, input)),
+            None => Err(crate::cursor::stderr_reason(&out.stderr).unwrap_or_else(|| first_line_or(&out.stderr, &out.stdout, "Cursor CLI returned no answer."))),
         },
         _ => {
             let text: String = out

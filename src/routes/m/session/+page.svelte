@@ -155,6 +155,7 @@
     if (s.mode === "headless" && s.cli === "opencode") return t("sessions.detail.signalOpenCode");
     if (s.cli === "pi") return t("sessions.detail.signalPi");
     if (s.cli === "omp") return t("sessions.detail.signalOmp");
+    if (s.cli === "cursor") return t("sessions.detail.signalCursor");
     return SIGNAL_TEXT.screen;
   });
 

@@ -1218,6 +1218,7 @@
               {:else if s.mode === "headless" && s.cli === "opencode"}{t("sessions.detail.signalOpenCode")}
               {:else if s.cli === "pi"}{t("sessions.detail.signalPi")}
               {:else if s.cli === "omp"}{t("sessions.detail.signalOmp")}
+              {:else if s.cli === "cursor"}{t("sessions.detail.signalCursor")}
               {:else}{SIGNAL_TEXT.screen}{/if}
             </p>
           </div>
