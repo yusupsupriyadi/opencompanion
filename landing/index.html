@@ -39,6 +39,7 @@
       --term-text: #EDE6C4;
       --term-dim: #A9B38F;
       --term-green: #A6CF6A;
+      --term-yellow: #F0C23A;
       --glass: #FFFAE6D1;
       --glass-2: #F4E7B0E6;
       --glass-bg: #FBF3CFD9;
@@ -750,10 +751,12 @@
       background: url(assets/meadow-ground.webp) center 70% / cover no-repeat, url(assets/meadow-clouds.webp) center 70% / cover no-repeat, url(assets/meadow-sky.webp) center 70% / cover no-repeat, #2c7cd6;
     }
 
+    /* A fixed height, so moving between the demo's screens never makes the page jump. */
     .app-ui {
       display: grid;
       grid-template-columns: 228px minmax(0, 1fr);
       gap: 12px;
+      height: 640px;
       padding: 12px;
     }
 
@@ -792,13 +795,24 @@
       gap: 2px;
     }
 
-    .a-nav span {
+    .a-nav button {
       display: flex;
       align-items: center;
       gap: 10px;
+      width: 100%;
       padding: 8px 10px;
+      border: 0;
       border-radius: 8px;
+      background: transparent;
       color: var(--ink-2);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: background-color 120ms ease-out;
+    }
+
+    .a-nav button:hover {
+      background: var(--glass-2);
     }
 
     .a-nav .ic {
@@ -806,13 +820,13 @@
       height: 18px;
     }
 
-    .a-nav .on {
+    .a-nav [aria-current] {
       background: var(--glass-2);
       color: var(--ink);
       font-weight: 700;
     }
 
-    .a-nav .on .ic {
+    .a-nav [aria-current] .ic {
       color: var(--forest);
     }
 
@@ -857,9 +871,28 @@
       display: flex;
       align-items: center;
       gap: 8px;
+      width: 100%;
       padding: 7px 10px 7px 24px;
-      font-size: 13px;
-      font-weight: 700;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--ink);
+      font: 700 13px/1.4 var(--font-ui);
+      text-align: left;
+      cursor: pointer;
+      transition: background-color 120ms ease-out;
+    }
+
+    .a-item:hover,
+    .a-item[aria-current] {
+      background: var(--surface);
+    }
+
+    .a-item .wait-mark {
+      width: 14px;
+      height: 14px;
+      margin-left: auto;
+      color: var(--accent);
     }
 
     .a-item svg {
@@ -886,6 +919,21 @@
       flex-direction: column;
       gap: 12px;
       min-width: 0;
+      min-height: 0;
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+
+    .a-side {
+      min-height: 0;
+      overflow: auto;
+    }
+
+    .a-note {
+      margin-top: auto;
+      padding: 0 10px;
+      font-size: 12px;
+      color: var(--ink-2);
     }
 
     .a-head {
@@ -1121,6 +1169,825 @@
 
       .acts .sp {
         display: none;
+      }
+    }
+
+    /* ---------- The demo's screens (DESIGN.md D2, D3, D4, D7, D14), drawn with the same parts ---------- */
+    /* Screens grow with their content and scroll inside the demo; Chat and Session fit it exactly and scroll within. */
+    .a-screen {
+      flex: 1 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .a-screen.chat,
+    .a-screen.session {
+      flex: 1 1 0;
+      min-height: 0;
+    }
+
+    button.mb {
+      color: var(--ink);
+      cursor: pointer;
+      transition: filter 120ms ease-out, background-color 120ms ease-out;
+    }
+
+    button.mb.primary {
+      color: var(--on-forest);
+    }
+
+    button.mb.accent {
+      color: var(--on-accent);
+    }
+
+    button.mb:hover {
+      filter: brightness(1.08);
+    }
+
+    button.mb.secondary:hover {
+      background: var(--glass-2);
+      filter: none;
+    }
+
+    button.srow {
+      width: 100%;
+      border: 0;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: background-color 120ms ease-out;
+    }
+
+    button.srow:hover {
+      background: var(--glass-2);
+    }
+
+    .resolved {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px 12px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      font-weight: 700;
+    }
+
+    .resolved>.ic {
+      width: 20px;
+      height: 20px;
+      color: var(--forest);
+    }
+
+    .resolved .mb {
+      margin-left: auto;
+    }
+
+    /* Below 1024px the sidebar gives way to a row of tabs. */
+    .a-tabs {
+      display: none;
+      flex: none;
+      gap: 2px;
+      padding: 4px;
+      overflow-x: auto;
+    }
+
+    .a-tabs button {
+      flex: 1 1 auto;
+      min-height: 40px;
+      padding: 0 8px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--ink-2);
+      font: 700 13px var(--font-ui);
+      cursor: pointer;
+    }
+
+    .a-tabs [aria-current] {
+      background: var(--surface);
+      color: var(--ink);
+      box-shadow: var(--glass-rim);
+    }
+
+    /* Chat */
+    .chat {
+      gap: 10px;
+    }
+
+    .thread {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: auto;
+      padding: 4px 4px 8px;
+    }
+
+    .me {
+      align-self: flex-end;
+      max-width: min(460px, 85%);
+      padding: 10px 14px;
+      border-radius: 14px 14px 4px 14px;
+      background: var(--glass-2);
+      box-shadow: var(--glass-rim);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .planner {
+      max-width: 620px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      background: var(--glass-bg);
+    }
+
+    .planner p {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .who {
+      display: block;
+      margin-bottom: 2px;
+      font: 400 12px var(--font-pixel);
+      color: var(--ink-2);
+    }
+
+    .dcard {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px;
+      border: 1px solid var(--line);
+    }
+
+    .dc-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .dc-top .grow {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .dc-top b {
+      display: block;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .dc-top .path {
+      display: block;
+      font-size: 12px;
+      color: var(--ink-2);
+    }
+
+    .dc-top .path .mono {
+      font-size: 12px;
+    }
+
+    .dcard .when {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 2px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .dcard .when .ic {
+      width: 14px;
+      height: 14px;
+    }
+
+    .dc-prompt {
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: var(--glass-bg);
+      font: 400 13px/1.45 var(--font-mono);
+    }
+
+    .dc-acts,
+    .dc-started {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 10px;
+    }
+
+    .composer {
+      flex: none;
+      padding: 12px 12px 10px 14px;
+      border-radius: 10px;
+      background: var(--glass);
+      border: 1px solid var(--line-strong);
+      box-shadow: var(--glass-rim);
+      -webkit-backdrop-filter: var(--glass-blur);
+      backdrop-filter: var(--glass-blur);
+    }
+
+    /* The ring moves to the whole composer, so the textarea itself needs none. */
+    .composer:focus-within {
+      outline: 2px solid var(--forest);
+      outline-offset: 2px;
+    }
+
+    .composer textarea {
+      display: block;
+      width: 100%;
+      padding: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--ink);
+      font: 600 14px/1.45 var(--font-ui);
+      resize: none;
+    }
+
+    .composer textarea::placeholder {
+      color: var(--ink-2);
+      opacity: 1;
+    }
+
+    .c-row {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .send {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-radius: 8px;
+      background: var(--forest);
+      color: var(--on-forest);
+      cursor: pointer;
+    }
+
+    /* Automations */
+    .arow {
+      display: grid;
+      grid-template-columns: 30px minmax(0, 1fr) auto auto;
+      gap: 14px;
+      align-items: center;
+      padding: 14px 16px;
+    }
+
+    .arow .next {
+      display: block;
+      margin-top: 2px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .arow .never {
+      font-size: 13px;
+      color: var(--ink-2);
+      white-space: nowrap;
+    }
+
+    .a-hint {
+      padding: 12px 16px;
+      font-size: 13px;
+    }
+
+    /* The only pill in the app is the switch (DESIGN.md section 4). Its hit area reaches 44px. */
+    .switch {
+      position: relative;
+      flex: none;
+      width: 44px;
+      height: 26px;
+      padding: 3px;
+      border: 1px solid var(--line-strong);
+      border-radius: 13px;
+      background: var(--glass-bg);
+      cursor: pointer;
+      transition: background-color 120ms ease-out, border-color 120ms ease-out;
+    }
+
+    .switch::before {
+      content: "";
+      position: absolute;
+      inset: -9px -2px;
+    }
+
+    .switch::after {
+      content: "";
+      display: block;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--ink-2);
+      transition: transform 120ms ease-out, background-color 120ms ease-out;
+    }
+
+    .switch[aria-checked="true"] {
+      border-color: var(--forest);
+      background: var(--forest);
+    }
+
+    .switch[aria-checked="true"]::after {
+      background: var(--on-forest);
+      transform: translateX(18px);
+    }
+
+    /* Settings: its own sidebar takes the app's place, as in the app */
+    .app.in-settings .app-ui {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .app.in-settings #demo-side {
+      display: none;
+    }
+
+    .settings {
+      flex-direction: row;
+    }
+
+    .s-side {
+      flex: none;
+      width: 216px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 14px 10px;
+      border-radius: 14px;
+    }
+
+    .s-side button {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 36px;
+      padding: 0 10px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--ink-2);
+      font: 600 14px var(--font-ui);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .s-side button:hover,
+    .s-side [aria-current] {
+      background: var(--glass-2);
+    }
+
+    .s-side [aria-current] {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .s-side [aria-current] .ic {
+      color: var(--forest);
+    }
+
+    .s-side .ic {
+      width: 18px;
+      height: 18px;
+    }
+
+    .s-side .s-back {
+      margin-bottom: 6px;
+    }
+
+    .s-group {
+      padding: 10px 10px 2px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink-2);
+    }
+
+    .s-body,
+    .s-pane {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .s-card {
+      display: grid;
+      gap: 16px;
+      padding: 20px;
+      border-radius: 14px;
+    }
+
+    .s-top {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+
+    .s-top .grow,
+    .dev .grow {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .s-top b {
+      display: block;
+      font-size: 17px;
+      font-weight: 800;
+    }
+
+    .s-on {
+      display: grid;
+      gap: 14px;
+    }
+
+    .pair {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .qr {
+      width: 124px;
+      height: 124px;
+      display: grid;
+      place-items: center;
+      align-content: center;
+      gap: 6px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #FFFFFF;
+      color: var(--ink-2);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .qr .ic {
+      width: 48px;
+      height: 48px;
+      color: var(--ink);
+    }
+
+    .pair-text {
+      display: grid;
+      gap: 2px;
+    }
+
+    .code {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .box {
+      display: block;
+      margin-top: 4px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--glass-bg);
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+    .warn {
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: var(--glass-2);
+      font-size: 13px;
+    }
+
+    .devices b {
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .dev,
+    .s-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .dev {
+      margin-top: 8px;
+    }
+
+    .dev .ic {
+      width: 20px;
+      height: 20px;
+      color: var(--ink-2);
+    }
+
+    .s-list {
+      gap: 0;
+      padding-block: 8px;
+    }
+
+    .s-list .s-row:first-child {
+      border-top: 0;
+    }
+
+    .s-row .ver {
+      font-size: 12px;
+      color: var(--ink-2);
+    }
+
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 32px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .check input {
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      accent-color: var(--forest);
+    }
+
+    /* Session: the terminal, and the tabbed panel beside it (D4) */
+    .session {
+      flex-direction: row;
+    }
+
+    .w-main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .views-bar {
+      display: flex;
+    }
+
+    .wtab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 38px;
+      padding: 6px 14px 6px 12px;
+      border-radius: 8px 8px 0 0;
+      background: var(--term-bg);
+      color: var(--term-text);
+      white-space: nowrap;
+    }
+
+    .wtab b {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .wtab small {
+      font-size: 12px;
+      color: var(--term-dim);
+    }
+
+    .w-term {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      border-radius: 0 10px 10px 10px;
+      background: var(--term-bg);
+      color: var(--term-text);
+      font: 400 13px/1.5 var(--font-mono);
+      overflow: hidden;
+    }
+
+    .pane-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: none;
+      min-height: 36px;
+      padding: 4px 14px;
+      border-bottom: 1px solid #EDE6C433;
+      box-shadow: inset 0 -2px 0 var(--term-green);
+      font-family: var(--font-ui);
+    }
+
+    .pane-head b {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .pane-head small {
+      font-size: 12px;
+      color: var(--term-dim);
+    }
+
+    .pane-out {
+      flex: 1;
+      margin: 0;
+      padding: 12px 14px;
+      font: inherit;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      overflow: auto;
+    }
+
+    .pane-out>span {
+      display: block;
+      min-height: 1.5em;
+    }
+
+    .t-g {
+      color: var(--term-green);
+    }
+
+    .t-d {
+      color: var(--term-dim);
+    }
+
+    .t-y {
+      color: var(--term-yellow);
+    }
+
+    .w-side {
+      flex: none;
+      width: 280px;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 10px;
+      border-radius: 14px;
+      overflow: auto;
+    }
+
+    .side-tabs {
+      display: flex;
+      gap: 2px;
+      padding: 3px;
+      border-radius: 8px;
+      background: var(--glass-2);
+      box-shadow: var(--glass-rim);
+    }
+
+    .side-tab {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      min-height: 48px;
+      padding: 5px 2px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--ink-2);
+      font: 700 12px var(--font-ui);
+      cursor: pointer;
+    }
+
+    .side-tab .ic {
+      width: 18px;
+      height: 18px;
+    }
+
+    .side-tab[aria-selected="true"] {
+      background: var(--surface);
+      color: var(--ink);
+      box-shadow: var(--glass-rim);
+    }
+
+    .side-tab[aria-selected="true"] .ic {
+      color: var(--forest);
+    }
+
+    .side-pane {
+      display: grid;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .side-pane .head {
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .change,
+    .tree-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      font: 400 12px/18px var(--font-mono);
+    }
+
+    .change .code-l {
+      flex: none;
+      width: 1.5ch;
+      font-weight: 600;
+    }
+
+    .change .grow {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .change .name {
+      font-weight: 600;
+    }
+
+    .change .dir,
+    .change .counts {
+      color: var(--ink-2);
+    }
+
+    .tree-row .ic {
+      width: 16px;
+      height: 16px;
+      color: var(--ink-2);
+    }
+
+    .tree-row .code-l {
+      margin-left: auto;
+      font-weight: 600;
+    }
+
+    .details {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 6px 12px;
+      margin: 0;
+    }
+
+    .details dt {
+      color: var(--ink-2);
+    }
+
+    .details dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 1023px) {
+      .a-tabs {
+        display: flex;
+      }
+    }
+
+    @media (max-width: 719px) {
+      .arow {
+        grid-template-columns: 30px minmax(0, 1fr) auto;
+      }
+
+      .arow>.chip,
+      .arow>.never {
+        grid-column: 2;
+        grid-row: 2;
+        justify-self: start;
+      }
+
+      .arow>.switch {
+        grid-column: 3;
+        grid-row: 1;
+      }
+
+      .settings,
+      .session {
+        flex-direction: column;
+      }
+
+      .s-side {
+        width: auto;
+        flex-direction: row;
+        flex-wrap: wrap;
+      }
+
+      .s-group {
+        display: none;
+      }
+
+      .w-main {
+        flex: none;
+        height: 300px;
+      }
+
+      .w-side {
+        width: auto;
+        overflow: visible;
+      }
+
+      .a-screen.session {
+        flex: 1 0 auto;
       }
     }
 
@@ -2208,10 +3075,6 @@
       <path
         d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z" />
     </symbol>
-    <symbol id="i-plus" viewBox="0 0 256 256">
-      <path
-        d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z" />
-    </symbol>
     <symbol id="i-star" viewBox="0 0 256 256">
       <path
         d="M239.18,97.26A16.38,16.38,0,0,0,224.92,86l-59-4.76L143.14,26.15a16.36,16.36,0,0,0-30.27,0L90.11,81.23,31.08,86a16.46,16.46,0,0,0-9.37,28.86l45,38.83L53,211.75a16.38,16.38,0,0,0,24.5,17.82L128,198.49l50.53,31.08A16.4,16.4,0,0,0,203,211.75l-13.76-58.07,45-38.83A16.43,16.43,0,0,0,239.18,97.26Zm-15.34,5.47-48.7,42a8,8,0,0,0-2.56,7.91l14.88,62.8a.37.37,0,0,1-.17.48c-.18.14-.23.11-.38,0l-54.72-33.65a8,8,0,0,0-8.38,0L69.09,215.94c-.15.09-.19.12-.38,0a.37.37,0,0,1-.17-.48l14.88-62.8a8,8,0,0,0-2.56-7.91l-48.7-42c-.12-.1-.23-.19-.13-.5s.18-.27.33-.29l63.92-5.16A8,8,0,0,0,103,91.86l24.62-59.61c.08-.17.11-.25.35-.25s.27.08.35.25L153,91.86a8,8,0,0,0,6.75,4.92l63.92,5.16c.15,0,.24,0,.33.29S224,102.63,223.84,102.73Z" />
@@ -2266,6 +3129,17 @@
       <path
         d="M96,104a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H104A8,8,0,0,1,96,104Zm8,40h64a8,8,0,0,0,0-16H104a8,8,0,0,0,0,16Zm128,48a32,32,0,0,1-32,32H88a32,32,0,0,1-32-32V64a16,16,0,0,0-32,0c0,5.74,4.83,9.62,4.88,9.66h0A8,8,0,0,1,24,88a7.89,7.89,0,0,1-4.79-1.61h0C18.05,85.54,8,77.61,8,64A32,32,0,0,1,40,32H176a32,32,0,0,1,32,32V168h8a8,8,0,0,1,4.8,1.6C222,170.46,232,178.39,232,192ZM96.26,173.48A8.07,8.07,0,0,1,104,168h88V64a16,16,0,0,0-16-16H67.69A31.71,31.71,0,0,1,72,64V192a16,16,0,0,0,32,0c0-5.74-4.83-9.62-4.88-9.66A7.82,7.82,0,0,1,96.26,173.48ZM216,192a12.58,12.58,0,0,0-3.23-8h-94a26.92,26.92,0,0,1,1.21,8,31.82,31.82,0,0,1-4.29,16H200A16,16,0,0,0,216,192Z" />
     </symbol>
+    <symbol id="i-send" viewBox="0 0 256 256"><path d="M227.32,28.68a16,16,0,0,0-15.66-4.08l-.15,0L19.57,82.84a16,16,0,0,0-2.49,29.8L102,154l41.3,84.87A15.86,15.86,0,0,0,157.74,248q.69,0,1.38-.06a15.88,15.88,0,0,0,14-11.51l58.2-191.94c0-.05,0-.1,0-.15A16,16,0,0,0,227.32,28.68ZM157.83,231.85l-.05.14,0-.07-40.06-82.3,48-48a8,8,0,0,0-11.31-11.31l-48,48L24.08,98.25l-.07,0,.14,0L216,40Z" /></symbol>
+    <symbol id="i-hand" viewBox="0 0 256 256"><path d="M188,88a27.75,27.75,0,0,0-12,2.71V60a28,28,0,0,0-41.36-24.6A28,28,0,0,0,80,44v6.71A27.75,27.75,0,0,0,68,48,28,28,0,0,0,40,76v76a88,88,0,0,0,176,0V116A28,28,0,0,0,188,88Zm12,64a72,72,0,0,1-144,0V76a12,12,0,0,1,24,0v44a8,8,0,0,0,16,0V44a12,12,0,0,1,24,0v68a8,8,0,0,0,16,0V60a12,12,0,0,1,24,0v68.67A48.08,48.08,0,0,0,120,176a8,8,0,0,0,16,0,32,32,0,0,1,32-32,8,8,0,0,0,8-8V116a12,12,0,0,1,24,0Z" /></symbol>
+    <symbol id="i-check-circle" viewBox="0 0 256 256"><path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z" /></symbol>
+    <symbol id="i-files" viewBox="0 0 256 256"><path d="M213.66,66.34l-40-40A8,8,0,0,0,168,24H88A16,16,0,0,0,72,40V56H56A16,16,0,0,0,40,72V216a16,16,0,0,0,16,16H168a16,16,0,0,0,16-16V200h16a16,16,0,0,0,16-16V72A8,8,0,0,0,213.66,66.34ZM168,216H56V72h76.69L168,107.31v84.53c0,.06,0,.11,0,.16s0,.1,0,.16V216Zm32-32H184V104a8,8,0,0,0-2.34-5.66l-40-40A8,8,0,0,0,136,56H88V40h76.69L200,75.31Zm-56-32a8,8,0,0,1-8,8H88a8,8,0,0,1,0-16h48A8,8,0,0,1,144,152Zm0,32a8,8,0,0,1-8,8H88a8,8,0,0,1,0-16h48A8,8,0,0,1,144,184Z" /></symbol>
+    <symbol id="i-gitdiff" viewBox="0 0 256 256"><path d="M112,152a8,8,0,0,0-8,8v28.69L66.34,151A8,8,0,0,1,64,145.37V95a32,32,0,1,0-16,0v50.38a23.85,23.85,0,0,0,7,17L92.69,200H64a8,8,0,0,0,0,16h48a8,8,0,0,0,8-8V160A8,8,0,0,0,112,152ZM40,64A16,16,0,1,1,56,80,16,16,0,0,1,40,64Zm168,97V110.63a23.85,23.85,0,0,0-7-17L163.31,56H192a8,8,0,0,0,0-16H144a8,8,0,0,0-8,8V96a8,8,0,0,0,16,0V67.31L189.66,105a8,8,0,0,1,2.34,5.66V161a32,32,0,1,0,16,0Zm-8,47a16,16,0,1,1,16-16A16,16,0,0,1,200,208Z" /></symbol>
+    <symbol id="i-info" viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm16-40a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176ZM112,84a12,12,0,1,1,12,12A12,12,0,0,1,112,84Z" /></symbol>
+    <symbol id="i-back" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H59.31l58.35,58.34a8,8,0,0,1-11.32,11.32l-72-72a8,8,0,0,1,0-11.32l72-72a8,8,0,0,1,11.32,11.32L59.31,120H216A8,8,0,0,1,224,128Z" /></symbol>
+    <symbol id="i-phone" viewBox="0 0 256 256"><path d="M176,16H80A24,24,0,0,0,56,40V216a24,24,0,0,0,24,24h96a24,24,0,0,0,24-24V40A24,24,0,0,0,176,16ZM72,64H184V192H72Zm8-32h96a8,8,0,0,1,8,8v8H72V40A8,8,0,0,1,80,32Zm96,192H80a8,8,0,0,1-8-8v-8H184v8A8,8,0,0,1,176,224Z" /></symbol>
+    <symbol id="i-bell" viewBox="0 0 256 256"><path d="M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216ZM48,184c7.7-13.24,16-43.92,16-80a64,64,0,1,1,128,0c0,36.05,8.28,66.73,16,80Z" /></symbol>
+    <symbol id="i-qr" viewBox="0 0 256 256"><path d="M104,40H56A16,16,0,0,0,40,56v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,104,40Zm0,64H56V56h48v48Zm0,32H56a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,104,136Zm0,64H56V152h48v48ZM200,40H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm0,64H152V56h48v48Zm-64,72V144a8,8,0,0,1,16,0v32a8,8,0,0,1-16,0Zm80-16a8,8,0,0,1-8,8H184v40a8,8,0,0,1-8,8H144a8,8,0,0,1,0-16h24V144a8,8,0,0,1,16,0v8h24A8,8,0,0,1,216,160Zm0,32v16a8,8,0,0,1-16,0V192a8,8,0,0,1,16,0Z" /></symbol>
+    <symbol id="i-file" viewBox="0 0 256 256"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Z" /></symbol>
   </svg>
 
   <header class="nav" id="site-nav">
@@ -2342,109 +3216,208 @@
     </section>
 
     <figure class="wrap shot" id="overview-shot">
-      <div class="app" role="img"
-        aria-label="The Overview screen with example sessions. Claude Code in uninote wants to run npm install and waits for Approve or Deny. Codex CLI is running in ai-remote. An OpenCode session opened outside OpenCompanion is listed read-only.">
+      <!-- A working demo of the app with example data: every button in it does something here. -->
+      <div class="app" id="demo" role="region" aria-label="OpenCompanion demo with example data">
         <div class="app-bg" aria-hidden="true"></div>
-        <div class="app-ui" aria-hidden="true">
-          <div class="a-side gl">
-            <span class="a-brand"><svg class="ic">
-                <use href="#i-logo" />
-              </svg>OpenCompanion</span>
-            <div class="a-nav">
-              <span class="on"><svg class="ic">
-                  <use href="#i-house" />
-                </svg>Overview</span>
-              <span><svg class="ic">
-                  <use href="#i-chats" />
-                </svg>Chat</span>
-              <span><svg class="ic">
-                  <use href="#i-calendar" />
-                </svg>Automations</span>
-              <span><svg class="ic">
-                  <use href="#i-gear" />
-                </svg>Settings</span>
-            </div>
-            <span class="a-label">Sessions<svg class="ic">
-                <use href="#i-plus" />
-              </svg></span>
+        <div class="app-ui">
+          <div class="a-side gl" id="demo-side">
+            <span class="a-brand"><svg class="ic" aria-hidden="true"><use href="#i-logo" /></svg>OpenCompanion</span>
+            <nav class="a-nav" aria-label="Demo screens">
+              <button type="button" data-go="overview" aria-current="page"><svg class="ic" aria-hidden="true"><use href="#i-house" /></svg>Overview</button>
+              <button type="button" data-go="chat"><svg class="ic" aria-hidden="true"><use href="#i-chats" /></svg>Chat</button>
+              <button type="button" data-go="automations"><svg class="ic" aria-hidden="true"><use href="#i-calendar" /></svg>Automations</button>
+              <button type="button" data-go="settings"><svg class="ic" aria-hidden="true"><use href="#i-gear" /></svg>Settings</button>
+            </nav>
+            <span class="a-label">Sessions</span>
             <div class="a-folders">
               <div>
-                <span class="a-fold"><svg class="ic car">
-                    <use href="#i-caret" />
-                  </svg><svg class="ic">
-                    <use href="#i-folder" />
-                  </svg>uninote</span>
-                <span class="a-item"><svg>
-                    <use href="#logo-claude" />
-                  </svg><span class="t">Write the API docs</span></span>
+                <span class="a-fold"><svg class="ic car" aria-hidden="true"><use href="#i-caret" /></svg><svg class="ic" aria-hidden="true"><use href="#i-folder" /></svg>eksis.io</span>
+                <button type="button" class="a-item" data-open="eksis"><svg aria-hidden="true"><use href="#logo-claude" /></svg><span class="t" id="demo-side-eksis">Write the API docs</span><svg class="ic wait-mark" id="demo-side-wait" aria-hidden="true"><use href="#i-hand" /></svg><span class="sr-only" id="demo-side-wait-sr">, waiting for you</span></button>
               </div>
               <div>
-                <span class="a-fold"><svg class="ic car">
-                    <use href="#i-caret" />
-                  </svg><svg class="ic">
-                    <use href="#i-folder" />
-                  </svg>ai-remote</span>
-                <span class="a-item"><svg style="color:var(--ink)">
-                    <use href="#logo-openai" />
-                  </svg><span class="t rainbow">Fix the failing tests</span></span>
+                <span class="a-fold"><svg class="ic car" aria-hidden="true"><use href="#i-caret" /></svg><svg class="ic" aria-hidden="true"><use href="#i-folder" /></svg>ai-remote</span>
+                <button type="button" class="a-item" data-open="remote"><svg style="color:var(--ink)" aria-hidden="true"><use href="#logo-openai" /></svg><span class="t rainbow">Fix the failing tests</span></button>
               </div>
             </div>
+            <p class="a-note">Demo with example data</p>
           </div>
-          <div class="a-main">
-            <div class="a-head gl"><b>Overview</b><span class="meta">2 sessions in OpenCompanion, 1 opened
-                outside</span><span class="mb primary"><svg class="ic">
-                  <use href="#i-plus" />
-                </svg>New session</span></div>
-            <div class="needs gl">
-              <div class="needs-top">
-                <span class="climark"><svg>
-                    <use href="#logo-claude" />
-                  </svg></span>
-                <span class="grow"><b>Claude Code wants to run a command</b><span class="meta2">Write the API docs ·
-                    <span class="mono">~/Project/uninote</span></span></span>
-                <span class="chip wait">Waiting for you</span>
+
+          <div class="a-main" id="demo-main">
+            <nav class="a-tabs gl" aria-label="Demo screens">
+              <button type="button" data-go="overview" aria-current="page">Overview</button>
+              <button type="button" data-go="chat">Chat</button>
+              <button type="button" data-go="automations">Automations</button>
+              <button type="button" data-go="settings">Settings</button>
+            </nav>
+
+            <section class="a-screen" data-screen="overview" aria-label="Overview">
+              <div class="a-head gl"><b>Overview</b><span class="meta">2 sessions in OpenCompanion, 1 opened outside</span></div>
+              <div class="needs gl" id="demo-needs">
+                <div class="needs-top">
+                  <span class="climark"><svg aria-hidden="true"><use href="#logo-claude" /></svg></span>
+                  <span class="grow"><b>Claude Code wants to run a command</b><span class="meta2">Write the API docs · <span class="mono">~/Project/eksis.io</span></span></span>
+                  <span class="chip wait">Waiting for you</span>
+                </div>
+                <div class="cmd"><small>Bash</small><code>npm install</code></div>
+                <div class="acts">
+                  <button type="button" class="mb accent" data-act="approve"><svg class="ic" aria-hidden="true"><use href="#i-check" /></svg>Approve</button>
+                  <button type="button" class="mb secondary" data-act="deny"><svg class="ic" aria-hidden="true"><use href="#i-x" /></svg>Deny</button>
+                  <span class="sp"></span>
+                  <button type="button" class="mb secondary" data-open="eksis"><svg class="ic" aria-hidden="true"><use href="#i-out" /></svg>Open session</button>
+                </div>
               </div>
-              <div class="cmd"><small>Bash</small><code>npm install</code></div>
-              <div class="acts"><span class="mb accent"><svg class="ic">
-                    <use href="#i-check" />
-                  </svg>Approve</span><span class="mb secondary"><svg class="ic">
-                    <use href="#i-x" />
-                  </svg>Deny</span><span class="sp"></span><span class="mb secondary"><svg class="ic">
-                    <use href="#i-out" />
-                  </svg>Open session</span></div>
-            </div>
-            <div class="a-sec gl"><b>Running in OpenCompanion</b><span>1 running, 1 waiting</span></div>
-            <div class="srow gl">
-              <span class="climark"><svg style="color:var(--ink)">
-                  <use href="#logo-openai" />
-                </svg></span>
-              <span style="min-width:0"><span class="task">Fix the failing tests</span><span class="where">Codex CLI ·
-                  interactive · <span class="mono">~/Project/ai-remote</span></span></span>
-              <span class="track"><span class="horizon" data-ev="4 12 21 30 41 50 61 72 83"><i
-                    class="now"></i></span><span>Edited src/lib/sync.ts · 2 h 38 min</span></span>
-              <span class="status-col"><span class="chip run">Running</span></span>
-            </div>
-            <div class="srow gl">
-              <span class="climark"><svg>
-                  <use href="#logo-claude" />
-                </svg></span>
-              <span style="min-width:0"><span class="task">Write the API docs</span><span class="where">Claude Code ·
-                  interactive · <span class="mono">~/Project/uninote</span></span></span>
-              <span class="track"><span class="horizon" data-ev="7 16 27 39 52 64 w80"></span><span>Wants to run npm
-                  install · 2 h 31 min</span></span>
-              <span class="status-col"><span class="chip wait">Waiting for you</span></span>
-            </div>
-            <div class="a-sec gl"><b>Opened outside OpenCompanion</b></div>
-            <div class="srow ext gl">
-              <span class="climark">OC</span>
-              <span style="min-width:0"><span class="task">OpenCode in psikotes</span><span class="where">OpenCode ·
-                  interactive · <span class="mono">~/Project/psikotes</span></span></span>
-              <span class="track"><span class="horizon" data-ev="10 22 37 55 70"></span><span>Last entry 3 min
-                  ago</span></span>
-              <span class="status-col"><span class="chip ro">Read-only</span></span>
-            </div>
+              <div class="resolved gl" id="demo-resolved" hidden>
+                <svg class="ic" aria-hidden="true"><use href="#i-check-circle" /></svg><span id="demo-resolved-text"></span>
+                <button type="button" class="mb secondary" data-act="reset" id="demo-reset">Show the prompt again</button>
+              </div>
+              <div class="a-sec gl"><b>Running in OpenCompanion</b><span id="demo-count">1 running, 1 waiting</span></div>
+              <button type="button" class="srow gl" data-open="remote">
+                <span class="climark"><svg style="color:var(--ink)" aria-hidden="true"><use href="#logo-openai" /></svg></span>
+                <span style="min-width:0"><span class="task">Fix the failing tests</span><span class="where">Codex CLI · interactive · <span class="mono">~/Project/ai-remote</span></span></span>
+                <span class="track"><span class="horizon" data-ev="4 12 21 30 41 50 61 72 83" aria-hidden="true"><i class="now"></i></span><span>Edited src/lib/sync.ts · 2 h 38 min</span></span>
+                <span class="status-col"><span class="chip run">Running</span></span>
+              </button>
+              <button type="button" class="srow gl" data-open="eksis">
+                <span class="climark"><svg aria-hidden="true"><use href="#logo-claude" /></svg></span>
+                <span style="min-width:0"><span class="task">Write the API docs</span><span class="where">Claude Code · interactive · <span class="mono">~/Project/eksis.io</span></span></span>
+                <span class="track"><span class="horizon" id="demo-eksis-hz" data-ev="7 16 27 39 52 64 w80" aria-hidden="true"></span><span id="demo-eksis-last">Wants to run npm install · 2 h 31 min</span></span>
+                <span class="status-col"><span class="chip wait" data-eksis-chip>Waiting for you</span></span>
+              </button>
+              <div class="a-sec gl"><b>Opened outside OpenCompanion</b></div>
+              <div class="srow ext gl">
+                <span class="climark">OC</span>
+                <span style="min-width:0"><span class="task">OpenCode in psikotes</span><span class="where">OpenCode · interactive · <span class="mono">~/Project/psikotes</span></span></span>
+                <span class="track"><span class="horizon" data-ev="10 22 37 55 70" aria-hidden="true"></span><span>Last entry 3 min ago</span></span>
+                <span class="status-col"><span class="chip ro">Read-only</span></span>
+              </div>
+            </section>
+
+            <section class="a-screen chat" data-screen="chat" aria-label="Chat" hidden>
+              <div class="thread" id="demo-thread">
+                <p class="me">Codex, fix the failing tests in ai-remote. Claude Code, write the API docs in eksis.io.</p>
+                <div class="planner"><span class="who">Planner</span><p>Two separate folders, so two sessions. Check the prompts, then press Run on each one.</p></div>
+                <div class="dcard gl">
+                  <div class="dc-top"><span class="climark"><svg style="color:var(--ink)" aria-hidden="true"><use href="#logo-openai" /></svg></span><span class="grow"><b>Fix the failing tests</b><span class="path">Codex CLI · interactive · <span class="mono">~/Project/ai-remote</span></span></span><span class="chip run">Running</span></div>
+                  <div class="dc-prompt">Run the tests, find out why they fail, and fix them.</div>
+                  <div class="dc-started"><button type="button" class="mb secondary" data-open="remote"><svg class="ic" aria-hidden="true"><use href="#i-terminal" /></svg>Open session</button><span class="meta2">Started 2 h 38 min ago</span></div>
+                </div>
+                <div class="dcard gl">
+                  <div class="dc-top"><span class="climark"><svg aria-hidden="true"><use href="#logo-claude" /></svg></span><span class="grow"><b>Write the API docs</b><span class="path">Claude Code · interactive · <span class="mono">~/Project/eksis.io</span></span></span><span class="chip wait" data-eksis-chip>Waiting for you</span></div>
+                  <div class="dc-prompt">Write API docs for the public endpoints in docs/api.md.</div>
+                  <div class="dc-started"><button type="button" class="mb secondary" data-open="eksis"><svg class="ic" aria-hidden="true"><use href="#i-terminal" /></svg>Open session</button><span class="meta2">Started 2 h 31 min ago</span></div>
+                </div>
+                <p class="me">Every weekday at 9, review the open pull requests in eksis.io.</p>
+                <div class="planner"><span class="who">Planner</span><p>That repeats, so it is an automation. Check the schedule, then press Create.</p></div>
+                <div class="dcard gl" id="demo-auto-card">
+                  <div class="dc-top"><span class="climark"><svg aria-hidden="true"><use href="#logo-claude" /></svg></span><span class="grow"><b>Review the open pull requests</b><span class="path">Claude Code · headless · <span class="mono">~/Project/eksis.io</span></span><span class="when"><svg class="ic" aria-hidden="true"><use href="#i-calendar" /></svg>Weekdays at 09:00</span></span><span class="chip idle" id="demo-auto-chip">Automation</span></div>
+                  <div class="dc-prompt">Review each open pull request and leave your comments on it.</div>
+                  <div class="dc-acts" id="demo-auto-acts"><button type="button" class="mb primary" data-act="create"><svg class="ic" aria-hidden="true"><use href="#i-calendar" /></svg>Create automation</button></div>
+                  <div class="dc-started" id="demo-auto-done" hidden><button type="button" class="mb secondary" data-go="automations" id="demo-auto-open"><svg class="ic" aria-hidden="true"><use href="#i-calendar" /></svg>Open automation</button><span class="meta2">It runs by itself from now on. Change or pause it in Automations.</span></div>
+                </div>
+              </div>
+              <form class="composer" id="demo-composer">
+                <label class="sr-only" for="demo-input">Message for the planner</label>
+                <textarea id="demo-input" rows="2" placeholder="Describe a task. Name a CLI, type @ for a folder, or let the planner pick one."></textarea>
+                <div class="c-row"><button class="send" type="submit" aria-label="Send" title="Send. Shift+Enter adds a line."><svg class="ic" aria-hidden="true"><use href="#i-send" /></svg></button></div>
+              </form>
+            </section>
+
+            <section class="a-screen" data-screen="automations" aria-label="Automations" hidden>
+              <div class="a-head gl"><b>Automations</b><span class="meta">Starts a session in a folder at the times you choose, while OpenCompanion is open or in the tray.</span></div>
+              <div class="arow gl">
+                <span class="climark"><svg style="color:var(--ink)" aria-hidden="true"><use href="#logo-openai" /></svg></span>
+                <span style="min-width:0"><span class="task">Check the nightly build</span><span class="where">Codex CLI · <span class="mono">ai-remote</span> · Every day at 18:00</span><span class="next" data-next="Next run: tomorrow 18:00">Next run: tomorrow 18:00</span></span>
+                <span class="chip run">Started</span>
+                <button type="button" class="switch" role="switch" aria-checked="true" aria-label="Active: Check the nightly build" data-auto></button>
+              </div>
+              <div class="arow gl" id="demo-auto-row" hidden>
+                <span class="climark"><svg aria-hidden="true"><use href="#logo-claude" /></svg></span>
+                <span style="min-width:0"><span class="task">Review the open pull requests</span><span class="where">Claude Code · <span class="mono">eksis.io</span> · Weekdays at 09:00</span><span class="next" data-next="Next run: tomorrow 09:00">Next run: tomorrow 09:00</span></span>
+                <span class="never">Not run yet</span>
+                <button type="button" class="switch" role="switch" aria-checked="true" aria-label="Active: Review the open pull requests" data-auto></button>
+              </div>
+              <p class="a-hint gl" id="demo-auto-hint">Ask Chat for work that repeats and press Create on its card. The automation shows up here.</p>
+            </section>
+
+            <section class="a-screen settings" data-screen="settings" aria-label="Settings" hidden>
+              <nav class="s-side gl" aria-label="Settings">
+                <button type="button" class="s-back" data-act="back"><svg class="ic" aria-hidden="true"><use href="#i-back" /></svg>Back to app</button>
+                <span class="s-group">General</span>
+                <button type="button" data-set="phone" aria-current="page"><svg class="ic" aria-hidden="true"><use href="#i-phone" /></svg>Phone access</button>
+                <span class="s-group">Agents</span>
+                <button type="button" data-set="clis"><svg class="ic" aria-hidden="true"><use href="#i-terminal" /></svg>CLIs</button>
+                <span class="s-group">Workspace</span>
+                <button type="button" data-set="notify"><svg class="ic" aria-hidden="true"><use href="#i-bell" /></svg>Notifications</button>
+              </nav>
+              <div class="s-body">
+                <div class="s-pane" data-pane="phone">
+                  <div class="a-head gl"><b>Phone access</b></div>
+                  <div class="s-card gl">
+                    <div class="s-top">
+                      <span class="grow"><b>Phone access</b><span class="meta2">Lets a phone on the same network watch sessions and answer approval prompts. Off until you turn it on.</span></span>
+                      <button type="button" class="switch" role="switch" aria-checked="true" aria-label="Phone access" data-act="phone"></button>
+                    </div>
+                    <div class="s-on" id="demo-phone-on">
+                      <div class="pair">
+                        <div class="qr"><svg class="ic" aria-hidden="true"><use href="#i-qr" /></svg><span>The QR code shows here</span></div>
+                        <div class="pair-text"><span class="meta2">Pairing code</span><b class="mono code">482 913</b><span class="meta2">Expires in 4:32</span></div>
+                      </div>
+                      <div><span class="meta2">Address on this network</span><span class="mono box">http://192.168.1.24:8765</span></div>
+                      <p class="warn">This connection uses plain HTTP. On a network you do not trust, or away from home, reach your computer through a VPN with HTTPS, such as Tailscale.</p>
+                      <div class="devices">
+                        <b>Paired devices</b>
+                        <div class="dev" id="demo-dev"><svg class="ic" aria-hidden="true"><use href="#i-phone" /></svg><span class="grow"><span class="task">Pixel 8</span><span class="meta2">Last seen 2 min ago</span></span><button type="button" class="mb secondary" data-act="remove-device">Remove</button></div>
+                        <p class="meta2" id="demo-dev-none" tabindex="-1" hidden>No phones paired yet.</p>
+                      </div>
+                    </div>
+                    <p class="meta2" id="demo-phone-off" hidden>Phone access is off. Paired phones cannot reach this computer until you turn it on again.</p>
+                  </div>
+                </div>
+                <div class="s-pane" data-pane="clis" hidden>
+                  <div class="a-head gl"><b>CLIs</b></div>
+                  <div class="s-card gl s-list">
+                    <div class="s-row"><span class="climark"><svg aria-hidden="true"><use href="#logo-claude" /></svg></span><span class="grow task">Claude Code</span><span class="mono ver">2.1</span></div>
+                    <div class="s-row"><span class="climark"><svg style="color:var(--ink)" aria-hidden="true"><use href="#logo-openai" /></svg></span><span class="grow task">Codex CLI</span><span class="mono ver">0.153</span></div>
+                    <div class="s-row"><span class="climark">OC</span><span class="grow task">OpenCode</span><span class="mono ver">1.18</span></div>
+                    <div class="s-row"><span class="climark">CCS</span><span class="grow task">CCS</span><span class="mono ver">8.10</span></div>
+                    <div class="s-row"><span class="climark">Pi</span><span class="grow task">Pi</span><span class="mono ver">0.87</span></div>
+                    <div class="s-row"><span class="climark">omp</span><span class="grow task">omp</span><span class="mono ver">18.3</span></div>
+                    <div class="s-row"><span class="climark"><svg aria-hidden="true"><use href="#logo-gemini" /></svg></span><span class="grow task">Gemini CLI</span><span class="ver">Found, not tested</span></div>
+                  </div>
+                </div>
+                <div class="s-pane" data-pane="notify" hidden>
+                  <div class="a-head gl"><b>Notifications</b></div>
+                  <div class="s-card gl">
+                    <label class="check"><input type="checkbox" checked>Waiting for you</label>
+                    <label class="check"><input type="checkbox" checked>Finished working</label>
+                    <label class="check"><input type="checkbox" checked>Error</label>
+                    <p class="meta2">A notification goes out only when the switch above, its CLI and its folder all allow it. The phone follows the same rules.</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="a-screen session" data-screen="session" aria-label="Session" hidden>
+              <div class="w-main">
+                <div class="views-bar"><span class="wtab on"><b id="demo-s-tab">Claude Code</b><small>terminal</small></span></div>
+                <div class="w-term">
+                  <div class="pane-head focus"><b id="demo-s-head">Claude Code</b><small id="demo-s-where">eksis.io</small></div>
+                  <pre class="pane-out" id="demo-s-term"></pre>
+                </div>
+              </div>
+              <div class="w-side gl">
+                <div class="side-tabs" role="tablist" aria-label="Session panel">
+                  <button type="button" class="side-tab" role="tab" id="demo-tab-files" data-tab="files" aria-selected="false" aria-controls="demo-s-panel"><svg class="ic" aria-hidden="true"><use href="#i-files" /></svg>Files</button>
+                  <button type="button" class="side-tab" role="tab" id="demo-tab-changes" data-tab="changes" aria-selected="true" aria-controls="demo-s-panel"><svg class="ic" aria-hidden="true"><use href="#i-gitdiff" /></svg>Changes</button>
+                  <button type="button" class="side-tab" role="tab" id="demo-tab-branch" data-tab="branch" aria-selected="false" aria-controls="demo-s-panel"><svg class="ic" aria-hidden="true"><use href="#i-branch" /></svg>Branch</button>
+                  <button type="button" class="side-tab" role="tab" id="demo-tab-details" data-tab="details" aria-selected="false" aria-controls="demo-s-panel"><svg class="ic" aria-hidden="true"><use href="#i-info" /></svg>Details</button>
+                </div>
+                <div class="side-pane" role="tabpanel" id="demo-s-panel" aria-labelledby="demo-tab-changes"></div>
+              </div>
+            </section>
           </div>
         </div>
+        <p class="sr-only" id="demo-status" role="status" aria-live="polite"></p>
       </div>
     </figure>
 
@@ -2550,7 +3523,7 @@
             <p>Phone access is off until you turn it on. Then the phone talks to your computer over your own Wi-Fi, with
               no account and no server in between.</p>
             <div class="device" role="img"
-              aria-label="The phone companion: Claude Code wants to run npm install in uninote, with Approve and Deny buttons, above the running Codex CLI session.">
+              aria-label="The phone companion: Claude Code wants to run npm install in eksis.io, with Approve and Deny buttons, above the running Codex CLI session.">
               <div class="screen" aria-hidden="true">
                 <div class="m-bar"><span class="m-brand"><svg class="ic">
                       <use href="#i-logo" />
@@ -2560,7 +3533,7 @@
                   <b class="m-h1">Sessions</b>
                   <div class="m-needs">
                     <b>Claude Code wants to run a command</b>
-                    <span class="meta2">uninote · asked just now</span>
+                    <span class="meta2">eksis.io · asked just now</span>
                     <div class="cmd"><small>Bash</small><code>npm install</code></div>
                     <div class="m-acts"><span class="mb accent"><svg class="ic">
                           <use href="#i-check" />
@@ -2902,6 +3875,203 @@ bun run tauri build</pre>
         SPECKS.forEach((x, n) => add("sp", x, n % 2 ? 15 : 14));
         h.getAttribute("data-ev").split(" ").forEach((t) => add(t[0] === "w" ? "ev w" : "ev", parseFloat(t.replace("w", ""))));
       });
+
+      /* The demo. The sidebar moves between screens; Approve, Deny, Create, the switches and the composer change its
+         example data. Nothing leaves the page. */
+      (function demo() {
+        const app = $("#demo");
+        if (!app) return;
+        const main = $("#demo-main"), status = $("#demo-status");
+        const say = (text) => { status.textContent = ""; setTimeout(() => { status.textContent = text; }, 40); };
+        const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+        let screen = "overview", lastApp = "overview", open = "eksis", tab = "changes", prompt = "waiting";
+
+        const SESSIONS = {
+          eksis: {
+            cli: "Claude Code", folder: "eksis.io", path: "~/Project/eksis.io", mode: "Interactive", started: "2 h 31 min ago",
+            cpu: "3%", memory: "212 MB", branch: "docs/api", since: "9c2e7b1",
+            term: () => [
+              ["t-g", "› Write API docs for the public endpoints in docs/api.md."],
+              ["t-d", "• Read src/routes/index.ts"],
+              ["t-d", "• Read src/routes/users.ts"],
+              ["t-d", "• Wrote docs/api.md"],
+              ...(prompt === "waiting" ? [["t-y", "• Wants to run npm install. Waiting for you on the Overview."]]
+                : prompt === "approved" ? [["t-d", "• Ran npm install"], ["", "The examples in docs/api.md now run against each route."]]
+                : [["t-d", "• npm install was denied"], ["", "Carrying on without new packages. The examples in docs/api.md stay as written."]]),
+            ],
+            changes: [["A", "api.md", "docs", "+118 −0"], ["M", "README.md", "", "+4 −1"]],
+            files: [[0, "folder", "docs", ""], [1, "file", "api.md", "A"], [0, "folder", "src", ""], [0, "file", "package.json", ""], [0, "file", "README.md", "M"]],
+          },
+          remote: {
+            cli: "Codex CLI", folder: "ai-remote", path: "~/Project/ai-remote", mode: "Interactive", started: "2 h 38 min ago",
+            cpu: "5%", memory: "164 MB", branch: "main", since: "4f1c2a9",
+            term: () => [
+              ["t-g", "› Run the tests, find out why they fail, and fix them."],
+              ["t-d", "• Ran bun run test: 2 failed"],
+              ["t-d", "• Edited src/lib/sync.ts"],
+              ["t-d", "• Edited src/lib/sync.test.ts"],
+              ["t-d", "• Ran bun run test: 20 passed"],
+              ["", "send() now retries up to three times, so a dropped connection no longer fails the sync. Both tests pass."],
+            ],
+            changes: [["M", "sync.ts", "src/lib", "+8 −1"], ["M", "sync.test.ts", "src/lib", "+15 −1"], ["M", "package.json", "", "+1 −1"]],
+            files: [[0, "folder", "src", ""], [1, "folder", "lib", ""], [2, "file", "sync.ts", "M"], [2, "file", "sync.test.ts", "M"], [0, "file", "package.json", "M"]],
+          },
+        };
+
+        const current = (el, on) => { if (on) el.setAttribute("aria-current", "page"); else el.removeAttribute("aria-current"); };
+
+        const renderSession = () => {
+          const s = SESSIONS[open];
+          $("#demo-s-tab").textContent = s.cli;
+          $("#demo-s-head").textContent = s.cli;
+          $("#demo-s-where").textContent = s.folder;
+          $("#demo-s-term").innerHTML = s.term().map(([c, t]) => `<span class="${c}">${esc(t)}</span>`).join("");
+          $$(".side-tab", app).forEach((b) => {
+            const on = b.dataset.tab === tab;
+            b.setAttribute("aria-selected", String(on));
+            b.tabIndex = on ? 0 : -1;
+          });
+          const panel = $("#demo-s-panel");
+          panel.setAttribute("aria-labelledby", "demo-tab-" + tab);
+          const waiting = open === "eksis" && prompt === "waiting";
+          if (tab === "changes") {
+            panel.innerHTML = `<b class="head">Changes</b><p>${s.changes.length} files since <span class="mono">${s.since}</span></p>` +
+              s.changes.map(([c, n, d, k]) => `<div class="change"><span class="code-l">${c}</span><span class="grow"><span class="name">${esc(n)}</span>${d ? `<span class="dir">${esc(d)}</span>` : ""}</span><span class="counts">${k}</span></div>`).join("");
+          } else if (tab === "files") {
+            panel.innerHTML = `<b class="head mono">${esc(s.folder)}</b>` +
+              s.files.map(([depth, kind, n, c]) => `<div class="tree-row" style="padding-left:${8 + depth * 14}px"><svg class="ic" aria-hidden="true"><use href="#i-${kind}"/></svg><span>${esc(n)}</span>${c ? `<span class="code-l">${c}</span>` : ""}</div>`).join("");
+          } else if (tab === "branch") {
+            panel.innerHTML = `<b class="head">Branch</b><p class="mono">${esc(s.branch)}</p><p class="meta2">Switch the branch once the session has stopped and the tracked files are committed.</p>`;
+          } else {
+            panel.innerHTML = `<b class="head">Details</b><dl class="details"><dt>CLI</dt><dd>${s.cli}</dd><dt>Status</dt><dd>${waiting ? "Waiting for you" : "Running"}</dd><dt>Mode</dt><dd>${s.mode}</dd><dt>Folder</dt><dd class="mono">${esc(s.path)}</dd><dt>Started</dt><dd>${s.started}</dd><dt>CPU</dt><dd>${s.cpu}</dd><dt>Memory</dt><dd>${s.memory}</dd></dl>`;
+          }
+        };
+
+        const go = (name) => {
+          screen = name;
+          if (name !== "settings") lastApp = name;
+          app.classList.toggle("in-settings", name === "settings");
+          $$("[data-screen]", app).forEach((s) => { s.hidden = s.dataset.screen !== name; });
+          $$(".a-nav [data-go], .a-tabs [data-go]", app).forEach((b) => current(b, b.dataset.go === name));
+          $$("#demo-side .a-item").forEach((b) => current(b, name === "session" && b.dataset.open === open));
+          main.scrollTop = 0;
+          if (name === "chat") { const th = $("#demo-thread"); th.scrollTop = th.scrollHeight; }
+        };
+
+        const setPrompt = (state) => {
+          prompt = state;
+          const waiting = state === "waiting";
+          $("#demo-needs").hidden = !waiting;
+          $("#demo-resolved").hidden = waiting;
+          $("#demo-resolved-text").textContent = state === "approved" ? "Approved. Claude Code runs npm install in eksis.io."
+            : state === "denied" ? "Denied. Claude Code carries on in eksis.io without running npm install." : "";
+          $$("[data-eksis-chip]", app).forEach((c) => { c.className = "chip " + (waiting ? "wait" : "run"); c.textContent = waiting ? "Waiting for you" : "Running"; });
+          $("#demo-eksis-last").textContent = waiting ? "Wants to run npm install · 2 h 31 min" : state === "approved" ? "Ran npm install · just now" : "npm install denied · just now";
+          $("#demo-count").textContent = waiting ? "1 running, 1 waiting" : "2 running";
+          const hz = $("#demo-eksis-hz");
+          let now = $(".now", hz);
+          if (!waiting && !now) { now = document.createElement("i"); now.className = "now"; hz.appendChild(now); }
+          if (waiting && now) now.remove();
+          $("#demo-side-eksis").classList.toggle("rainbow", !waiting);
+          $("#demo-side-wait").toggleAttribute("hidden", !waiting);
+          $("#demo-side-wait-sr").hidden = !waiting;
+          if (screen === "session") renderSession();
+        };
+
+        app.addEventListener("click", (e) => {
+          const b = e.target.closest("button");
+          if (!b || !app.contains(b) || b.type === "submit") return;
+          if (b.dataset.go) return go(b.dataset.go);
+          if (b.dataset.open) { open = b.dataset.open; tab = "changes"; renderSession(); go("session"); return; }
+          if (b.dataset.tab) { tab = b.dataset.tab; renderSession(); return; }
+          if (b.dataset.set) {
+            $$("[data-set]", app).forEach((x) => current(x, x === b));
+            $$("[data-pane]", app).forEach((p) => { p.hidden = p.dataset.pane !== b.dataset.set; });
+            return;
+          }
+          if (b.hasAttribute("data-auto")) {
+            const on = b.getAttribute("aria-checked") !== "true";
+            b.setAttribute("aria-checked", String(on));
+            const next = $(".next", b.closest(".arow"));
+            next.textContent = on ? next.dataset.next : "Paused";
+            say(on ? "Automation active." : "Automation paused.");
+            return;
+          }
+          switch (b.dataset.act) {
+            case "approve":
+              setPrompt("approved"); $("#demo-reset").focus(); say("Approved. Claude Code runs npm install in eksis.io."); break;
+            case "deny":
+              setPrompt("denied"); $("#demo-reset").focus(); say("Denied. Claude Code carries on without npm install."); break;
+            case "reset":
+              setPrompt("waiting"); $('[data-act="approve"]', app).focus(); say("Claude Code in eksis.io is waiting for you again."); break;
+            case "create": {
+              $("#demo-auto-acts").hidden = true;
+              $("#demo-auto-done").hidden = false;
+              const chip = $("#demo-auto-chip");
+              chip.className = "chip run";
+              chip.textContent = "Created";
+              $("#demo-auto-row").hidden = false;
+              $("#demo-auto-hint").hidden = true;
+              $("#demo-auto-open").focus();
+              say("Automation created. It runs every weekday at 09:00.");
+              break;
+            }
+            case "back":
+              go(lastApp); break;
+            case "phone": {
+              const on = b.getAttribute("aria-checked") !== "true";
+              b.setAttribute("aria-checked", String(on));
+              $("#demo-phone-on").hidden = !on;
+              $("#demo-phone-off").hidden = on;
+              say(on ? "Phone access is on." : "Phone access is off.");
+              break;
+            }
+            case "remove-device": {
+              $("#demo-dev").hidden = true;
+              const none = $("#demo-dev-none");
+              none.hidden = false;
+              none.focus();
+              say("Pixel 8 removed.");
+              break;
+            }
+          }
+        });
+
+        /* The session panel is an ARIA tab list: Left and Right move between its tabs. */
+        $(".side-tabs", app).addEventListener("keydown", (e) => {
+          if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+          const tabs = $$(".side-tab", app);
+          const i = tabs.findIndex((t) => t.dataset.tab === tab);
+          const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+          tab = next.dataset.tab;
+          renderSession();
+          next.focus();
+          e.preventDefault();
+        });
+
+        /* The composer takes a message, and the demo says plainly that no planner is behind it. */
+        const form = $("#demo-composer"), input = $("#demo-input"), thread = $("#demo-thread");
+        form.addEventListener("submit", (e) => {
+          e.preventDefault();
+          const text = input.value.trim();
+          if (!text) { input.focus(); return; }
+          const me = document.createElement("p");
+          me.className = "me";
+          me.textContent = text;
+          const reply = document.createElement("div");
+          reply.className = "planner";
+          reply.innerHTML = '<span class="who">Planner</span><p>This is a demo, so no planner reads it. In OpenCompanion the message goes to the CLI you pick, and its answer comes back as cards like the ones above.</p>';
+          thread.append(me, reply);
+          input.value = "";
+          thread.scrollTop = thread.scrollHeight;
+          say("Sent. The demo answered.");
+        });
+        input.addEventListener("keydown", (e) => {
+          if (e.key !== "Enter" || e.shiftKey || e.isComposing) return;
+          e.preventDefault();
+          if (form.requestSubmit) form.requestSubmit(); else form.dispatchEvent(new Event("submit", { cancelable: true }));
+        });
+      })();
     })();
   </script>
 </body>
