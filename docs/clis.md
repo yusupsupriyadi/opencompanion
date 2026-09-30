@@ -1,0 +1,38 @@
+# Supported CLIs
+
+OpenCompanion looks for these on your PATH and in common install folders, and never installs one for you. Settings › CLIs shows each install command for you to copy and run in your own terminal.
+
+| | Claude Code | Codex CLI | OpenCode | Gemini CLI | CCS | Pi | omp |
+|---|---|---|---|---|---|---|---|
+| Detected, with version | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Version lines checked | 2.1 | 0.153 | 1.18 | None | 8.10 | 0.87 | 18.3 |
+| Interactive session | Yes | Yes | Yes | Starts, never tested | Yes (see note) | Yes (see note) | Yes (see note) |
+| Headless session | Yes | Yes (see note) | Yes (see note) | No | Default and account profiles | Yes (see note) | Yes (see note) |
+| Approve/Deny in OpenCompanion and on the phone | Yes | No, answer in its terminal | No, answer in its terminal | No | Yes | No, Pi never asks | No, answer in its terminal |
+| Resume | Yes | Yes | Yes | No | Default and account profiles | Yes | Yes |
+| Chat planner | Yes | Yes | Yes | No | Default and account profiles | Yes | Yes |
+| Opened outside OpenCompanion | Listed, with transcript | Listed, with transcript | Listed, with transcript | Listed, no transcript | Listed, with transcript | Listed, with transcript | Listed, with transcript |
+
+Notes:
+
+- Claude Code headless prompts are answered through its stdio control protocol. Interactive prompts come in through hooks that OpenCompanion passes to that one session with `--settings`, with a screen-text check as a fallback.
+- Codex CLI's headless success events are parsed from its documentation. On the development machine Codex could not authenticate, so only its failure path was observed.
+- OpenCode's headless `opencode run` rejects permission prompts by itself, so in Ask me mode a tool call that needs permission fails. Interactive OpenCode sessions ask in their terminal as usual.
+- Gemini CLI was not installed on the test machine. It is detected and listed, and an interactive start is wired up, but that path has never been run against the real CLI.
+- CCS starts Claude Code with a profile (`ccs [profile] [claude args]`), so OpenCompanion gives it Claude Code's flags and reads its output, hooks and transcripts the same way (transcripts from `~/.claude` and each account in `~/.ccs/instances`). Its extra arguments in Settings › CLIs go right after `ccs`, so the profile comes first, for example `work --effort high`. API and CLIProxy profiles pass their own `--settings`, and API profiles send `-p` through CCS's delegation, so OpenCompanion runs those profiles in a terminal only, without hooks (the screen-text check still works). The argument order is covered by unit tests; a full session through CCS has not been run from OpenCompanion yet.
+- Pi (`@earendil-works/pi-coding-agent`) has no permission prompts: it runs its tools without asking, in every mode except Plan, which gives it only `read`, `grep`, `find` and `ls`. Headless sessions use `pi --mode json` with the prompt on stdin, and follow-ups continue with `--session`. Transcripts and the session id for Resume come from `~/.pi/agent/sessions`. Pi's own installer puts it in `~/.pi/agent/bin`, which OpenCompanion also searches. The development machine has no provider account for Pi, so its headless runs and the Chat planner were checked against a local OpenAI-compatible stub; interactive sessions and Resume are covered by unit tests of their arguments only.
+- omp (`@oh-my-pi/pi-coding-agent`) is a Pi fork that runs on Bun, so OpenCompanion reads it with the Pi adapter. Each mode sets its `--approval-mode`. In a terminal, omp asks before a tool that the mode does not allow, and OpenCompanion does not detect that prompt yet. A headless run has nobody to ask, so the tool fails and the refusal appears in the output. Plan gives it only `read`, `grep` and `glob`: omp has no `ls`, and its `find` is off unless a judge model is set up. Transcripts and the session id for Resume come from `~/.omp/agent/sessions`, which names a folder under your home folder by its relative path (`-project-app`). The models come from `omp models --json`. omp 18.3.5 was checked only with runs that sent no prompt: every mode's flags, the planner's flags, the session header and the model list. No session that sends a prompt has been run from OpenCompanion yet.
+- On Windows, an interactive session starts PowerShell 7 (or Windows PowerShell when PowerShell 7 is missing), which loads your profile and then starts the CLI. The session ends when the CLI exits. Headless sessions start the CLI directly.
+
+## Permission modes
+
+Each session starts in one of four modes. OpenCompanion turns the mode into each CLI's own flags:
+
+| Mode | What it means | Claude Code | Codex CLI | OpenCode | Pi | omp |
+|---|---|---|---|---|---|---|
+| Ask me | Every permission prompt comes to you as Waiting for you | `--permission-mode manual` | `-s workspace-write` (plus `-a on-request` in a terminal) | The CLI's defaults | Runs every tool without asking | `--approval-mode always-ask` |
+| Plan | Read and plan only, no changes | `--permission-mode plan` | `-s read-only` (plus `-a on-request` in a terminal) | `--agent plan` | `--tools read,grep,find,ls` | `--tools read,grep,glob --approval-mode always-ask` |
+| Auto | The CLI approves routine actions itself | `--permission-mode auto` | `--approve-for-me` | `--auto` | Runs every tool without asking | `--approval-mode write` |
+| Bypass | No permission checks at all | `--dangerously-skip-permissions` | `--dangerously-bypass-approvals-and-sandbox` | `--auto` with `OPENCODE_PERMISSION={"*":"allow"}` | Runs every tool without asking | `--approval-mode yolo` |
+
+The flags were checked against each CLI's `--help` on 2026-09-25. A resumed headless Codex run keeps the sandbox it started with. Gemini CLI gets no mode flags. CCS gets Claude Code's flags. Pi was checked against 0.87.1, and omp against 18.3.5 on 2026-09-28. Chat cards that start without Run never use Bypass.
