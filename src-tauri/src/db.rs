@@ -267,6 +267,20 @@ pub struct AutomationRun {
 /// Runs kept per automation; older ones are removed as new ones come in.
 pub const RUNS_KEPT: u32 = 50;
 
+/// Shell commands kept per folder; the least recently used go first.
+pub const COMMANDS_KEPT: u32 = 1000;
+/// Commands from other folders sent with one folder's.
+const ELSEWHERE_SENT: u32 = 2000;
+
+/// Commands saved from shell tabs, most recently used first.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SavedCommands {
+    /// Run in the folder asked for.
+    pub here: Vec<String>,
+    /// Run only in other folders.
+    pub elsewhere: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
@@ -313,6 +327,9 @@ pub struct Settings {
     pub auto_run_folders: Vec<String>,
     /// UI language, `en` or `id` (PRD FR-63). The phone follows it too.
     pub language: String,
+    /// Shell tabs start with a script that marks the prompt and reports each command, which is saved and suggested
+    /// while typing. Off, shells start as they are and nothing is saved.
+    pub shell_suggestions: bool,
 }
 
 /// The kinds of notification a session sends.
@@ -456,6 +473,7 @@ impl Default for Settings {
             start_at_login: false,
             auto_run_folders: Vec::new(),
             language: "en".into(),
+            shell_suggestions: true,
         }
     }
 }
@@ -543,6 +561,14 @@ CREATE TABLE IF NOT EXISTS automation_runs (
   error TEXT
 );
 CREATE INDEX IF NOT EXISTS automation_runs_by_automation ON automation_runs(automation_id, ran_at);
+CREATE TABLE IF NOT EXISTS shell_commands (
+  folder TEXT NOT NULL,
+  command TEXT NOT NULL,
+  uses INTEGER NOT NULL,
+  last_used INTEGER NOT NULL,
+  PRIMARY KEY (folder, command)
+);
+CREATE INDEX IF NOT EXISTS shell_commands_by_folder ON shell_commands(folder, last_used);
 ";
 
 pub struct Db {
@@ -1184,6 +1210,45 @@ impl Db {
             .map(|_| ())
         })
     }
+
+    // Shell commands
+
+    /// Saves a command run in a shell tab of `folder`, keeping the `COMMANDS_KEPT` last used there.
+    pub fn add_shell_command(&self, folder: &str, command: &str, at: i64) -> R<()> {
+        self.with(|c| {
+            c.execute(
+                "INSERT INTO shell_commands (folder, command, uses, last_used) VALUES (?1, ?2, 1, ?3)
+                 ON CONFLICT(folder, command) DO UPDATE SET uses = uses + 1, last_used = excluded.last_used",
+                params![folder, command, at],
+            )?;
+            c.execute(
+                "DELETE FROM shell_commands WHERE folder = ?1 AND rowid NOT IN
+                   (SELECT rowid FROM shell_commands WHERE folder = ?1 ORDER BY last_used DESC, rowid DESC LIMIT ?2)",
+                params![folder, COMMANDS_KEPT],
+            )
+            .map(|_| ())
+        })
+    }
+
+    /// Saved commands, most recently used first: those of `folder`, then those only other folders ran.
+    pub fn shell_commands(&self, folder: &str) -> R<SavedCommands> {
+        self.with(|c| {
+            let mut st = c.prepare("SELECT command FROM shell_commands WHERE folder = ?1 ORDER BY last_used DESC, rowid DESC")?;
+            let here = st.query_map([folder], |r| r.get(0))?.collect::<rusqlite::Result<Vec<String>>>()?;
+            let mut st = c.prepare(
+                "SELECT command FROM shell_commands WHERE folder <> ?1
+                   AND command NOT IN (SELECT command FROM shell_commands WHERE folder = ?1)
+                 GROUP BY command ORDER BY MAX(last_used) DESC LIMIT ?2",
+            )?;
+            let elsewhere = st.query_map(params![folder, ELSEWHERE_SENT], |r| r.get(0))?.collect::<rusqlite::Result<Vec<String>>>()?;
+            Ok(SavedCommands { here, elsewhere })
+        })
+    }
+
+    /// Deletes every saved shell command and says how many there were.
+    pub fn delete_shell_commands(&self) -> R<usize> {
+        self.with(|c| c.execute("DELETE FROM shell_commands", []))
+    }
 }
 
 #[cfg(test)]
@@ -1222,6 +1287,50 @@ mod tests {
         assert!(db.thread(&a.id).unwrap().is_none());
         assert!(db.chat_message("a1").unwrap().is_none());
         assert_eq!(texts(&b.id), ["docs"]);
+    }
+
+    #[test]
+    fn shell_commands_come_back_by_folder_newest_first() {
+        let db = Db::open_in_memory().unwrap();
+        db.add_shell_command("/app", "bun run dev", 1).unwrap();
+        db.add_shell_command("/app", "git status", 2).unwrap();
+        db.add_shell_command("/web", "npm test", 3).unwrap();
+        db.add_shell_command("/web", "git status", 4).unwrap();
+        db.add_shell_command("/other", "npm test", 5).unwrap();
+        // Running it again moves it to the front.
+        db.add_shell_command("/app", "bun run dev", 6).unwrap();
+        let app = db.shell_commands("/app").unwrap();
+        assert_eq!(app.here, ["bun run dev", "git status"]);
+        // Another folder's commands, without the ones this folder has too.
+        assert_eq!(app.elsewhere, ["npm test"]);
+        assert_eq!(db.shell_commands("/new").unwrap().elsewhere, ["bun run dev", "npm test", "git status"]);
+        let uses: i64 = db
+            .with(|c| c.query_row("SELECT uses FROM shell_commands WHERE folder = '/app' AND command = 'bun run dev'", [], |r| r.get(0)))
+            .unwrap();
+        assert_eq!(uses, 2);
+
+        assert_eq!(db.delete_shell_commands().unwrap(), 5);
+        assert!(db.shell_commands("/app").unwrap().here.is_empty());
+    }
+
+    #[test]
+    fn a_folder_keeps_its_last_used_commands_only() {
+        let db = Db::open_in_memory().unwrap();
+        for i in 0..COMMANDS_KEPT as i64 + 5 {
+            db.add_shell_command("/app", &format!("echo {i}"), i).unwrap();
+        }
+        db.add_shell_command("/web", "echo 0", 0).unwrap();
+        let here = db.shell_commands("/app").unwrap().here;
+        assert_eq!(here.len(), COMMANDS_KEPT as usize);
+        assert_eq!(here.first().map(String::as_str), Some("echo 1004"));
+        assert_eq!(here.last().map(String::as_str), Some("echo 5"));
+        assert_eq!(db.shell_commands("/web").unwrap().here, ["echo 0"]);
+    }
+
+    #[test]
+    fn settings_saved_before_shell_suggestions_turn_them_on() {
+        let s: Settings = serde_json::from_str(r#"{"onboarded":true}"#).unwrap();
+        assert!(s.shell_suggestions);
     }
 
     #[test]

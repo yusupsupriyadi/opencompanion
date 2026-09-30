@@ -20,6 +20,7 @@ pub mod projects;
 pub mod pty;
 pub mod session;
 pub mod shell_env;
+pub mod shell_integration;
 pub mod signals;
 pub mod skills;
 pub mod terminal;
@@ -112,6 +113,7 @@ impl Emit for TauriEmit {
 /// Forwards terminal output and state to the webview only: terminals never reach the phone.
 struct TerminalEvents {
     app: AppHandle,
+    db: Arc<Db>,
 }
 
 impl terminal::TerminalEmit for TerminalEvents {
@@ -120,6 +122,13 @@ impl terminal::TerminalEmit for TerminalEvents {
     }
     fn changed(&self, info: &terminal::TerminalInfo) {
         let _ = self.app.emit("terminal-changed", info);
+    }
+    fn command(&self, folder: &str, command: &str) {
+        if let Err(e) = self.db.add_shell_command(folder, command, db::now_ms()) {
+            eprintln!("A shell command could not be saved: {e}");
+            return;
+        }
+        let _ = self.app.emit("terminal-command", json!({ "folder": folder, "command": command }));
     }
 }
 
@@ -682,6 +691,35 @@ async fn terminal_close(state: State<'_, AppState>, id: String) -> Res<()> {
     blocking(move || terminals.close(&id)).await
 }
 
+/// What a shell tab of one folder suggests from, each most recently used first.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ShellHistory {
+    /// Run in shell tabs of this folder.
+    here: Vec<String>,
+    /// Run only in shell tabs of other folders.
+    elsewhere: Vec<String>,
+    /// From the shells' own history files.
+    imported: &'static [String],
+}
+
+#[tauri::command]
+async fn shell_history(state: State<'_, AppState>, folder: String) -> Res<ShellHistory> {
+    let db = Arc::clone(&state.db);
+    blocking(move || {
+        let saved = db.shell_commands(&folder)?;
+        Ok(ShellHistory { here: saved.here, elsewhere: saved.elsewhere, imported: shell_integration::imported() })
+    })
+    .await
+}
+
+/// Forgets every saved shell command. The shells' own history files are never changed.
+#[tauri::command]
+async fn delete_shell_history(state: State<'_, AppState>) -> Res<usize> {
+    let db = Arc::clone(&state.db);
+    blocking(move || db.delete_shell_commands()).await
+}
+
 /// An image pasted into a session or terminal, as the raw body with its type in `x-image-type`.
 /// Returns the saved file's path for the terminal to paste.
 #[tauri::command]
@@ -999,12 +1037,22 @@ pub fn run() {
                     std::thread::sleep(std::time::Duration::from_secs(3600));
                 });
             }
+            let terminals = terminal::Terminals::new(
+                Arc::new(TerminalEvents { app: app.handle().clone(), db: Arc::clone(&db) }),
+                Some(terminal::Integration {
+                    dir: data_dir.join("shell"),
+                    enabled: {
+                        let db = Arc::clone(&db);
+                        Box::new(move || db.settings().map(|s| s.shell_suggestions).unwrap_or(false))
+                    },
+                }),
+            );
             app.manage(AppState {
                 db,
                 manager,
                 companion,
                 monitor: Arc::new(Mutex::new(monitor::Monitor::new())),
-                terminals: terminal::Terminals::new(Arc::new(TerminalEvents { app: app.handle().clone() })),
+                terminals,
                 clis: Arc::new(Mutex::new(HashMap::new())),
                 data_dir,
             });
@@ -1071,6 +1119,8 @@ pub fn run() {
             terminal_restart,
             terminal_clear,
             terminal_close,
+            shell_history,
+            delete_shell_history,
             save_pasted_image,
             write_clipboard,
             chat_threads,

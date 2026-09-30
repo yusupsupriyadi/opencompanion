@@ -8,6 +8,8 @@ Notable changes to OpenCompanion are listed here. The format follows [Keep a Cha
 
 - Cursor CLI (`cursor-agent`) as a CLI: interactive and headless sessions (`cursor-agent -p --output-format stream-json`, prompt on stdin), follow-ups and Resume with `--resume`, the Chat planner in ask mode with `--list-models`, outside sessions with transcripts from `~/.cursor/projects`, and its skill folder `~/.cursor/skills`. Its approval menus, workspace trust and MCP dialogs show as Waiting for you. On Windows it starts with the node.exe in its newest `versions` folder, so prompts pass through neither cmd.exe nor PowerShell. Only the path without a Cursor login has been run so far.
 
+- Command suggestions in shell tabs, as in Warp: while you type in a PowerShell, Git Bash, bash or zsh tab, the last command you ran that starts the same way shows after the cursor in dim text, from the same project first, then your other projects, then the shell's own history. Right Arrow accepts it. The tabs start with a small script after your profile that marks the prompt (OSC 133) and reports each command (OSC 633), as Orca and VS Code do. Commands that start with a space, span several lines or contain PSReadLine's sensitive words are never saved. Settings › History turns it off and deletes the saved commands. Command Prompt gets no suggestions.
+
 ### Fixed
 
 - Text selected in Claude Code running over SSH, in a session or shell terminal, now reaches the clipboard. Programs that cannot reach the clipboard themselves (Claude Code over SSH, tmux, Neovim) copy through the terminal with OSC 52, which the terminal ignored. Only writes are honored: a program cannot read the clipboard back or clear it.

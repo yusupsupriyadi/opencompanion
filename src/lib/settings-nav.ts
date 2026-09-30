@@ -70,7 +70,7 @@ export const SETTINGS_GROUPS: { key: Key; items: SettingsItem[] }[] = [
       section("projects", "settings.projects.title", FolderSimple, ["settings.projects.desc"]),
       section("notifications", "settings.notify.title", Bell, ["settings.notify.waiting", "settings.notify.done", "settings.notify.error"]),
       section("outside", "settings.scan.title", Binoculars, ["settings.scan.label"]),
-      section("history", "settings.history.title", ClockCounterClockwise, ["settings.history.keepLabel", "settings.history.delete"]),
+      section("history", "settings.history.title", ClockCounterClockwise, ["settings.history.keepLabel", "settings.history.delete", "settings.commands.suggest"]),
     ],
   },
   {

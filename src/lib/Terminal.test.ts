@@ -5,6 +5,7 @@ import { render } from "@testing-library/svelte";
 import type { ILinkProviderOptions } from "@xterm/addon-web-links";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { backend } from "../test/fixtures";
+import { resetHistory } from "./command-history";
 import Terminal from "./Terminal.svelte";
 
 const SAVED = String.raw`C:\Temp\opencompanion-paste\pasted-1.png`;
@@ -226,4 +227,85 @@ test("a program's copy through OSC 52 reaches the clipboard, as Claude Code copi
   await vi.waitFor(() => expect(calls.calls("write_clipboard")).toHaveLength(2));
   await tick();
   expect(calls.calls("write_clipboard")).toEqual([{ text: "claude --resume" }, { text: "three" }]);
+});
+
+/** A shell tab in `C:\app` whose shell echoes through `echo`, with the history the backend sends for the folder. */
+function shellTab(screen: string) {
+  resetHistory();
+  let output: ((e: { payload: { id: string; data: string; seq: number } }) => void) | undefined;
+  vi.mocked(listen).mockImplementation(async (event, handler) => {
+    if (event === "terminal-output") output = handler as typeof output;
+    return () => undefined;
+  });
+  const calls = backend({
+    terminal_output: () => ({ data: screen, seq: 1 }),
+    shell_history: () => ({ here: ["git status"], elsewhere: ["git switch main"], imported: ["git stash"] }),
+  });
+  const { container } = render(Terminal, { id: "t1", live: true, label: "Terminal", kind: "terminal", folder: String.raw`C:\app` });
+  const input = container.querySelector("textarea") as HTMLTextAreaElement;
+  let seq = 1;
+  const echo = (data: string) => output?.({ payload: { id: "t1", data, seq: ++seq } });
+  const sent = () => calls.calls("terminal_write").map((a) => a.data);
+  return { container, input, echo, sent, calls };
+}
+
+const PROMPT = "PS C:\\app> \x1b]133;B\x07";
+
+test("a shell tab suggests the last matching command after its prompt, and Right Arrow types the rest", async () => {
+  const { container, input, echo, sent, calls } = shellTab(PROMPT);
+  await vi.waitFor(() => expect(calls.calls("shell_history")).toEqual([{ folder: String.raw`C:\app` }]));
+  echo("git st");
+  await vi.waitFor(() => expect(container.querySelector(".suggestion")?.textContent).toBe("atus"));
+  expect(container.querySelector(".suggestion")).toHaveAttribute("aria-hidden", "true");
+  // Screen readers hear it once it has stayed a moment.
+  await vi.waitFor(() => expect(container.querySelector("p.sr-only[aria-live]")).toHaveTextContent("Suggested command: git status. Right Arrow accepts it."));
+
+  key(input, { key: "ArrowRight", keyCode: 39 });
+  await vi.waitFor(() => expect(sent()).toEqual(["atus"]));
+  expect(container.querySelector(".suggestion")).toBeNull();
+});
+
+test("a key typed hides the suggestion until the shell echoes it, so Right Arrow never adds an older one's rest", async () => {
+  const { container, input, echo, sent } = shellTab(PROMPT);
+  await tick();
+  echo("git s");
+  await vi.waitFor(() => expect(container.querySelector(".suggestion")?.textContent).toBe("tatus"));
+  key(input, { key: "w", keyCode: 87 });
+  expect(container.querySelector(".suggestion")).toBeNull();
+  key(input, { key: "ArrowRight", keyCode: 39 });
+  await vi.waitFor(() => expect(sent()).toEqual(["w", "\x1b[C"]));
+  // Once the echo arrives the match comes from another folder's commands.
+  echo("w");
+  await vi.waitFor(() => expect(container.querySelector(".suggestion")?.textContent).toBe("itch main"));
+  // Enter runs the line: no suggestion until the next prompt.
+  key(input, { key: "Enter", keyCode: 13 });
+  echo("\r\n");
+  await tick();
+  expect(container.querySelector(".suggestion")).toBeNull();
+});
+
+test("other output arriving before a key's echo does not bring back the suggestion for the text before that key", async () => {
+  const { container, input, echo, sent } = shellTab(PROMPT);
+  await tick();
+  echo("g");
+  await vi.waitFor(() => expect(container.querySelector(".suggestion")?.textContent).toBe("it status"));
+  key(input, { key: "i", keyCode: 73 });
+  // A title change lands first; the line still reads "g" while "i" is on its way.
+  echo("\x1b]0;PowerShell\x07");
+  await tick();
+  expect(container.querySelector(".suggestion")).toBeNull();
+  key(input, { key: "ArrowRight", keyCode: 39 });
+  await vi.waitFor(() => expect(sent()).toEqual(["i", "\x1b[C"]));
+  echo("i");
+  await vi.waitFor(() => expect(container.querySelector(".suggestion")?.textContent).toBe("t status"));
+});
+
+test("a shell without the prompt mark, such as Command Prompt, gets no suggestion", async () => {
+  const { container, input, echo, sent } = shellTab("C:\\app>");
+  await tick();
+  echo("git st");
+  await tick();
+  expect(container.querySelector(".suggestion")).toBeNull();
+  key(input, { key: "ArrowRight", keyCode: 39 });
+  await vi.waitFor(() => expect(sent()).toEqual(["\x1b[C"]));
 });

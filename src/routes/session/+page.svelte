@@ -34,6 +34,7 @@
   import { api, errorText, type EventRow, type GitChange, type SessionDetail, type SessionInfo, type TerminalInfo, type Usage } from "$lib/api";
   import BranchPanel from "$lib/BranchPanel.svelte";
   import ChangesPanel from "$lib/ChangesPanel.svelte";
+  import { SUGGESTING_SHELLS } from "$lib/command-suggest";
   import { folderEntries, openMenu, type MenuEntry } from "$lib/context-menu.svelte";
   import Dialog from "$lib/Dialog.svelte";
   import FilesPanel from "$lib/FilesPanel.svelte";
@@ -600,7 +601,10 @@
    */
   function liveNote(p: string): string {
     if (p === TERM) return "";
-    return shells.list.find((x) => x.id === p)?.running ? t("terminal.live", { paste: pasteKey() }) : "";
+    const x = shells.list.find((x) => x.id === p);
+    if (!x?.running) return "";
+    const note = t("terminal.live", { paste: pasteKey() });
+    return app.settings?.shellSuggestions !== false && SUGGESTING_SHELLS.has(x.shell) ? `${note} ${t("terminal.liveSuggest")}` : note;
   }
 
   async function restartShell(x: TerminalInfo) {
@@ -1068,7 +1072,7 @@
                 >
                   {@render paneHead(x.id, x)}
                   {#key `${x.id}-${x.startedAt}`}
-                    <Terminal kind="terminal" id={x.id} live={x.running} {label} onmenu={(e, m) => termMenu(e, x.id, m)} />
+                    <Terminal kind="terminal" id={x.id} folder={x.cwd} live={x.running} {label} onmenu={(e, m) => termMenu(e, x.id, m)} />
                   {/key}
                   {#if x.running}
                     {#if !inSplit.has(x.id)}<div class="term-note">{liveNote(x.id)}</div>{/if}

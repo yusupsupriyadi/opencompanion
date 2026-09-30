@@ -14,6 +14,7 @@
 | `src-tauri/src/pi.rs` | Pi and omp: their JSON events, stderr errors, model lists, planner answer and session files |
 | `src-tauri/src/transcript.rs` | Transcripts of sessions opened outside OpenCompanion, read from each CLI's own history (Claude Code, Codex, Pi and omp JSONL, OpenCode's SQLite database opened read-only) |
 | `src-tauri/src/terminal.rs`, `paste.rs` | Shell tabs of a session: shell detection and plain shells in the session's folder. Pasted images saved for the terminal to paste as a path |
+| `src-tauri/src/shell_integration.rs` | The script a PowerShell, bash or zsh tab starts with, which marks the prompt (OSC 133) and reports each command (OSC 633) for command suggestions, the filter for what is saved, and the readers for the shells' own history files |
 | `src-tauri/src/files.rs`, `git.rs` | A session's folder for its side panel: one folder at a time with ignored entries, search by name or text, a file's text or its bytes for an image or a PDF, git status, a file's diff against HEAD, branches, recent commits and the branch switch |
 | `src-tauri/src/skills.rs` | Settings › Skills: reads the user skill folders of each CLI (`~/.claude/skills`, `~/.codex/skills`, `~/.agents/skills`, `~/.config/opencode/skills`, `~/.gemini/skills`, `~/.pi/agent/skills`, `~/.omp/agent/skills`) and compares them by content hash. Read-only |
 | `src-tauri/src/autostart.rs`, `proc.rs`, `shell_env.rs` | Start at sign-in on each OS, process launch and tree kill, and the login shell's environment for CLIs on macOS and Linux |

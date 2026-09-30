@@ -358,6 +358,9 @@ dialog[open] { animation: rise .18s ease-out; }
 .xterm-host { flex: 1; min-height: 0; padding: 12px 6px 6px 14px; }
 .xterm-host .xterm { height: 100%; }
 .xterm-host .xterm-viewport { background: transparent !important; }
+/* A suggested command after the cursor in a shell tab: term-dim (6.71:1 on term-bg), one cell per character like the text xterm draws. */
+.xterm-host .suggestion { display: flex; overflow: hidden; pointer-events: none; color: var(--term-dim); font: 13px "IBM Plex Mono", ui-monospace, monospace; white-space: pre; }
+.xterm-host .suggestion span { flex: none; text-align: center; }
 .term-note { padding: 10px 14px; border-top: 1px solid #EDE6C433; font: 12px var(--font-mono); color: var(--term-dim); }
 
 /* Tabs over a dark panel (a session's own terminal, its shells and the viewer). A tab is a plate over the painting; the shown

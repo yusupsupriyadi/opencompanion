@@ -2,7 +2,8 @@
 //! servers, builds, git and the rest, shown as extra tabs beside the session's own terminal.
 //! Unlike sessions they run no AI CLI of their own, so there is no status detection and no
 //! history in SQLite, and they end when the app does. They stay on the desktop: the phone
-//! companion never sees them.
+//! companion never sees them. The commands typed into them are saved, though, for suggestions
+//! (`shell_integration`).
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -16,12 +17,21 @@ use serde::Serialize;
 use crate::db;
 use crate::pty::{PtySession, PtySpec};
 use crate::session::{decode_utf8, keep_tail, OUTPUT_KEEP};
+use crate::shell_integration::{self, Reports};
 
 /// Everything terminals tell the webview.
 pub trait TerminalEmit: Send + Sync {
     /// Terminal text. `seq` counts the terminal's chunks from 1, as for sessions.
     fn output(&self, id: &str, data: &str, seq: u64);
     fn changed(&self, info: &TerminalInfo);
+    /// A command ran in a shell of `folder`, already filtered by `shell_integration::keep`.
+    fn command(&self, folder: &str, command: &str);
+}
+
+/// Where the shell scripts go, and whether shells start with them (Settings › History).
+pub struct Integration {
+    pub dir: PathBuf,
+    pub enabled: Box<dyn Fn() -> bool + Send + Sync>,
 }
 
 /// A shell found on this computer.
@@ -169,14 +179,20 @@ pub struct Terminals {
     emit: Arc<dyn TerminalEmit>,
     /// In the order they were opened, which is the order of the tabs.
     open: Mutex<Vec<Arc<Term>>>,
+    integration: Option<Integration>,
 }
 
 impl Terminals {
-    pub fn new(emit: Arc<dyn TerminalEmit>) -> Arc<Self> {
+    pub fn new(emit: Arc<dyn TerminalEmit>, integration: Option<Integration>) -> Arc<Self> {
         Arc::new(Self {
             emit,
             open: Mutex::new(Vec::new()),
+            integration,
         })
+    }
+
+    fn integrated(&self) -> Option<&Integration> {
+        self.integration.as_ref().filter(|i| (i.enabled)())
     }
 
     pub fn list(&self) -> Vec<TerminalInfo> {
@@ -253,18 +269,37 @@ impl Terminals {
         let generation = term.generation.fetch_add(1, Ordering::SeqCst) + 1;
         let sink_term = Arc::clone(term);
         let emit = Arc::clone(&self.emit);
+        let folder = term.info().cwd;
+        // New for every start, so only this shell's script can sign a report.
+        let nonce = db::new_id();
+        // A shell whose script cannot be written starts as it is, without suggestions.
+        let launch = self.integrated().and_then(|i| {
+            let kind = shell_integration::kind(&term.shell.path)?;
+            shell_integration::launch(kind, &i.dir, &nonce)
+                .map_err(|e| eprintln!("{} starts without command suggestions: {e}", term.shell.label))
+                .ok()
+        });
+        // What xterm.js understands, so tools that read these pick colors and keys that work.
+        let mut env = vec![
+            ("TERM".to_string(), "xterm-256color".to_string()),
+            ("COLORTERM".to_string(), "truecolor".to_string()),
+        ];
+        let mut reports = launch.is_some().then(|| (Reports::new(&nonce), Arc::clone(self)));
+        let args = match launch {
+            Some(l) => {
+                env.extend(l.env);
+                l.args
+            }
+            None => term.shell.args.clone(),
+        };
         let session = PtySession::spawn(
             PtySpec {
                 program: PathBuf::from(&term.shell.path),
-                args: term.shell.args.clone(),
-                cwd: PathBuf::from(term.info().cwd),
+                args,
+                cwd: PathBuf::from(&folder),
                 cols: cols.unwrap_or(120),
                 rows: rows.unwrap_or(32),
-                // What xterm.js understands, so tools that read these pick colors and keys that work.
-                env: vec![
-                    ("TERM".into(), "xterm-256color".into()),
-                    ("COLORTERM".into(), "truecolor".into()),
-                ],
+                env,
                 powershell: None,
                 stay: None,
             },
@@ -283,6 +318,13 @@ impl Terminals {
                     sink_term.output_seq.fetch_add(1, Ordering::SeqCst) + 1
                 };
                 emit.output(&sink_term.id, &text, seq);
+                if let Some((reports, me)) = reports.as_mut() {
+                    for command in reports.feed(&text) {
+                        if let Some(command) = shell_integration::keep(&command).filter(|_| me.integrated().is_some()) {
+                            emit.command(&folder, &command);
+                        }
+                    }
+                }
             }),
         )?;
         let pid = session.pid();
@@ -423,6 +465,7 @@ mod tests {
     struct Recorder {
         output: Mutex<String>,
         changed: Mutex<Vec<TerminalInfo>>,
+        commands: Mutex<Vec<(String, String)>>,
     }
 
     impl TerminalEmit for Recorder {
@@ -432,6 +475,91 @@ mod tests {
         fn changed(&self, info: &TerminalInfo) {
             self.changed.lock().unwrap().push(info.clone());
         }
+        fn command(&self, folder: &str, command: &str) {
+            self.commands.lock().unwrap().push((folder.to_string(), command.to_string()));
+        }
+    }
+
+    impl Recorder {
+        fn commands(&self) -> Vec<String> {
+            self.commands.lock().unwrap().iter().map(|(_, c)| c.clone()).collect()
+        }
+    }
+
+    fn integration(on: bool) -> Option<Integration> {
+        let dir = std::env::temp_dir().join(format!("oc-shell-scripts-{}", db::new_id()));
+        Some(Integration { dir, enabled: Box::new(move || on) })
+    }
+
+    /// The first installed shell that gets `kind`'s script.
+    fn shell_of(kind: shell_integration::Kind) -> Option<String> {
+        available_shells().into_iter().find(|s| shell_integration::kind(&s.path) == Some(kind)).map(|s| s.id)
+    }
+
+    /// Types commands into a shell with suggestions on, and checks that the prompt is marked, that the commands come
+    /// back as typed, and that the ones not to save do not.
+    fn reports_typed_commands(kind: shell_integration::Kind) {
+        let Some(shell) = shell_of(kind) else { return };
+        let shell = shell.as_str();
+        // A command whose output forges a report, and one that shows the nonce never reached the shell's children.
+        let (forge, env) = match kind {
+            shell_integration::Kind::PowerShell => ("Write-Host \"$([char]27)]633;E;oc-forged$([char]7)\"", "Write-Host \"nonce=[$env:OPENCOMPANION_NONCE]\""),
+            _ => ("printf '\\033]633;E;oc-forged\\007'", "echo \"nonce=[$OPENCOMPANION_NONCE]\""),
+        };
+        let rec = Arc::new(Recorder::default());
+        let terms = Terminals::new(rec.clone(), integration(true));
+        let dir = std::env::temp_dir().join(format!("oc-suggest-{}", db::new_id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let folder = dir.display().to_string();
+        let info = terms.open("s1", &folder, Some(shell), Some(120), Some(30)).expect("the shell starts");
+        wait_for("the prompt mark", || rec.output.lock().unwrap().contains("\x1b]133;B"));
+
+        terms.write(&info.id, "echo oc-suggest-one\r").unwrap();
+        wait_for("the first command", || rec.commands() == ["echo oc-suggest-one"]);
+        // Not saved: a leading space, and one of PSReadLine's sensitive words.
+        terms.write(&info.id, " echo oc-hidden\r").unwrap();
+        terms.write(&info.id, "echo oc-token\r").unwrap();
+        // The accent checks that PowerShell's report survives the console code page. Elsewhere readline under a C
+        // locale would turn it into escape keys, which is the shell's business, not the report's.
+        let special = if cfg!(windows) { "echo 'C:\\tmp\\caf\u{e9} \"x\"'" } else { "echo 'C:\\tmp\\cafe \"x\"'" };
+        terms.write(&info.id, &format!("{special}\r")).unwrap();
+        terms.write(&info.id, &format!("{forge}\r")).unwrap();
+        terms.write(&info.id, &format!("{env}\r")).unwrap();
+        wait_for("the last command", || rec.commands().len() >= 4);
+        assert_eq!(rec.commands(), ["echo oc-suggest-one", special, forge, env]);
+        assert!(rec.commands.lock().unwrap().iter().all(|(f, _)| *f == folder));
+        wait_for("the environment check", || rec.output.lock().unwrap().contains("nonce=[]"));
+        terms.kill_all();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_powershell_tab_marks_its_prompt_and_reports_commands() {
+        reports_typed_commands(shell_integration::Kind::PowerShell);
+    }
+
+    #[test]
+    fn a_bash_tab_marks_its_prompt_and_reports_commands() {
+        reports_typed_commands(shell_integration::Kind::Bash);
+    }
+
+    #[test]
+    fn a_zsh_tab_marks_its_prompt_and_reports_commands() {
+        reports_typed_commands(shell_integration::Kind::Zsh);
+    }
+
+    #[test]
+    fn with_suggestions_off_a_shell_starts_as_it_is_and_saves_nothing() {
+        let Some(shell) = shell_of(shell_integration::Kind::PowerShell).or_else(|| shell_of(shell_integration::Kind::Bash)) else { return };
+        let rec = Arc::new(Recorder::default());
+        let terms = Terminals::new(rec.clone(), integration(false));
+        let here = std::env::temp_dir().display().to_string();
+        let info = terms.open("s1", &here, Some(&shell), None, None).expect("the shell starts");
+        terms.write(&info.id, "echo oc-off-ok\r").unwrap();
+        wait_for("the echo", || rec.output.lock().unwrap().matches("oc-off-ok").count() >= 2);
+        assert!(!rec.output.lock().unwrap().contains("\x1b]133;B"));
+        assert!(rec.commands().is_empty());
+        terms.kill_all();
     }
 
     fn wait_for(what: &str, mut ok: impl FnMut() -> bool) {
@@ -461,7 +589,7 @@ mod tests {
 
     #[test]
     fn a_missing_folder_or_shell_opens_nothing() {
-        let terms = Terminals::new(Arc::new(Recorder::default()));
+        let terms = Terminals::new(Arc::new(Recorder::default()), None);
         let missing = std::env::temp_dir().join("air-terminal-no-such-folder");
         let err = terms.open("s1", &missing.display().to_string(), None, None, None).unwrap_err();
         assert_eq!(err, "This folder does not exist.");
@@ -474,7 +602,7 @@ mod tests {
     #[test]
     fn a_shell_runs_commands_reports_its_exit_and_restarts() {
         let rec = Arc::new(Recorder::default());
-        let terms = Terminals::new(rec.clone());
+        let terms = Terminals::new(rec.clone(), None);
         let dir = std::env::temp_dir().join(format!("air-terminal-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let info = terms
@@ -516,7 +644,7 @@ mod tests {
 
     #[test]
     fn a_deleted_session_ends_only_its_own_shells() {
-        let terms = Terminals::new(Arc::new(Recorder::default()));
+        let terms = Terminals::new(Arc::new(Recorder::default()), None);
         let here = std::env::temp_dir().display().to_string();
         let shell = test_shell();
         let a1 = terms.open("a", &here, Some(&shell), None, None).expect("the shell starts");

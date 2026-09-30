@@ -22,6 +22,7 @@
     type ProjectFolder,
     type Settings,
   } from "$lib/api";
+  import { forgetSaved } from "$lib/command-history";
   import { MODES, TEXT_SIZES, ago, folderName, modeLabel, shortPath } from "$lib/format";
   import { LANGS, plural, t, tb, type Key } from "$lib/i18n.svelte";
   import SettingsHead from "$lib/SettingsHead.svelte";
@@ -40,6 +41,7 @@
   let info = $state<AppInfo | null>(null);
   let switching = $state(false);
   let clearStep = $state(false);
+  let commandsStep = $state(false);
   let portDraft = $state(8765);
   let now = $state(Date.now());
 
@@ -328,6 +330,21 @@
       // Whatever was deleted leaves every list, even when one session could not go.
       refreshSessions();
       info = await api.appInfo().catch(() => info);
+    }
+  }
+
+  async function deleteCommands() {
+    if (!commandsStep) {
+      commandsStep = true;
+      return;
+    }
+    try {
+      const n = await api.deleteShellHistory();
+      forgetSaved();
+      commandsStep = false;
+      showToast(plural(n, "settings.commands.deletedOne", "settings.commands.deleted"));
+    } catch (e) {
+      showToast(tb(errorText(e)));
     }
   }
 
@@ -777,6 +794,27 @@
         <button class="btn secondary" type="button" style="align-self:flex-start" onclick={clearHistory}>
           {clearStep ? t("settings.history.deleteAgain") : t("settings.history.delete")}
         </button>
+        <div class="field" id="shell-commands">
+          <span class="label">{t("settings.commands.title")}</span>
+          <label class="check-row">
+            <input
+              type="checkbox"
+              checked={settings.shellSuggestions}
+              onchange={(e) =>
+                saveControl(
+                  e.currentTarget,
+                  { shellSuggestions: e.currentTarget.checked },
+                  e.currentTarget.checked ? t("settings.commands.onSaved") : t("settings.commands.offSaved"),
+                )}
+            />
+            <span>{t("settings.commands.suggest")}</span>
+          </label>
+          <p class="meta" style="margin:0">{settings.shellSuggestions ? t("settings.commands.suggestOn") : t("settings.commands.suggestOff")}</p>
+          <p class="help">{t("settings.commands.saved")}</p>
+          <button class="btn secondary" type="button" style="align-self:flex-start" onclick={deleteCommands}>
+            {commandsStep ? t("settings.commands.deleteAgain") : t("settings.commands.delete")}
+          </button>
+        </div>
       </section>
     {/if}
     {#if info}<p class="meta note" style="margin:0">OpenCompanion {info.version}</p>{/if}

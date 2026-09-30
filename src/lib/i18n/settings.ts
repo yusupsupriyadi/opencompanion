@@ -194,6 +194,19 @@ export const en = {
   "settings.history.deleted": "Finished sessions were deleted with their terminal logs.",
   "settings.history.keepSaved": "Finished sessions older than {age} are deleted from now on.",
   "settings.history.keepForever": "Finished sessions are kept until you delete them.",
+  "settings.commands.title": "Shell commands",
+  "settings.commands.suggest": "Suggest commands in shell tabs",
+  "settings.commands.suggestOn":
+    "Typing in a PowerShell, Git Bash, bash or zsh tab shows the last command you ran that starts the same way: from the same project first, then your other projects, then your shells' own history. Right Arrow accepts it.",
+  "settings.commands.suggestOff": "Shells you open start as they are, and no commands are saved.",
+  "settings.commands.onSaved": "Shells you open from now on suggest commands.",
+  "settings.commands.offSaved": "Command suggestions are off. Shells you open from now on start as they are.",
+  "settings.commands.saved":
+    "Commands run in shell tabs are saved on this computer only, up to 1000 per project. A command that starts with a space, runs over several lines, or holds password, token, apikey, secret or asplaintext is never saved. Your shells' own history files are read, never changed.",
+  "settings.commands.delete": "Delete saved commands",
+  "settings.commands.deleteAgain": "Press again to delete saved commands",
+  "settings.commands.deletedOne": "{n} saved command was deleted.",
+  "settings.commands.deleted": "{n} saved commands were deleted.",
 } as const;
 
 export const id: Record<keyof typeof en, string> = {
@@ -389,4 +402,17 @@ export const id: Record<keyof typeof en, string> = {
   "settings.history.deleted": "Sesi yang selesai sudah dihapus beserta log terminalnya.",
   "settings.history.keepSaved": "Mulai sekarang, sesi selesai yang lebih lama dari {age} akan dihapus.",
   "settings.history.keepForever": "Sesi yang selesai disimpan sampai Anda menghapusnya.",
+  "settings.commands.title": "Perintah shell",
+  "settings.commands.suggest": "Sarankan perintah di tab shell",
+  "settings.commands.suggestOn":
+    "Saat Anda mengetik di tab PowerShell, Git Bash, bash atau zsh, perintah terakhir yang diawali sama muncul setelah kursor: dari project yang sama dulu, lalu project Anda yang lain, lalu history shell Anda sendiri. Panah Kanan memakainya.",
+  "settings.commands.suggestOff": "Shell yang Anda buka berjalan seperti biasa, dan tidak ada perintah yang disimpan.",
+  "settings.commands.onSaved": "Shell yang dibuka mulai sekarang menyarankan perintah.",
+  "settings.commands.offSaved": "Saran perintah dimatikan. Shell yang dibuka mulai sekarang berjalan seperti biasa.",
+  "settings.commands.saved":
+    "Perintah yang dijalankan di tab shell hanya disimpan di komputer ini, paling banyak 1000 per project. Perintah yang diawali spasi, lebih dari satu baris, atau memuat password, token, apikey, secret atau asplaintext tidak pernah disimpan. File history shell Anda hanya dibaca, tidak pernah diubah.",
+  "settings.commands.delete": "Hapus perintah tersimpan",
+  "settings.commands.deleteAgain": "Tekan lagi untuk menghapus perintah tersimpan",
+  "settings.commands.deletedOne": "{n} perintah tersimpan sudah dihapus.",
+  "settings.commands.deleted": "{n} perintah tersimpan sudah dihapus.",
 };

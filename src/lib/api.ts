@@ -333,6 +333,8 @@ export interface Settings {
   autoRunFolders: string[];
   /** UI language; the phone follows it too. */
   language: "en" | "id";
+  /** Shell tabs mark their prompt and report commands, which are saved and suggested while typing. */
+  shellSuggestions: boolean;
 }
 
 /** Mirrors `db::NotifyRule`: which notifications one CLI or one folder sends. */
@@ -487,6 +489,16 @@ export interface ShellInfo {
   path: string;
 }
 
+/** Mirrors `ShellHistory` in lib.rs: what a shell tab suggests from, each most recently used first. */
+export interface ShellHistory {
+  /** Run in shell tabs of this folder. */
+  here: string[];
+  /** Run only in shell tabs of other folders. */
+  elsewhere: string[];
+  /** From the shells' own history files. */
+  imported: string[];
+}
+
 /** Mirrors `terminal::TerminalInfo`: a plain shell in a session's folder, not an AI session. */
 export interface TerminalInfo {
   id: string;
@@ -577,6 +589,10 @@ export const api = {
   terminalClear: (id: string) => invoke<void>("terminal_clear", { id }),
   /** Ends the shell and what it started, such as a dev server. */
   terminalClose: (id: string) => invoke<void>("terminal_close", { id }),
+  /** What a shell tab of `folder` suggests commands from. */
+  shellHistory: (folder: string) => invoke<ShellHistory>("shell_history", { folder }),
+  /** Forgets every saved shell command and says how many there were. */
+  deleteShellHistory: () => invoke<number>("delete_shell_history"),
   /** Saves an image pasted into a session or terminal to a temporary file and returns its path. */
   savePastedImage: (image: Uint8Array, type: string) =>
     invoke<string>("save_pasted_image", image, { headers: { "x-image-type": type } }),

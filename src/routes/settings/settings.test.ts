@@ -34,6 +34,7 @@ const base: Settings = {
   startAtLogin: false,
   autoRunFolders: [],
   language: "en",
+  shellSuggestions: true,
 };
 
 let stored: Settings;
@@ -175,6 +176,36 @@ test("finished sessions are kept for the time picked, and Delete history refresh
   await user.click(screen.getByRole("button", { name: "Press again to delete finished sessions" }));
   expect(calls.calls("delete_history")).toHaveLength(1);
   expect(calls.calls("list_sessions")).toHaveLength(1);
+});
+
+test("shell command suggestions turn off from History, and saved commands go after a second press", async () => {
+  api();
+  const calls = backend({
+    get_settings: () => stored,
+    save_settings: (a) => {
+      stored = a?.settings as Settings;
+      return stored;
+    },
+    companion_status: () => ({ running: false, address: null, port: 8765, error: null }),
+    list_devices: () => [],
+    app_info: () => ({ version: "0.1.0", dataDir: String.raw`C:\data`, counts: { sessions: 0, devices: 0 } }),
+    delete_shell_history: () => 12,
+  });
+  const user = userEvent.setup();
+  open("history");
+  const suggest = await screen.findByRole("checkbox", { name: "Suggest commands in shell tabs" });
+  expect(suggest).toBeChecked();
+  expect(screen.getByText(/Right Arrow accepts it/)).toBeInTheDocument();
+  await user.click(suggest);
+  expect(stored.shellSuggestions).toBe(false);
+  expect(screen.getByText("Shells you open start as they are, and no commands are saved.")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Delete saved commands" }));
+  expect(calls.calls("delete_shell_history")).toHaveLength(0);
+  await user.click(screen.getByRole("button", { name: "Press again to delete saved commands" }));
+  expect(calls.calls("delete_shell_history")).toHaveLength(1);
+  await vi.waitFor(() => expect(toast.text).toBe("12 saved commands were deleted."));
+  expect(screen.getByRole("button", { name: "Delete saved commands" })).toBeInTheDocument();
 });
 
 test("the start at sign-in is offered where the platform has it, and saved when picked", async () => {
