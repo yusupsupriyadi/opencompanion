@@ -22,8 +22,9 @@
 | `src/routes` | Desktop screens (Overview, Session, All sessions, Chat, Settings with its General, CLIs and Skills tabs, Onboarding) and the phone app under `/m` |
 | `src/lib` | Shared components, the store, and the English and Indonesian strings in `src/lib/i18n` |
 | `src/service-worker.ts`, `static/m/` | The phone page's service worker, web app manifest and icons |
-| `landing/` | The landing page: one `index.html` that opens by double-click, plus the meadow painting split into sky, clouds and ground. `.github/workflows/pages.yml` publishes it to [yusupsupriyadi.github.io/opencompanion](https://yusupsupriyadi.github.io/opencompanion/) whenever it changes on `main` |
 | `design/` | The logo sources (`logo.svg`, `logo-full.svg`), the meadow painting and the Pencil design file (`ai-remote.pen`) |
 | `docs/` | Product requirements, the M0 spike results and feature specs |
 
 The integration tests drive a stand-in CLI (`src-tauri/src/bin/fake-cli.rs`) that prints the event formats captured from the real CLIs, so they need no CLI and no quota. `src-tauri/src/bin/air-spike.rs` runs the real CLIs from a terminal for spikes.
+
+The landing page lives in its own repository, and Vercel publishes it at [opencompanion-landing.vercel.app](https://opencompanion-landing.vercel.app).

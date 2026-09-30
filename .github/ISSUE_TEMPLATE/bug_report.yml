@@ -41,7 +41,6 @@ body:
         - Skills screen
         - Notifications or tray
         - Settings
-        - Landing page
         - Other
     validations:
       required: true
