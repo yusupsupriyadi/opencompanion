@@ -7,7 +7,7 @@
   <title>OpenCompanion</title>
   <meta name="description"
     content="OpenCompanion is a desktop app that starts and watches Claude Code, Codex CLI, OpenCode and other AI coding CLIs on your computer, runs your own shells beside them, starts sessions on a schedule, tells you when one needs you, and lets you answer from your phone. Open source, MIT licensed.">
-  <meta name="theme-color" content="#FBF3CF">
+  <meta name="theme-color" content="#FFFFFF">
   <link rel="icon"
     href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Crect width='256' height='256' rx='56' fill='%23FBF3CF'/%3E%3Cpath fill='%232F5A36' d='M0 196C64 136 148 118 256 146V200A56 56 0 0 1 200 256H56A56 56 0 0 1 0 200Z'/%3E%3Cpath fill='%2333361F' d='M160 96h16v16h-16z'/%3E%3Cpath fill='%232C5A8C' d='M144 112h48v32h-48z'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15,12 +15,13 @@
   <link rel="stylesheet"
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Nunito:wght@600;700;800&family=Pixelify+Sans:wght@400&display=swap">
   <style>
-    /* Tokens mirror the app's Day theme in DESIGN.md. The landing has only this one theme (owner's choice, 2026-09-30). */
+    /* Tokens follow the app's Day theme in DESIGN.md, except that the page itself is white instead of cream
+       (owner's choice, 2026-09-30); the mockups keep the app's own cream below. One theme only. */
     :root {
-      --bg: #FBF3CF;
-      --surface: #FFFAE6;
-      --surface-2: #F4E7B0;
-      --line: #E4D69E;
+      --bg: #FFFFFF;
+      --surface: #FFFFFF;
+      --surface-2: #F2F4EC;
+      --line: #E2E5D9;
       --line-strong: #8C8A5E;
       --ink: #33361F;
       --ink-2: #5B5D3E;
@@ -722,6 +723,15 @@
       margin-inline: auto;
     }
 
+    /* The mockups show the app as it looks, so they keep its cream Day surfaces while the page around them is white. */
+    .app,
+    .device {
+      --bg: #FBF3CF;
+      --surface: #FFFAE6;
+      --surface-2: #F4E7B0;
+      --line: #E4D69E;
+    }
+
     .app {
       position: relative;
       isolation: isolate;
@@ -1348,7 +1358,7 @@
 
     /* ---------- What it does: numbered rows, the title stays put while its side scrolls ---------- */
     .features {
-      padding: clamp(72px, 9vw, 128px) 0 clamp(40px, 5vw, 64px);
+      padding: clamp(24px, 3vw, 40px) 0 clamp(40px, 5vw, 64px);
     }
 
     .features .sec-title {
