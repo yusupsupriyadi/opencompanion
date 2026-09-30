@@ -34,6 +34,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use serde::Serialize;
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager as _, RunEvent, State};
+use tauri_plugin_clipboard_manager::ClipboardExt;
 #[cfg(target_os = "macos")]
 use tauri_plugin_notification::NotificationExt;
 
@@ -693,6 +694,12 @@ fn save_pasted_image(request: tauri::ipc::Request<'_>) -> Res<String> {
     paste::save_image(&dir, bytes, mime).map(|p| p.display().to_string())
 }
 
+/// Text a program in a session or terminal copied through OSC 52, as Claude Code does over SSH.
+#[tauri::command]
+fn write_clipboard(app: AppHandle, text: String) -> Res<()> {
+    app.clipboard().write_text(text).map_err(|e| e.to_string())
+}
+
 // Chat
 
 #[tauri::command]
@@ -936,6 +943,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 on_close(window, api);
@@ -1064,6 +1072,7 @@ pub fn run() {
             terminal_clear,
             terminal_close,
             save_pasted_image,
+            write_clipboard,
             chat_threads,
             chat_history,
             chat_send,

@@ -580,6 +580,8 @@ export const api = {
   /** Saves an image pasted into a session or terminal to a temporary file and returns its path. */
   savePastedImage: (image: Uint8Array, type: string) =>
     invoke<string>("save_pasted_image", image, { headers: { "x-image-type": type } }),
+  /** Puts text a program in a terminal copied into the system clipboard. */
+  writeClipboard: (text: string) => invoke<void>("write_clipboard", { text }),
 
   chatThreads: () => invoke<ChatThread[]>("chat_threads"),
   chatHistory: (threadId: string) => invoke<ChatMessage[]>("chat_history", { threadId }),

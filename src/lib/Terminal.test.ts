@@ -203,3 +203,27 @@ test("a shell terminal closes without reading its id again, which its parent may
   await tick();
   expect(lateReads).toBe(0);
 });
+
+test("a program's copy through OSC 52 reaches the clipboard, as Claude Code copies over SSH, and a replayed one does not", async () => {
+  let output: ((e: { payload: { id: string; data: string; seq: number } }) => void) | undefined;
+  vi.mocked(listen).mockImplementation(async (_event, handler) => {
+    output = handler as typeof output;
+    return () => undefined;
+  });
+  const copy = (text: string) => `\x1b]52;c;${btoa(text)}\x07`;
+  // The screen shown on opening holds a copy made before; writing it again would replace the clipboard.
+  const calls = backend({ terminal_output: () => ({ data: `${copy("copied an hour ago")}user@box:~$ `, seq: 1 }) });
+  const { container } = render(Terminal, { id: "t1", live: true, label: "Terminal", kind: "terminal" });
+  await vi.waitFor(() => expect(container.textContent).toContain("user@box"));
+  await tick();
+  expect(calls.calls("write_clipboard")).toEqual([]);
+
+  output?.({ payload: { id: "t1", data: copy("claude --resume"), seq: 2 } });
+  await vi.waitFor(() => expect(calls.calls("write_clipboard")).toEqual([{ text: "claude --resume" }]));
+
+  // A burst of copies in one chunk keeps only the last, the one the clipboard would end up holding.
+  output?.({ payload: { id: "t1", data: copy("one") + copy("two") + copy("three"), seq: 3 } });
+  await vi.waitFor(() => expect(calls.calls("write_clipboard")).toHaveLength(2));
+  await tick();
+  expect(calls.calls("write_clipboard")).toEqual([{ text: "claude --resume" }, { text: "three" }]);
+});

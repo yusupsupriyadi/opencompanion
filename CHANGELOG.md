@@ -8,6 +8,10 @@ Notable changes to OpenCompanion are listed here. The format follows [Keep a Cha
 
 - Cursor CLI (`cursor-agent`) as a CLI: interactive and headless sessions (`cursor-agent -p --output-format stream-json`, prompt on stdin), follow-ups and Resume with `--resume`, the Chat planner in ask mode with `--list-models`, outside sessions with transcripts from `~/.cursor/projects`, and its skill folder `~/.cursor/skills`. Its approval menus, workspace trust and MCP dialogs show as Waiting for you. On Windows it starts with the node.exe in its newest `versions` folder, so prompts pass through neither cmd.exe nor PowerShell. Only the path without a Cursor login has been run so far.
 
+### Fixed
+
+- Text selected in Claude Code running over SSH, in a session or shell terminal, now reaches the clipboard. Programs that cannot reach the clipboard themselves (Claude Code over SSH, tmux, Neovim) copy through the terminal with OSC 52, which the terminal ignored. Only writes are honored: a program cannot read the clipboard back or clear it.
+
 ## [0.1.1] - 2026-09-30
 
 The first public release. Windows 11 is tested by hand, Linux end to end in Docker, and macOS builds and passes its tests in GitHub Actions.

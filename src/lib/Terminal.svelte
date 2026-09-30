@@ -28,6 +28,7 @@
   import { onMount } from "svelte";
   import { api } from "./api";
   import { t } from "./i18n.svelte";
+  import { osc52Text } from "./osc52";
   import { currentPlatform } from "./platform";
   import { pastedImage, pathForPaste, shiftEnter } from "./term-input";
 
@@ -150,6 +151,23 @@
     };
     term.parser.registerCsiHandler({ prefix: "?", final: "h" }, onWin32Mode(true));
     term.parser.registerCsiHandler({ prefix: "?", final: "l" }, onWin32Mode(false));
+
+    // OSC 52 copies, such as Claude Code's over SSH, have no click behind them for the webview's clipboard, so Rust
+    // writes them: only the last of a burst, and none from the screen replayed on opening.
+    let replaying = false;
+    let lastCopy: string | null = null;
+    term.parser.registerOscHandler(52, (data) => {
+      const text = replaying ? null : osc52Text(data);
+      if (text === null) return true;
+      if (lastCopy === null) {
+        queueMicrotask(() => {
+          if (lastCopy !== null) api.writeClipboard(lastCopy).catch(() => undefined);
+          lastCopy = null;
+        });
+      }
+      lastCopy = text;
+      return true;
+    });
     const windows = currentPlatform() === "windows";
 
     const fit = new FitAddon();
@@ -246,7 +264,10 @@
       .catch(() => ({ data: "", seq: 0 }))
       .then((snap) => {
         if (gone) return;
-        if (snap.data) term.write(snap.data);
+        if (snap.data) {
+          replaying = true;
+          term.write(snap.data, () => (replaying = false));
+        }
         shown = snap.seq;
         early.splice(0).forEach(show);
       });
