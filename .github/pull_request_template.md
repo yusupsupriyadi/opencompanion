@@ -8,8 +8,8 @@
 
 - [ ] `bun run check`
 - [ ] `bun run test`
-- [ ] `cargo test` (in `src-tauri`)
-- [ ] `cargo clippy --all-targets` with no warnings
+- [ ] `cargo test --features dev-tools` (in `src-tauri`)
+- [ ] `cargo clippy --all-targets --features dev-tools` with no warnings
 - [ ] Tried it in the running app (`bun run tauri dev`)
 
 OS:

@@ -157,12 +157,12 @@ The flags were checked against each CLI's `--help` on 2026-09-25. A resumed head
 ## Development
 
 ```sh
-bun run check                          # svelte-check
-bun run test                           # component tests (Vitest, mocked backend)
-cd src-tauri && cargo test             # unit tests + session manager and companion integration tests
-cd src-tauri && cargo clippy --all-targets
-bash scripts/ci/checks.sh              # all of the above, clippy with -D warnings (Git Bash on Windows)
-bash e2e/linux/run.sh all              # the checks and an end-to-end run on Ubuntu 24.04, in Docker
+bun run check                                                   # svelte-check
+bun run test                                                    # component tests (Vitest, mocked backend)
+cd src-tauri && cargo test --features dev-tools                 # unit tests + session manager and companion integration tests
+cd src-tauri && cargo clippy --all-targets --features dev-tools
+bash scripts/ci/checks.sh                                       # all of the above, clippy with -D warnings (Git Bash on Windows)
+bash e2e/linux/run.sh all                                       # the checks and an end-to-end run on Ubuntu 24.04, in Docker
 ```
 
 The tests need Node.js: Vitest runs on Node, not on Bun. GitHub Actions runs the checks on Windows, Linux and macOS, and the Linux end-to-end test, on every push to `main` and every pull request ([CONTRIBUTING](CONTRIBUTING.md#ci)). A version tag builds the installers into a draft release ([Releasing](CONTRIBUTING.md#releasing)).

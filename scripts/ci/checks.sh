@@ -7,5 +7,5 @@ bun install --frozen-lockfile
 bun run check
 bun run test
 cd src-tauri
-cargo clippy --all-targets -- -D warnings
-cargo test
+cargo clippy --all-targets --features dev-tools -- -D warnings
+cargo test --features dev-tools

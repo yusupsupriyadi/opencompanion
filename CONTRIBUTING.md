@@ -32,14 +32,16 @@ Windows 11 is tested by hand, Linux end to end in Docker (see below), and macOS 
 Run all four before you open a pull request:
 
 ```sh
-bun run check                 # svelte-check: types in .svelte and .ts files
-bun run test                  # Vitest + Testing Library in jsdom, backend calls mocked
+bun run check                                     # svelte-check: types in .svelte and .ts files
+bun run test                                      # Vitest + Testing Library in jsdom, backend calls mocked
 cd src-tauri
-cargo test                    # Rust unit tests and the integration tests in src-tauri/tests
-cargo clippy --all-targets    # keep it at zero warnings
+cargo test --features dev-tools                   # Rust unit tests and the integration tests in src-tauri/tests
+cargo clippy --all-targets --features dev-tools   # keep it at zero warnings
 ```
 
 `bash scripts/ci/checks.sh` runs the four in order (with `clippy -- -D warnings`), on any OS; on Windows run it from Git Bash.
+
+`--features dev-tools` builds `fake-cli` and `air-spike` (in `src-tauri/src/bin`) and the integration tests that run `fake-cli`. `tauri build` leaves the feature off, so neither tool ends up in an installer.
 
 `bun run test` needs no Tauri runtime: the component tests mock the backend. `cargo test` runs the unit tests in each module plus `src-tauri/tests/manager.rs` (the session manager) and `src-tauri/tests/companion.rs` (the phone API and WebSocket).
 
@@ -81,9 +83,9 @@ gh workflow run ci.yml --ref my-branch
 
 ```sh
 cd src-tauri
-cargo run --bin air-spike -- detect
-cargo run --bin air-spike -- headless claude --cwd <scratch folder> --prompt "Create hello.txt" --out run.jsonl --answer deny
-cargo run --bin air-spike -- replay claude run.jsonl
+cargo run --features dev-tools --bin air-spike -- detect
+cargo run --features dev-tools --bin air-spike -- headless claude --cwd <scratch folder> --prompt "Create hello.txt" --out run.jsonl --answer deny
+cargo run --features dev-tools --bin air-spike -- replay claude run.jsonl
 ```
 
 The comment at the top of `air-spike.rs` lists every subcommand (`detect`, `scan`, `pty`, `headless`, `replay`, `waiting`, `plan`). Use an empty scratch folder outside the repository, and do not commit captured output that contains your paths, prompts or account details.
