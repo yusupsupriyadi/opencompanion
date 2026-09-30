@@ -288,14 +288,16 @@ pub fn interactive_args(
             }
         }
         // `codex resume [OPTIONS] [SESSION_ID]`: options go between the subcommand and the id.
-        CliKind::Codex => match resume {
-            Some(id) => {
+        CliKind::Codex => {
+            if resume.is_some() {
                 args.push("resume".into());
-                args.extend(flags);
+            }
+            args.extend(flags);
+            args.extend(strings(&crate::signals::CODEX_NOTICES));
+            if let Some(id) = resume {
                 args.push(id.to_string());
             }
-            None => args.extend(flags),
-        },
+        }
         CliKind::Opencode => {
             if let Some(id) = resume {
                 args.extend(strings(&["--session", id]));
@@ -471,8 +473,12 @@ mod tests {
         assert_eq!(args, ["--pure", "--prompt", "hi"]);
         let (args, _) = interactive_args(CliKind::Claude, "", Some("s1"), PermMode::Auto, &[]);
         assert_eq!(args, ["--permission-mode", "auto", "--resume", "s1"]);
+        // Codex's OSC 9 notifications say when it asks and when its turn is over.
+        let notices = crate::signals::CODEX_NOTICES;
         let (args, _) = interactive_args(CliKind::Codex, "", Some("t9"), PermMode::Plan, &[]);
-        assert_eq!(args, ["resume", "-s", "read-only", "-a", "on-request", "t9"]);
+        assert_eq!(args, [&["resume", "-s", "read-only", "-a", "on-request"][..], &notices, &["t9"]].concat());
+        let (args, _) = interactive_args(CliKind::Codex, "fix it", None, PermMode::Auto, &[]);
+        assert_eq!(args, [&["--approve-for-me"][..], &notices, &["fix it"]].concat());
     }
 
     #[test]

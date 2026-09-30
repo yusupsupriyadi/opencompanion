@@ -19,6 +19,7 @@ pub mod projects;
 pub mod pty;
 pub mod session;
 pub mod shell_env;
+pub mod signals;
 pub mod skills;
 pub mod terminal;
 pub mod transcript;
@@ -94,6 +95,9 @@ impl Emit for TauriEmit {
     }
     fn notify(&self, title: &str, body: &str, session_id: &str) {
         show_notification(&self.app, title, body, session_id);
+        self.notify_phone(title, body, session_id);
+    }
+    fn notify_phone(&self, title: &str, body: &str, session_id: &str) {
         if let Some(c) = self.companion.get() {
             c.broadcast(json!({ "type": "notify", "title": title, "body": body, "sessionId": session_id }));
         }

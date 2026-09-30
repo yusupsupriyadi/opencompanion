@@ -103,6 +103,9 @@ export const en = {
   "shell.signal.stdio": "Permission requests arrive through Claude Code's control protocol, so Approve and Deny answer it directly.",
   "shell.signal.hook": "Claude Code reports permission prompts through hooks added to this session only.",
   "shell.signal.screen": "Detected from the terminal screen. Text patterns are a fallback and can miss a prompt.",
+  "shell.signal.osc9": "Codex reports its questions through terminal notifications turned on for this session only. Answer them in the terminal.",
+  "shell.signal.title": "Read from Gemini CLI's window title, which changes when it asks for permission. Answer it in the terminal.",
+  "shell.signal.plugin": "OpenCode reports permission prompts and questions through a plugin added to this session only. Answer them in the terminal.",
 
   // Activity track (Horizon)
   "shell.horizon.empty": "Activity: no commands, file edits or approvals yet",
@@ -244,6 +247,9 @@ export const id: Record<keyof typeof en, string> = {
   "shell.signal.stdio": "Permintaan izin datang lewat protokol kontrol Claude Code, jadi Setujui dan Tolak langsung menjawabnya.",
   "shell.signal.hook": "Claude Code melaporkan permintaan izin lewat hook yang hanya dipasang untuk sesi ini.",
   "shell.signal.screen": "Terdeteksi dari layar terminal. Pola teks hanya cadangan dan bisa melewatkan permintaan.",
+  "shell.signal.osc9": "Codex melaporkan pertanyaannya lewat notifikasi terminal yang hanya dinyalakan untuk sesi ini. Jawab di terminal.",
+  "shell.signal.title": "Dibaca dari judul jendela Gemini CLI, yang berubah saat ia meminta izin. Jawab di terminal.",
+  "shell.signal.plugin": "OpenCode melaporkan permintaan izin dan pertanyaan lewat plugin yang hanya dipasang untuk sesi ini. Jawab di terminal.",
 
   "shell.horizon.empty": "Aktivitas: belum ada perintah, edit file, atau persetujuan",
   "shell.horizon.count": "Aktivitas: {n} perintah, edit file, dan persetujuan",

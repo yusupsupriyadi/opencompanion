@@ -19,6 +19,7 @@ use crate::db::{self, Db, EventRow, Mode, Notice, SessionInfo, Status, Waiting};
 use crate::events::{self, SessionEvent};
 use crate::headless::{self, HeadlessRun, PermMode, Stream, TurnOptions};
 use crate::pty::{PtySession, PtySpec, Stay};
+use crate::signals::{self, Said};
 use crate::waiting;
 
 /// Everything the manager tells the outside world. The Tauri app forwards these to the
@@ -30,6 +31,8 @@ pub trait Emit: Send + Sync {
     fn output(&self, id: &str, data: &str, seq: u64);
     fn event(&self, row: &EventRow);
     fn notify(&self, title: &str, body: &str, session_id: &str);
+    /// A notification for the phone only: the desktop shows the session already.
+    fn notify_phone(&self, _title: &str, _body: &str, _session_id: &str) {}
     /// The desktop window is in front, so the session it shows needs no notification that it finished.
     fn window_focused(&self) -> bool {
         false
@@ -68,6 +71,10 @@ enum Runner {
 pub(crate) const OUTPUT_KEEP: usize = 512 * 1024;
 /// Output silence after which an interactive session counts as Idle.
 const IDLE_AFTER: Duration = Duration::from_secs(8);
+/// The same notification for a session again this soon is dropped, as Orca does.
+const NOTICE_COOLDOWN: Duration = Duration::from_secs(5);
+/// OpenCode reads plugins from this folder after the user's own config folders.
+const OPENCODE_CONFIG_DIR: &str = "OPENCODE_CONFIG_DIR";
 /// How long a new terminal's shell may take to start its CLI before a missing one counts.
 const CLI_START_GRACE: Duration = Duration::from_secs(15);
 /// Process list reads in a row that must miss the terminal's CLI before it counts as gone, so
@@ -94,9 +101,14 @@ struct Live {
     /// Pending Claude `can_use_tool` input, echoed back on Approve.
     pending_input: Mutex<Option<Value>>,
     hook_file: Option<PathBuf>,
-    /// Claude Code's Stop hook said the turn is over. Terminal redraws do not make it Running
-    /// again; the next hook report does.
-    hook_idle: AtomicBool,
+    /// The CLI said its turn is over: Claude Code's Stop hook, Codex's notification, Gemini CLI's
+    /// title or OpenCode's plugin. Terminal redraws do not make it Running again; the CLI's next
+    /// report does, or for the others than Claude Code, Enter.
+    told_idle: AtomicBool,
+    /// The CLI says on its own when its turn is over, so silence no longer counts as the end.
+    tells_idle: AtomicBool,
+    /// The CLI said it works since it last said its turn is over (see `signals::says_working`).
+    worked: AtomicBool,
     /// Enter reached the CLI, or it started with a prompt, and the end of that turn has not been
     /// told yet. The CLI going quiet or its Stop hook ends it with a notification.
     turn_open: AtomicBool,
@@ -122,6 +134,9 @@ pub struct Manager {
     spawning: Mutex<HashSet<String>>,
     /// The session whose page the desktop window shows.
     viewing: Mutex<Option<String>>,
+    /// When each session's notification last went out, keyed by session and title.
+    told: Mutex<HashMap<String, Instant>>,
+    cooldown: Duration,
 }
 
 /// Holds a session's place in `Manager::spawning` until the spawn is over.
@@ -280,6 +295,8 @@ impl Manager {
             live: Mutex::new(HashMap::new()),
             spawning: Mutex::new(HashSet::new()),
             viewing: Mutex::new(None),
+            told: Mutex::new(HashMap::new()),
+            cooldown: NOTICE_COOLDOWN,
         })
     }
 
@@ -391,7 +408,7 @@ impl Manager {
                 }
                 // Started again in its own terminal, unless its CLI already asks you something.
                 (true, true, status) if status == Status::Shell || (!was_own && status != Status::Waiting) => {
-                    live.hook_idle.store(false, Ordering::SeqCst);
+                    live.told_idle.store(false, Ordering::SeqCst);
                     self.update(&live, |i| {
                         i.status = Status::Running;
                         i.last_event = Some("Started in the terminal".into());
@@ -437,10 +454,34 @@ impl Manager {
             .unwrap_or_default()
     }
 
-    /// Claude Code's hooks come in through a `--settings` file. CCS's API and CLIProxy profiles
-    /// pass their own, which a second one would replace, so those sessions go without.
-    fn claude_hooks(&self, kind: CliKind) -> bool {
-        kind == CliKind::Claude || (kind == CliKind::Ccs && ccs::plain(&self.extra_args(kind)))
+    /// Whether an interactive session gets a hook file. Claude Code's hooks come in through a
+    /// `--settings` file; CCS's API and CLIProxy profiles pass their own, which a second one would
+    /// replace, so those sessions go without. OpenCode's plugin comes in through
+    /// `OPENCODE_CONFIG_DIR`, unless you point that at a folder of your own.
+    fn hooks(&self, kind: CliKind) -> bool {
+        match kind {
+            CliKind::Claude => true,
+            CliKind::Ccs => ccs::plain(&self.extra_args(kind)),
+            CliKind::Opencode => {
+                std::env::var_os(OPENCODE_CONFIG_DIR).is_none() && !crate::shell_env::vars().iter().any(|(k, _)| k == OPENCODE_CONFIG_DIR)
+            }
+            _ => false,
+        }
+    }
+
+    /// Writes OpenCode's plugin and returns the variables that point a session's OpenCode at it
+    /// and at the session's hook file.
+    fn opencode_plugin_env(&self, hook_file: &Path) -> Result<Vec<(String, String)>, String> {
+        let dir = self.data_dir.join("opencode");
+        let plugin = dir.join("plugins").join("opencompanion.js");
+        if fs::read_to_string(&plugin).ok().as_deref() != Some(signals::OPENCODE_PLUGIN) {
+            fs::create_dir_all(dir.join("plugins")).map_err(|e| e.to_string())?;
+            fs::write(&plugin, signals::OPENCODE_PLUGIN).map_err(|e| e.to_string())?;
+        }
+        Ok(vec![
+            (OPENCODE_CONFIG_DIR.into(), dir.display().to_string()),
+            ("OPENCOMPANION_HOOK_FILE".into(), hook_file.display().to_string()),
+        ])
     }
 
     fn log_path(&self, id: &str) -> PathBuf {
@@ -518,7 +559,7 @@ impl Manager {
         };
         self.db.upsert_session(&info)?;
         self.db.touch_project(&cwd)?;
-        let live = self.register(info.clone(), self.claude_hooks(req.cli) && req.mode == Mode::Interactive);
+        let live = self.register(info.clone(), self.hooks(req.cli) && req.mode == Mode::Interactive);
 
         let result = match req.mode {
             Mode::Interactive => self.spawn_pty(&live, &exe, &req.prompt, None, req.cols, req.rows),
@@ -553,7 +594,9 @@ impl Manager {
             turn_failed: AtomicBool::new(false),
             pending_input: Mutex::new(None),
             hook_file,
-            hook_idle: AtomicBool::new(false),
+            told_idle: AtomicBool::new(false),
+            tells_idle: AtomicBool::new(false),
+            worked: AtomicBool::new(false),
             turn_open: AtomicBool::new(false),
             own_cli: AtomicBool::new(true),
             cli_seen: AtomicBool::new(false),
@@ -619,17 +662,90 @@ impl Manager {
                     Some("update_offer") => say(format!("{who} is asking about an update"), format!("{who} menawarkan pembaruan")),
                     _ => say(format!("{who} is waiting for you"), format!("{who} menunggu Anda")),
                 };
-                self.emit.notify(&what, &format!("{place} · {}", info.title), &info.id);
+                self.tell(&what, &format!("{place} · {}", info.title), &info.id, false);
             }
-            Status::Done | Status::Idle if finished && settings.notifies(Notice::Done, info.cli, &info.cwd) && !self.in_view(&info.id) => {
-                self.emit.notify(&say(format!("{who} finished"), format!("{who} selesai")), &format!("{place} · {}", info.title), &info.id);
+            Status::Done | Status::Idle if finished && settings.notifies(Notice::Done, info.cli, &info.cwd) => {
+                let title = say(format!("{who} finished"), format!("{who} selesai"));
+                self.tell(&title, &format!("{place} · {}", info.title), &info.id, self.in_view(&info.id));
             }
             Status::Error if settings.notifies(Notice::Error, info.cli, &info.cwd) => {
                 let why = info.last_event.clone().unwrap_or_default();
                 let title = say(format!("{who} stopped with an error"), format!("{who} berhenti karena error"));
-                self.emit.notify(&title, &format!("{place} · {why}"), &info.id);
+                self.tell(&title, &format!("{place} · {why}"), &info.id, false);
             }
             _ => {}
+        }
+    }
+
+    /// Sends a session's notification unless the same one went out moments ago. `phone_only`
+    /// when the desktop shows the session already; the phone may be in another room.
+    fn tell(&self, title: &str, body: &str, id: &str, phone_only: bool) {
+        if let Ok(mut told) = self.told.lock() {
+            let now = Instant::now();
+            told.retain(|_, at| now.duration_since(*at) < self.cooldown);
+            let key = format!("{id}\n{title}");
+            if !self.cooldown.is_zero() && told.contains_key(&key) {
+                return;
+            }
+            told.insert(key, now);
+        }
+        if phone_only {
+            self.emit.notify_phone(title, body, id);
+        } else {
+            self.emit.notify(title, body, id);
+        }
+    }
+
+    /// What Codex, Gemini CLI or OpenCode said about itself (see `signals`), told the way a
+    /// Claude Code hook would be. Nothing changes when it says what it said last.
+    fn apply_said(&self, live: &Live, said: Said, method: &str) {
+        let info = self.info(live);
+        // Back at the shell prompt, what the terminal shows is the shell's.
+        if !info.status.runs_cli() {
+            return;
+        }
+        if said == Said::Done && signals::says_working(info.cli) && !live.worked.swap(false, Ordering::SeqCst) {
+            return;
+        }
+        live.tells_idle.store(true, Ordering::SeqCst);
+        match said {
+            Said::Asking { reason, detail } => {
+                if info.waiting.is_none() {
+                    self.update(live, |i| {
+                        i.status = Status::Waiting;
+                        i.waiting = Some(Waiting {
+                            reason: reason.into(),
+                            tool: None,
+                            detail: detail.clone(),
+                            request_id: None,
+                            can_answer: false,
+                            method: method.into(),
+                            since: db::now_ms(),
+                        });
+                        i.last_event = Some(detail);
+                    });
+                }
+            }
+            Said::Working => {
+                live.worked.store(true, Ordering::SeqCst);
+                live.told_idle.store(false, Ordering::SeqCst);
+                if info.status != Status::Running || info.waiting.is_some() {
+                    self.update(live, |i| {
+                        i.status = Status::Running;
+                        i.waiting = None;
+                    });
+                }
+            }
+            Said::Done => {
+                live.told_idle.store(true, Ordering::SeqCst);
+                if info.status != Status::Idle || info.waiting.is_some() {
+                    self.update(live, |i| {
+                        i.status = Status::Idle;
+                        i.waiting = None;
+                        i.last_event = Some("Waiting for your next message".into());
+                    });
+                }
+            }
         }
     }
 
@@ -685,14 +801,20 @@ impl Manager {
         let extra = self.extra_args(info.cli);
         let (lead, extra) = headless::split_extra(info.cli, &extra);
         let mut args = lead.to_vec();
+        let mut hook_env = Vec::new();
         if let Some(hook_file) = &live.hook_file {
-            let settings_path = self.hook_settings_path(&info.id);
-            fs::write(&settings_path, claude_hook_settings(hook_file)).map_err(|e| e.to_string())?;
+            if info.cli == CliKind::Opencode {
+                hook_env = self.opencode_plugin_env(hook_file)?;
+            } else {
+                let settings_path = self.hook_settings_path(&info.id);
+                fs::write(&settings_path, claude_hook_settings(hook_file)).map_err(|e| e.to_string())?;
+                args.extend(["--settings".to_string(), settings_path.display().to_string()]);
+            }
             let _ = File::create(hook_file);
-            args.extend(["--settings".to_string(), settings_path.display().to_string()]);
         }
         let mode = PermMode::parse(info.permission_mode.as_deref().unwrap_or("ask"));
-        let (cli_args, env) = headless::interactive_args(info.cli, prompt, resume, mode, extra);
+        let (cli_args, mut env) = headless::interactive_args(info.cli, prompt, resume, mode, extra);
+        env.extend(hook_env);
         // Typed again in the session's shell: the same flags and hooks, without the first
         // prompt or the resume, like starting the CLI in a terminal of your own.
         let mut again = args.clone();
@@ -703,6 +825,8 @@ impl Manager {
         let sink_self = Arc::clone(self);
         let session_id = info.id.clone();
         let names_task = info.cli.runs_claude_code();
+        let tells = matches!(info.cli, CliKind::Codex | CliKind::Gemini).then_some(info.cli);
+        let mut osc_carry = String::new();
         let session = PtySession::spawn(
             PtySpec {
                 program: exe.to_path_buf(),
@@ -743,6 +867,13 @@ impl Manager {
                 sink_self.emit.output(&session_id, &text, seq);
                 if let Some(name) = names_task.then(|| terminal_task_name(&text)).flatten() {
                     sink_self.adopt_task_name(&sink_live, &name);
+                }
+                if let Some(kind) = tells {
+                    for body in signals::osc_bodies(&mut osc_carry, &text) {
+                        if let Some((said, method)) = signals::from_osc(kind, &body) {
+                            sink_self.apply_said(&sink_live, said, method);
+                        }
+                    }
                 }
             }),
         )?;
@@ -808,7 +939,7 @@ impl Manager {
 
             if let Some(file) = &live.hook_file {
                 for line in read_new_lines(file, &mut hook_offset) {
-                    self.apply_hook(&live, &line);
+                    self.apply_hook_line(&live, &line);
                 }
             }
 
@@ -878,9 +1009,9 @@ impl Manager {
                 .unwrap_or(false);
             let info = self.info(&live);
             if info.waiting.is_none() {
-                if quiet && info.status == Status::Running {
+                if quiet && info.status == Status::Running && !live.tells_idle.load(Ordering::SeqCst) {
                     self.update(&live, |i| i.status = Status::Idle);
-                } else if !quiet && info.status == Status::Idle && !live.hook_idle.load(Ordering::SeqCst) {
+                } else if !quiet && info.status == Status::Idle && !live.told_idle.load(Ordering::SeqCst) {
                     self.update(&live, |i| i.status = Status::Running);
                 }
             }
@@ -897,6 +1028,17 @@ impl Manager {
     }
 
     /// Claude Code hook reports (PRD FR-16, verified in M0).
+    /// A line of the session's hook file: Claude Code's hook input, or what OpenCode's plugin wrote.
+    fn apply_hook_line(&self, live: &Live, line: &str) {
+        if self.info(live).cli == CliKind::Opencode {
+            if let Some(said) = signals::from_opencode(line) {
+                self.apply_said(live, said, "plugin");
+            }
+        } else {
+            self.apply_hook(live, line);
+        }
+    }
+
     fn apply_hook(&self, live: &Live, line: &str) {
         let Ok(v) = serde_json::from_str::<Value>(line) else { return };
         if let Some(sid) = v["session_id"].as_str() {
@@ -907,7 +1049,7 @@ impl Manager {
         }
         let event = v["hook_event_name"].as_str();
         if event.is_some() {
-            live.hook_idle.store(event == Some("Stop"), Ordering::SeqCst);
+            live.told_idle.store(event == Some("Stop"), Ordering::SeqCst);
         }
         match event {
             Some("PermissionRequest") => {
@@ -1228,9 +1370,22 @@ impl Manager {
     /// shell prompt start none, and Enter on a question the CLI asked answers it inside the turn
     /// already open, if any.
     fn typed(&self, live: &Live, text: &str) {
-        let status = self.info(live).status;
+        let info = self.info(live);
+        // Codex says nothing when you answer its question, so the key you press is the answer.
+        if info.waiting.as_ref().is_some_and(|w| w.method == "osc9") {
+            self.update(live, |i| {
+                i.status = Status::Running;
+                i.waiting = None;
+            });
+            return;
+        }
+        let status = info.status;
         if text.contains(['\r', '\n']) && live.own_cli.load(Ordering::SeqCst) && status.runs_cli() && status != Status::Waiting {
             live.turn_open.store(true, Ordering::SeqCst);
+            // Claude Code's hooks say when it works again; the others show it in their output.
+            if !info.cli.runs_claude_code() {
+                live.told_idle.store(false, Ordering::SeqCst);
+            }
         }
     }
 
@@ -1287,7 +1442,7 @@ impl Manager {
         match info.mode {
             Mode::Headless => Err("Send a message to continue a headless session.".into()),
             Mode::Interactive => {
-                let live = self.register(info.clone(), self.claude_hooks(info.cli));
+                let live = self.register(info.clone(), self.hooks(info.cli));
                 live.stop_requested.store(false, Ordering::SeqCst);
                 live.done_requested.store(false, Ordering::SeqCst);
                 let resume = info.cli_session_id.clone().or_else(|| pi_session(&info));
@@ -1633,6 +1788,7 @@ mod tests {
     #[derive(Default)]
     struct Notes {
         sent: Mutex<Vec<(String, String)>>,
+        phoned: Mutex<Vec<String>>,
         focused: AtomicBool,
     }
     impl Emit for Notes {
@@ -1642,12 +1798,22 @@ mod tests {
         fn notify(&self, title: &str, _: &str, session_id: &str) {
             self.sent.lock().unwrap().push((title.to_string(), session_id.to_string()));
         }
+        fn notify_phone(&self, _: &str, _: &str, session_id: &str) {
+            self.phoned.lock().unwrap().push(session_id.to_string());
+        }
         fn window_focused(&self) -> bool {
             self.focused.load(Ordering::SeqCst)
         }
     }
 
+    /// A manager that sends every notification, however soon the same one follows.
     fn noted_manager(name: &str) -> (PathBuf, Arc<Notes>, Arc<Manager>) {
+        let (dir, notes, mut m) = cooled_manager(name);
+        Arc::get_mut(&mut m).unwrap().cooldown = Duration::ZERO;
+        (dir, notes, m)
+    }
+
+    fn cooled_manager(name: &str) -> (PathBuf, Arc<Notes>, Arc<Manager>) {
         let dir = std::env::temp_dir().join(format!("air-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         let notes = Arc::new(Notes::default());
@@ -1657,6 +1823,88 @@ mod tests {
 
     fn sent_to(notes: &Notes) -> Vec<String> {
         notes.sent.lock().unwrap().iter().map(|(_, id)| id.clone()).collect()
+    }
+
+    fn titles(notes: &Notes) -> Vec<String> {
+        notes.sent.lock().unwrap().iter().map(|(t, _)| t.clone()).collect()
+    }
+
+    fn of(id: &str, cli: CliKind) -> SessionInfo {
+        SessionInfo { cli, ..stored(id, Status::Running) }
+    }
+
+    #[test]
+    fn the_same_notification_again_within_five_seconds_is_dropped() {
+        let (dir, notes, m) = cooled_manager("cooldown");
+        let live = m.register(stored("s", Status::Running), false);
+        m.typed(&live, "\r");
+        m.update(&live, |i| i.status = Status::Idle);
+        m.update(&live, |i| i.status = Status::Running);
+        m.typed(&live, "\r");
+        m.update(&live, |i| i.status = Status::Idle);
+        // Another kind of notification is not the same one.
+        m.update(&live, |i| i.status = Status::Waiting);
+        assert_eq!(titles(&notes), ["Claude Code finished", "Claude Code is waiting for you"]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn codex_says_when_it_asks_and_when_its_turn_is_over() {
+        let (dir, notes, m) = noted_manager("codex-said");
+        let live = m.register(of("x", CliKind::Codex), false);
+        m.typed(&live, "fix it\r");
+        let ask = Said::Asking { reason: "permission", detail: "Approval requested: npm test".into() };
+        m.apply_said(&live, ask, "osc9");
+        let s = m.info(&live);
+        assert_eq!(s.status, Status::Waiting);
+        let w = s.waiting.unwrap();
+        assert!(!w.can_answer && w.method == "osc9" && w.detail == "Approval requested: npm test");
+
+        // Codex says nothing when you answer, so the key you press is the answer.
+        m.typed(&live, "y");
+        assert_eq!(m.info(&live).status, Status::Running);
+        m.apply_said(&live, Said::Done, "osc9");
+        assert_eq!(m.info(&live).status, Status::Idle);
+        assert_eq!(titles(&notes), ["Codex CLI needs your permission", "Codex CLI finished"]);
+
+        // Silence no longer counts as the end of a turn, and output wakes it only after Enter.
+        assert!(live.tells_idle.load(Ordering::SeqCst) && live.told_idle.load(Ordering::SeqCst));
+        m.typed(&live, "next\r");
+        assert!(!live.told_idle.load(Ordering::SeqCst));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn gemini_and_opencode_say_when_they_work_again_after_asking() {
+        let (dir, notes, m) = noted_manager("title-said");
+        let gemini = m.register(of("g", CliKind::Gemini), false);
+        m.typed(&gemini, "\r");
+        // "Ready" before it said it works is its first screen, not the end of the turn.
+        m.apply_said(&gemini, Said::Done, "title");
+        assert_eq!(m.info(&gemini).status, Status::Running);
+        m.apply_said(&gemini, Said::Asking { reason: "permission", detail: "Action Required (w)".into() }, "title");
+        assert_eq!(m.info(&gemini).status, Status::Waiting);
+        m.apply_said(&gemini, Said::Working, "title");
+        let s = m.info(&gemini);
+        assert!(s.status == Status::Running && s.waiting.is_none());
+        m.apply_said(&gemini, Said::Done, "title");
+        assert_eq!(m.info(&gemini).status, Status::Idle);
+
+        // OpenCode's plugin writes to the hook file, as Claude Code's hooks do.
+        let opencode = m.register(of("o", CliKind::Opencode), true);
+        m.apply_hook_line(&opencode, r#"{"said":"asking","reason":"question","detail":"Which database?"}"#);
+        let s = m.info(&opencode);
+        assert_eq!((s.status, s.waiting.unwrap().reason), (Status::Waiting, "question".to_string()));
+        m.apply_hook_line(&opencode, r#"{"said":"working"}"#);
+        assert_eq!(m.info(&opencode).status, Status::Running);
+        let claude = m.register(stored("c", Status::Running), true);
+        m.apply_hook_line(&claude, r#"{"hook_event_name":"Stop"}"#);
+        assert_eq!(m.info(&claude).status, Status::Idle);
+        assert_eq!(
+            titles(&notes),
+            ["Gemini CLI needs your permission", "Gemini CLI finished", "OpenCode is waiting for you"]
+        );
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -1698,7 +1946,7 @@ mod tests {
     }
 
     #[test]
-    fn the_session_you_are_looking_at_does_not_say_it_finished() {
+    fn the_session_you_are_looking_at_tells_only_the_phone_that_it_finished() {
         let (dir, notes, m) = noted_manager("in-view");
         let a = m.register(stored("a", Status::Running), false);
         let b = m.register(stored("b", Status::Running), false);
@@ -1709,8 +1957,10 @@ mod tests {
         m.apply_hook(&a, r#"{"hook_event_name":"Stop"}"#);
         m.apply_hook(&b, r#"{"hook_event_name":"Stop"}"#);
         assert_eq!(sent_to(&notes), ["b"]);
+        // The phone can be in another room, so it hears about the one on screen too.
+        assert_eq!(*notes.phoned.lock().unwrap(), ["a"]);
 
-        // With the window behind another one, the open session tells you too.
+        // With the window behind another one, the open session tells you on the desktop too.
         notes.focused.store(false, Ordering::SeqCst);
         m.update(&a, |i| i.status = Status::Running);
         m.typed(&a, "\r");
@@ -1725,6 +1975,7 @@ mod tests {
         m.set_viewing("a", false);
         m.finish(&b, Status::Done, Some(0), None);
         assert_eq!(sent_to(&notes), ["b", "a", "b"]);
+        assert_eq!(*notes.phoned.lock().unwrap(), ["a", "a"]);
         let _ = fs::remove_dir_all(&dir);
     }
 

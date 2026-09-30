@@ -119,6 +119,7 @@ export function waitingTitle(s: SessionInfo): string {
   if (!w) return t("shell.waiting.default", { cli });
   if (w.reason === "trust_folder") return t("shell.waiting.trustFolder", { cli });
   if (w.reason === "update_offer") return t("shell.waiting.updateOffer", { cli });
+  if (w.reason === "question") return t("shell.waiting.default", { cli });
   if (w.tool === "Bash" || w.tool === "PowerShell") return t("shell.waiting.command", { cli });
   if (w.tool === "Write" || w.tool === "Edit" || w.tool === "MultiEdit") return t("shell.waiting.file", { cli });
   if (w.tool) return t("shell.waiting.tool", { cli, tool: w.tool });
@@ -178,4 +179,7 @@ export const SIGNAL_TEXT: Record<string, string> = {
   get stdio() { return t("shell.signal.stdio"); },
   get hook() { return t("shell.signal.hook"); },
   get screen() { return t("shell.signal.screen"); },
+  get osc9() { return t("shell.signal.osc9"); },
+  get title() { return t("shell.signal.title"); },
+  get plugin() { return t("shell.signal.plugin"); },
 };

@@ -1,5 +1,13 @@
 import { expect, test } from "vitest";
-import { shortPath } from "./format";
+import { session } from "../test/fixtures";
+import { shortPath, waitingTitle } from "./format";
+
+test("a question from OpenCode or Codex reads as waiting, not as a permission", () => {
+  const asking = (reason: string) =>
+    waitingTitle(session({ cli: "opencode", status: "waiting", waiting: { reason, tool: null, detail: "Which database?", requestId: null, canAnswer: false, method: "plugin", since: 0 } }));
+  expect(asking("question")).toBe("OpenCode is waiting for you");
+  expect(asking("permission")).toBe("OpenCode needs your permission");
+});
 
 test("the home folder shows as ~ on Windows, macOS and Linux", () => {
   expect(shortPath(String.raw`C:\Users\ana\Project\app`)).toBe("~/Project/app");

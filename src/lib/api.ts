@@ -94,7 +94,8 @@ export interface Waiting {
   detail: string;
   requestId: string | null;
   canAnswer: boolean;
-  method: "stdio" | "hook" | "screen";
+  /** `osc9` is Codex's notification, `title` Gemini CLI's window title, `plugin` OpenCode's plugin. */
+  method: "stdio" | "hook" | "screen" | "osc9" | "title" | "plugin";
   since: number;
 }
 

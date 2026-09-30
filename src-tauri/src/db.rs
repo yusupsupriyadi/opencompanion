@@ -85,7 +85,7 @@ pub enum Mode {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Waiting {
-    /// `permission`, `trust_folder`, `update_offer`.
+    /// `permission`, `trust_folder`, `update_offer`, or `question` for a question the CLI asks.
     pub reason: String,
     pub tool: Option<String>,
     pub detail: String,
@@ -93,7 +93,8 @@ pub struct Waiting {
     pub request_id: Option<String>,
     /// Approve/Deny buttons are shown only when true.
     pub can_answer: bool,
-    /// `stdio`, `hook`, or `screen` (PRD FR-16: the method is shown to the user).
+    /// `stdio`, `hook`, `screen`, or what the CLI told itself (`signals`): `osc9` from Codex,
+    /// `title` from Gemini CLI, `plugin` from OpenCode (PRD FR-16: the method is shown to the user).
     pub method: String,
     pub since: i64,
 }
