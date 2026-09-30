@@ -27,4 +27,4 @@
 
 The integration tests drive a stand-in CLI (`src-tauri/src/bin/fake-cli.rs`) that prints the event formats captured from the real CLIs, so they need no CLI and no quota. `src-tauri/src/bin/air-spike.rs` runs the real CLIs from a terminal for spikes.
 
-The landing page lives in its own repository, and Vercel publishes it at [opencompanion-landing.vercel.app](https://opencompanion-landing.vercel.app).
+The landing page lives in its own repository, and Vercel publishes it at [opencompanion.vercel.app](https://opencompanion.vercel.app).
