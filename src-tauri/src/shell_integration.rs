@@ -17,9 +17,11 @@ pub enum Kind {
     Zsh,
 }
 
-/// The integration a shell gets, from its executable's name.
+/// The integration a shell gets, from its executable's name. Both separators count, so a Windows path reads the same
+/// on every OS.
 pub fn kind(path: &str) -> Option<Kind> {
-    let stem = Path::new(path).file_stem()?.to_string_lossy().to_ascii_lowercase();
+    let name = path.rsplit(['/', '\\']).next()?;
+    let stem = Path::new(name).file_stem()?.to_string_lossy().to_ascii_lowercase();
     match stem.as_str() {
         "pwsh" | "powershell" => Some(Kind::PowerShell),
         "bash" => Some(Kind::Bash),
@@ -130,7 +132,8 @@ Remove-Variable __ocNonce -ErrorAction SilentlyContinue
 "#;
 
 /// Loaded with `--rcfile`, which makes the shell a non-login one, so the login files run here as `bash -l` runs
-/// them. The command comes from `history 1` once `HISTCMD` moves, which keeps `HISTCONTROL` and `HISTIGNORE`. The
+/// them. The command comes from `history 1` once its entry number moves, which keeps `HISTCONTROL` and `HISTIGNORE`;
+/// `HISTCMD` would do, but bash 3.2, macOS's own, leaves it at 1 while `PROMPT_COMMAND` runs. The
 /// mark goes at the end of `PS1` from the last `PROMPT_COMMAND` entry, after anything that rebuilds the prompt, and
 /// before bash-preexec's `__bp_interactive_mode`, which must stay last.
 const BASH: &str = r#"# OpenCompanion shell integration for bash.
@@ -145,23 +148,24 @@ fi
 __oc_first=1
 __oc_hist=
 __oc_precmd() {
-  local s=$? c bs='\' re='^ *[0-9]+[* ] '
+  local s=$? c n= bs='\' re='^ *([0-9]+)[* ] '
+  c=$(HISTTIMEFORMAT= builtin history 1)
+  if [[ $c =~ $re ]]; then
+    n=${BASH_REMATCH[1]}
+    c=${c:${#BASH_REMATCH[0]}}
+  fi
   if [ -n "$__oc_first" ]; then
     __oc_first=
-  elif [ "$HISTCMD" != "$__oc_hist" ]; then
-    c=$(HISTTIMEFORMAT= builtin history 1)
-    if [[ $c =~ $re ]]; then
-      c=${c:${#BASH_REMATCH[0]}}
-      c=${c//"$bs"/"$bs$bs"}
-      c=${c//$'\n'/"${bs}x0a"}
-      c=${c//$'\r'/"${bs}x0d"}
-      c=${c//$'\t'/"${bs}x09"}
-      c=${c//$'\a'/"${bs}x07"}
-      c=${c//$'\e'/"${bs}x1b"}
-      builtin printf '\033]633;E;%s;%s\007' "$__oc_nonce" "$c"
-    fi
+  elif [ -n "$n" ] && [ "$n" != "$__oc_hist" ]; then
+    c=${c//"$bs"/"$bs$bs"}
+    c=${c//$'\n'/"${bs}x0a"}
+    c=${c//$'\r'/"${bs}x0d"}
+    c=${c//$'\t'/"${bs}x09"}
+    c=${c//$'\a'/"${bs}x07"}
+    c=${c//$'\e'/"${bs}x1b"}
+    builtin printf '\033]633;E;%s;%s\007' "$__oc_nonce" "$c"
   fi
-  __oc_hist=$HISTCMD
+  __oc_hist=$n
   return $s
 }
 __oc_mark='\[\033]133;B\007\]'

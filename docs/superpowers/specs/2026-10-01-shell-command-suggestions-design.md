@@ -20,7 +20,7 @@ While typing in a shell tab (PowerShell, Git Bash, bash, zsh), the latest comman
 | Shell | Start | `B` mark | Command text |
 |---|---|---|---|
 | PowerShell 5.1 / 7 | `-NoLogo -NoExit -EncodedCommand <script>`; profiles load first | At the start of `PSConsoleHostReadLine` | The line PSReadLine returns |
-| bash (Git Bash, Linux, macOS) | `--rcfile <file> -i`; the file sources `/etc/profile`, then `~/.bash_profile`, `~/.bash_login` or `~/.profile`, as a login shell does | Appended to `PS1` by the last `PROMPT_COMMAND` entry (before bash-preexec's `__bp_interactive_mode`) | `history 1` when `HISTCMD` moved, so `HISTCONTROL`/`HISTIGNORE` apply |
+| bash (Git Bash, Linux, macOS) | `--rcfile <file> -i`; the file sources `/etc/profile`, then `~/.bash_profile`, `~/.bash_login` or `~/.profile`, as a login shell does | Appended to `PS1` by the last `PROMPT_COMMAND` entry (before bash-preexec's `__bp_interactive_mode`) | `history 1` when its entry number moved, so `HISTCONTROL`/`HISTIGNORE` apply (`HISTCMD` stays at 1 in `PROMPT_COMMAND` on bash 3.2, macOS's own) |
 | zsh | `ZDOTDIR` points at our folder, whose files source the user's own and restore `ZDOTDIR` | `zle-line-init` via `add-zle-hook-widget` | `preexec`'s first argument |
 
 - Scripts are written under the app data folder (`shell/`) when a shell starts, and every hook is guarded so a failure never breaks the shell. PowerShell in ConstrainedLanguage mode is skipped.
