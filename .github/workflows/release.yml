@@ -90,12 +90,22 @@ jobs:
           rust-targets: ${{ matrix.target }}
           cache-key: ${{ matrix.target }}
       - run: bun install --frozen-lockfile
-      - uses: tauri-apps/tauri-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Build only. Uploading through tauri-action would also attach the macOS .app packed as
+      # .app.tar.gz, which only the updater reads, and the app has no updater yet.
+      - id: tauri
+        uses: tauri-apps/tauri-action@v1
         with:
-          releaseId: ${{ needs.draft.outputs.id }}
-          tagName: ${{ github.ref_name }}
-          releaseDraft: true
           tauriScript: bun run tauri
           args: ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
+      - name: Attach the installers to the draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ARTIFACTS: ${{ steps.tauri.outputs.artifactPaths }}
+        run: |
+          # jq.exe on Windows ends lines with CRLF. The .app is a directory, so -f skips it.
+          jq -r '.[]' <<<"$ARTIFACTS" | tr -d '\r' | while IFS= read -r path; do
+            [ -f "$path" ] || continue
+            gh release upload "$GITHUB_REF_NAME" "$path" --clobber
+          done
