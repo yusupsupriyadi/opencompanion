@@ -4,11 +4,19 @@ Notable changes to OpenCompanion are listed here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-01
+
+This is the first published release since 0.1.1. Version 0.2.0 was tagged but never published, so its changes, listed under 0.2.0 below, ship in this version too.
+
 ### Added
 
 - Updates inside the app. OpenCompanion checks the latest GitHub release when it starts and once a day. When a newer version is out, it sends one notification and shows a card in the sidebar. Update downloads the new version, checks its updater signature, installs it and restarts the app. When sessions are running, it asks first, because the restart stops them. Settings › Updates shows your version, has Check for updates and What's new, and turns the automatic check off. Releases now also carry `latest.json`, plus the macOS `.app.tar.gz` that the updater installs from. You need to download this version by hand once; updates after it arrive in the app.
 
 - Blank terminal in New session: the last choice beside the CLIs starts a session that runs only your default shell in the folder (PowerShell on Windows, your login shell on Linux and macOS), with command suggestions as in a shell tab. It starts as "No CLI running", a CLI you start in it shows as running, and `exit` closes it. Mode, first message and permission mode are hidden for it, and automations do not offer it.
+
+### Fixed
+
+- A command suggestion in a shell tab sometimes stayed hidden after an arrow key until the shell printed something more.
 
 ## [0.2.0] - 2026-10-01
 
@@ -74,6 +82,7 @@ The first public release. Windows 11 is tested by hand, Linux end to end in Dock
 - On a GNOME desktop the tray icon shows only with the AppIndicator extension.
 - On macOS and Linux, a child that detaches into a session of its own outlives Stop.
 
-[Unreleased]: https://github.com/yusupsupriyadi/opencompanion/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/yusupsupriyadi/opencompanion/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/yusupsupriyadi/opencompanion/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/yusupsupriyadi/opencompanion/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/yusupsupriyadi/opencompanion/releases/tag/v0.1.1
