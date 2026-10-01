@@ -4,6 +4,7 @@
 
 <script lang="ts">
   import Play from "phosphor-svelte/lib/Play";
+  import TerminalIcon from "phosphor-svelte/lib/Terminal";
   import X from "phosphor-svelte/lib/X";
   import { tick, untrack } from "svelte";
   import { errorText, type CliKind, type Mode, type PermMode as Perm } from "./api";
@@ -19,6 +20,7 @@
     onsubmit,
     oncancel,
     idPrefix = "ns",
+    blank = false,
   }: {
     title: string;
     initial: Partial<SessionValues>;
@@ -26,10 +28,14 @@
     onsubmit: (v: SessionValues) => Promise<void>;
     oncancel: () => void;
     idPrefix?: string;
+    /** Offers a blank terminal beside the CLIs (New session). */
+    blank?: boolean;
   } = $props();
 
   const installed = $derived(app.clis.filter((c) => c.path));
-  const firstInstalled = (): CliKind => app.clis.find((c) => c.path && c.kind !== "gemini")?.kind ?? "claude";
+  // With no CLI installed at all, a blank terminal is the one choice that can start.
+  const firstInstalled = (): CliKind =>
+    app.clis.find((c) => c.path && c.kind !== "gemini")?.kind ?? (blank && app.clisState === "ready" ? "terminal" : "claude");
 
   // The form starts from `initial` once; the dialog remounts it every time it opens.
   const start = untrack(() => ({ ...initial }));
@@ -44,10 +50,20 @@
   let busy = $state(false);
   let promptEl: HTMLTextAreaElement | undefined = $state();
 
-  const values = $derived({ cli, cwd: cwd.trim(), mode, prompt: prompt.trim(), permissionMode });
-  const label = $derived(
-    submitText ? submitText(values) : t("shell.form.start", { cli: CLI_LABEL[cli], folder: values.cwd ? folderName(values.cwd) : "…" }),
-  );
+  // A blank terminal hides the mode and the first message, so whatever they held before it was picked is not sent.
+  const shellOnly = $derived(cli === "terminal");
+  const values = $derived({
+    cli,
+    cwd: cwd.trim(),
+    mode: shellOnly ? "interactive" : mode,
+    prompt: shellOnly ? "" : prompt.trim(),
+    permissionMode,
+  });
+  const label = $derived.by(() => {
+    if (submitText) return submitText(values);
+    const folder = values.cwd ? folderName(values.cwd) : "…";
+    return shellOnly ? t("shell.form.openTerminal", { folder }) : t("shell.form.start", { cli: CLI_LABEL[cli], folder });
+  });
 
   async function submit(e: SubmitEvent) {
     e.preventDefault();
@@ -79,15 +95,15 @@
     <button class="icon-btn" type="button" aria-label={t("shell.close")} onclick={oncancel}><X size={18} aria-hidden="true" /></button>
   </div>
 
-  <SessionFields bind:cli bind:cwd bind:mode bind:prompt bind:permissionMode bind:folderError bind:promptError bind:promptEl {idPrefix} />
+  <SessionFields bind:cli bind:cwd bind:mode bind:prompt bind:permissionMode bind:folderError bind:promptError bind:promptEl {idPrefix} {blank} />
 
   {#if failure}<p class="err-text" role="alert" style="margin:0">{tb(failure)}</p>{/if}
 
   <div class="d-foot">
     <span class="meta grow">{t("shell.form.escHint")}</span>
     <button class="btn secondary" type="button" onclick={oncancel}>{t("shell.form.cancel")}</button>
-    <button class="btn primary" type="submit" disabled={busy || installed.length === 0}>
-      <Play size={16} aria-hidden="true" /><span>{busy ? t("shell.form.starting") : label}</span>
+    <button class="btn primary" type="submit" disabled={busy || (installed.length === 0 && !shellOnly)}>
+      {#if shellOnly}<TerminalIcon size={16} aria-hidden="true" />{:else}<Play size={16} aria-hidden="true" />{/if}<span>{busy ? t("shell.form.starting") : label}</span>
     </button>
   </div>
 </form>

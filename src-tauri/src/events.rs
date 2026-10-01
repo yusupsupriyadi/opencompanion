@@ -37,7 +37,7 @@ pub fn parse_line(kind: CliKind, line: &str) -> Vec<SessionEvent> {
         CliKind::Claude | CliKind::Ccs => claude(&v),
         CliKind::Codex => codex(&v),
         CliKind::Opencode => opencode(&v),
-        CliKind::Gemini => None,
+        CliKind::Gemini | CliKind::Terminal => None,
         CliKind::Pi | CliKind::Omp => crate::pi::events(&v),
         CliKind::Cursor => crate::cursor::events(&v),
     };

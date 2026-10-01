@@ -279,6 +279,13 @@ impl PtySession {
         self.stays
     }
 
+    /// Marks the program as a shell of its own, as a blank terminal runs one: like a shell that stays around a
+    /// program, its exit is the shell's.
+    pub fn is_shell(mut self) -> Self {
+        self.stays = true;
+        self
+    }
+
     pub fn pid(&self) -> Option<u32> {
         self.child.process_id()
     }

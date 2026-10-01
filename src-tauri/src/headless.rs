@@ -94,7 +94,7 @@ pub fn mode_flags(kind: CliKind, mode: PermMode, interactive: bool, headless_res
             PermMode::Plan => strings(&["--agent", "plan"]),
             PermMode::Auto | PermMode::Bypass => strings(&["--auto"]),
         },
-        CliKind::Gemini => vec![],
+        CliKind::Gemini | CliKind::Terminal => vec![],
         CliKind::Pi => match mode {
             PermMode::Plan => strings(&["--tools", crate::pi::read_only_tools(kind)]),
             _ => vec![],
@@ -292,7 +292,7 @@ pub fn invocation(kind: CliKind, cwd: &Path, prompt: &str, opts: &TurnOptions) -
         CliKind::Claude | CliKind::Ccs => Some(claude_invocation(prompt, opts)),
         CliKind::Codex => Some(codex_invocation(cwd, prompt, opts)),
         CliKind::Opencode => Some(opencode_invocation(cwd, prompt, opts)),
-        CliKind::Gemini => None,
+        CliKind::Gemini | CliKind::Terminal => None,
         CliKind::Pi | CliKind::Omp => Some(pi_invocation(kind, prompt, opts)),
         CliKind::Cursor => Some(cursor_invocation(prompt, opts)),
     }
@@ -334,6 +334,7 @@ pub fn interactive_args(
             args.extend(flags);
         }
         CliKind::Gemini => args.extend(flags),
+        CliKind::Terminal => {}
         CliKind::Pi | CliKind::Omp => {
             if let Some(id) = resume {
                 args.extend(strings(&["--session", id]));

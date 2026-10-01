@@ -118,6 +118,9 @@ pub fn save(db: &Db, id: Option<&str>, draft: Draft, installed: impl Fn(CliKind)
     if draft.mode == Mode::Headless && draft.cli == CliKind::Gemini {
         return Err("Headless mode for Gemini CLI is not supported yet.".into());
     }
+    if draft.cli == CliKind::Terminal {
+        return Err("A blank terminal has no prompt to run. Pick a CLI.".into());
+    }
     installed(draft.cli)?;
     let schedule = draft.schedule.split_whitespace().collect::<Vec<_>>().join(" ");
     let now = db::now_ms();
@@ -373,6 +376,7 @@ mod tests {
         assert_eq!(refuse(draft("0 9 * * *"), |d| d.cwd = "Z:/no/such/folder".into()), "This folder does not exist.");
         assert_eq!(refuse(draft("0 9 * * *"), |d| d.prompt = " ".into()), "Headless sessions need a prompt.");
         assert_eq!(refuse(draft("0 9 * * *"), |d| d.cli = CliKind::Gemini), "Headless mode for Gemini CLI is not supported yet.");
+        assert_eq!(refuse(draft("0 9 * * *"), |d| d.cli = CliKind::Terminal), "A blank terminal has no prompt to run. Pick a CLI.");
         assert_eq!(refuse(draft("0 0 30 2 *"), |d| d.enabled = false), "This schedule never comes round.");
         assert_eq!(
             save(&db, None, draft("0 9 * * *"), |_| Err("Codex CLI is not installed or not on PATH.".into())).unwrap_err(),

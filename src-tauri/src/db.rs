@@ -582,6 +582,9 @@ fn err(e: impl std::fmt::Display) -> String {
 }
 
 fn kind_from(s: &str) -> CliKind {
+    if s == CliKind::Terminal.bin() {
+        return CliKind::Terminal;
+    }
     CliKind::from_bin(s).unwrap_or(CliKind::Claude)
 }
 

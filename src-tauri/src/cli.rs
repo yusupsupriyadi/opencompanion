@@ -21,6 +21,9 @@ pub enum CliKind {
     Omp,
     /// Cursor CLI (`cursor-agent`), installed by Cursor's own script with its own Node.
     Cursor,
+    /// A blank terminal: the default shell in the folder, with no AI CLI started in it. It is
+    /// not installed or detected, so it is not in `ALL`.
+    Terminal,
 }
 
 impl CliKind {
@@ -45,6 +48,7 @@ impl CliKind {
             CliKind::Pi => "pi",
             CliKind::Omp => "omp",
             CliKind::Cursor => "cursor-agent",
+            CliKind::Terminal => "terminal",
         }
     }
 
@@ -58,6 +62,7 @@ impl CliKind {
             CliKind::Pi => "Pi",
             CliKind::Omp => "omp",
             CliKind::Cursor => "Cursor CLI",
+            CliKind::Terminal => "Terminal",
         }
     }
 
@@ -73,6 +78,7 @@ impl CliKind {
             CliKind::Omp => &["18.3"],
             // Versions are build dates, `2026.09.28-64d2043`.
             CliKind::Cursor => &["2026.09"],
+            CliKind::Terminal => &[],
         }
     }
 

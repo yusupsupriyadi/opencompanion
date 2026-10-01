@@ -5,7 +5,7 @@
   import Copy from "phosphor-svelte/lib/Copy";
   import GearSix from "phosphor-svelte/lib/GearSix";
   import X from "phosphor-svelte/lib/X";
-  import { errorText, type CliInstall, type CliKind } from "$lib/api";
+  import { errorText, type AgentCli, type CliInstall, type CliKind } from "$lib/api";
   import CliMark from "$lib/CliMark.svelte";
   import Dialog from "$lib/Dialog.svelte";
   import { shortPath } from "$lib/format";
@@ -15,7 +15,7 @@
   import { app, refreshClis, saveSettings, showToast } from "$lib/store.svelte";
 
   // null: no headless adapter yet, shown as translated text.
-  const HEADLESS: Record<CliKind, string | null> = {
+  const HEADLESS: Record<AgentCli, string | null> = {
     claude: "claude -p --output-format stream-json",
     codex: "codex exec --json -C <folder>",
     opencode: "opencode run --format json --dir <folder>",
@@ -26,7 +26,7 @@
     cursor: "cursor-agent -p --output-format stream-json",
   };
   // Official install commands. OpenCompanion never runs these itself (PRD FR-03).
-  const INSTALL: Record<CliKind, string> = {
+  const INSTALL: Record<AgentCli, string> = {
     claude: "npm install -g @anthropic-ai/claude-code",
     codex: "npm install -g @openai/codex",
     opencode: "npm install -g opencode-ai",

@@ -10,6 +10,7 @@ export const CLI_LABEL: Record<CliKind, string> = {
   pi: "Pi",
   omp: "omp",
   cursor: "Cursor CLI",
+  terminal: "Terminal",
 };
 
 /**

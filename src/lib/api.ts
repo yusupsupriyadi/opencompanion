@@ -1,13 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export type CliKind = "claude" | "codex" | "opencode" | "gemini" | "ccs" | "pi" | "omp" | "cursor";
+/** The AI CLIs, which are installed and detected. */
+export type AgentCli = "claude" | "codex" | "opencode" | "gemini" | "ccs" | "pi" | "omp" | "cursor";
+/** What a session runs. `terminal` is a blank terminal: the default shell with no AI CLI started in it. */
+export type CliKind = AgentCli | "terminal";
 export type Mode = "interactive" | "headless";
 export type Status = "starting" | "running" | "waiting" | "idle" | "shell" | "done" | "error" | "stopped";
 export type PermMode = "ask" | "plan" | "auto" | "bypass";
 
 /** Mirrors `cli::CliInstall`. */
 export interface CliInstall {
-  kind: CliKind;
+  kind: AgentCli;
   label: string;
   path: string | null;
   version: string | null;

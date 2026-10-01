@@ -35,14 +35,16 @@
   import { app } from "./store.svelte";
   import { pastedImage, pathForPaste, shiftEnter } from "./term-input";
 
-  // `session` is an AI CLI session; `terminal` a plain shell opened in a tab beside it, in `folder`, whose commands it
-  // suggests first. `onmenu` takes the right-click in place of the webview's own menu. `onwake` is called with the
-  // terminal's size when someone types into it while it is closed, so it can be started again.
+  // `session` is a session's own terminal; `terminal` a plain shell opened in a tab beside it. `shell` says a plain
+  // shell runs here, in `folder`, whose commands it suggests first: always in a tab, and in a blank terminal session.
+  // `onmenu` takes the right-click in place of the webview's own menu. `onwake` is called with the terminal's size when
+  // someone types into it while it is closed, so it can be started again.
   let {
     id,
     live,
     label,
     kind = "session",
+    shell,
     folder = "",
     onmenu,
     onwake,
@@ -51,10 +53,12 @@
     live: boolean;
     label: string;
     kind?: "session" | "terminal";
+    shell?: boolean;
     folder?: string;
     onmenu?: (e: MouseEvent, menu: TermMenu) => void;
     onwake?: (cols: number, rows: number) => Promise<unknown> | void;
   } = $props();
+  const plainShell = $derived(shell ?? kind === "terminal");
 
   let host: HTMLDivElement | undefined = $state();
   // What screen readers hear about a suggested command.
@@ -92,6 +96,7 @@
     // Read once: the callbacks and the cleanup below can run after the parent has dropped what `id` comes from (a
     // closed shell), and reading the prop then throws. The Session screen keys each terminal by its id anyway.
     const tid = id;
+    const asShell = plainShell;
     const io: {
       event: string;
       send: (id: string, data: string) => Promise<unknown>;
@@ -183,7 +188,7 @@
     // to the cursor is what was typed, and the latest command starting with it shows after the cursor. Right Arrow
     // types the rest. A suggestion shows only once the line reads what the keys sent so far make it, so Right Arrow
     // never adds the rest of a suggestion for older text while an echo is on its way.
-    const suggesting = kind === "terminal" && Boolean(folder);
+    const suggesting = asShell && Boolean(folder);
     const where = folder;
     let prompt: { marker: IMarker; x: number } | null = null;
     // Between a prompt and the Enter that runs its command.
@@ -326,9 +331,9 @@
         // Ctrl+V lets the browser paste, as in Windows Terminal. The AI CLIs expect that on Windows
         // (Claude Code pastes its own images on Alt+V); elsewhere a session keeps Ctrl+V for the CLI.
         // Ctrl+Shift+V (Linux) and Cmd+V (macOS) are never taken by xterm, so the browser pastes those.
-        if (key === "v" && (kind === "terminal" || windows)) return false;
+        if (key === "v" && (asShell || windows)) return false;
         // A shell has no copy key of its own: Ctrl+C copies a selection and interrupts without one.
-        if (kind === "terminal" && key === "c" && term.hasSelection()) {
+        if (asShell && key === "c" && term.hasSelection()) {
           if (e.type === "keydown") {
             navigator.clipboard?.writeText(term.getSelection()).catch(() => undefined);
             term.clearSelection();
@@ -337,7 +342,7 @@
         }
       }
       if (e.key === "Enter" && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        const seq = shiftEnter(kind, win32Input);
+        const seq = shiftEnter(asShell ? "terminal" : "session", win32Input);
         if (seq) {
           if (e.type === "keydown") {
             e.preventDefault();
@@ -476,4 +481,4 @@
 </script>
 
 <div class="xterm-host" bind:this={host} role="region" aria-label={label}></div>
-{#if kind === "terminal"}<p class="sr-only" aria-live="polite">{spoken}</p>{/if}
+{#if plainShell}<p class="sr-only" aria-live="polite">{spoken}</p>{/if}

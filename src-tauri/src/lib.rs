@@ -108,6 +108,9 @@ impl Emit for TauriEmit {
     fn window_focused(&self) -> bool {
         self.app.get_webview_window("main").and_then(|w| w.is_focused().ok()).unwrap_or(false)
     }
+    fn command(&self, folder: &str, command: &str) {
+        let _ = self.app.emit("terminal-command", json!({ "folder": folder, "command": command }));
+    }
 }
 
 /// Forwards terminal output and state to the webview only: terminals never reach the phone.
@@ -1040,7 +1043,7 @@ pub fn run() {
             let terminals = terminal::Terminals::new(
                 Arc::new(TerminalEvents { app: app.handle().clone(), db: Arc::clone(&db) }),
                 Some(terminal::Integration {
-                    dir: data_dir.join("shell"),
+                    dir: terminal::scripts_dir(&data_dir),
                     enabled: {
                         let db = Arc::clone(&db);
                         Box::new(move || db.settings().map(|s| s.shell_suggestions).unwrap_or(false))

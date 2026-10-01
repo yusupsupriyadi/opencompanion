@@ -275,6 +275,7 @@ pub fn list(cli: &CliInstall, work_dir: &Path, extra: &[String]) -> Result<Model
             Ok(parse_opencode(&text))
         }
         CliKind::Gemini => Err("Gemini CLI cannot be the chat planner yet.".into()),
+        CliKind::Terminal => Err("A blank terminal cannot be the chat planner.".into()),
         CliKind::Pi => Ok(crate::pi::parse_models(&output(kind, exe, work_dir, &["--list-models"])?)),
         CliKind::Omp => {
             let text = output_when(kind, exe, work_dir, &["models", "--json"], crate::pi::omp_models_complete)?;
@@ -298,7 +299,7 @@ pub fn args(kind: CliKind, model: &str, effort: &str) -> Vec<String> {
         CliKind::Claude | CliKind::Ccs => ("--model", "--effort"),
         CliKind::Codex => ("-m", "-c"),
         CliKind::Opencode => ("-m", "--variant"),
-        CliKind::Gemini => return vec![],
+        CliKind::Gemini | CliKind::Terminal => return vec![],
         CliKind::Pi | CliKind::Omp => ("--model", "--thinking"),
         // The thinking level is part of a Cursor model id, such as `sonnet-4-thinking`.
         CliKind::Cursor => ("--model", ""),

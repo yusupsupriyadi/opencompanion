@@ -36,7 +36,8 @@
   import { t } from "./i18n.svelte";
   import { app } from "./store.svelte";
 
-  // The fields New session and the automation form share: CLI, folder, mode, prompt, permission mode.
+  // The fields New session and the automation form share: CLI, folder, mode, prompt, permission mode. `blank` offers a
+  // blank terminal beside the CLIs, which New session does and an automation, with no prompt to run, does not.
   let {
     cli = $bindable(),
     cwd = $bindable(),
@@ -47,6 +48,7 @@
     promptError = $bindable(""),
     promptEl = $bindable(),
     idPrefix,
+    blank = false,
   }: {
     cli: CliKind;
     cwd: string;
@@ -57,11 +59,14 @@
     promptError?: string;
     promptEl?: HTMLTextAreaElement;
     idPrefix: string;
+    blank?: boolean;
   } = $props();
 
   const installed = $derived(app.clis.filter((c) => c.path));
   const modeInfo = $derived(MODES.find((m) => m.id === permissionMode) ?? MODES[0]);
   const headless = $derived(mode === "headless");
+  // A blank terminal is only a shell: no mode, no first message, no permissions to ask about.
+  const shellOnly = $derived(cli === "terminal");
 </script>
 
 <fieldset class="field bare">
@@ -80,54 +85,64 @@
         <span class="check"><CheckCircle size={18} aria-hidden="true" /></span>
       </label>
     {/each}
+    {#if blank}
+      <label class="opt" id="{idPrefix}-cli-terminal">
+        <input type="radio" name="{idPrefix}-cli" value="terminal" bind:group={cli} />
+        <CliMark kind="terminal" />
+        <span><b>{t("shell.form.blank")}</b><small>{t("shell.form.blankHelp")}</small></span>
+        <span class="check"><CheckCircle size={18} aria-hidden="true" /></span>
+      </label>
+    {/if}
   </div>
 </fieldset>
 
 <FolderField id="{idPrefix}-folder" bind:value={cwd} error={folderError} oninput={() => (folderError = "")} />
 
-<fieldset class="field bare">
-  <legend class="label">{t("shell.form.mode")}</legend>
-  <div class="opts">
-    <label class="opt stack">
-      <input type="radio" name="{idPrefix}-mode" value="interactive" bind:group={mode} />
-      <b>{t("shell.form.interactive")}</b>
-      <p>{t("shell.form.interactiveHelp")}</p>
-    </label>
-    <label class="opt stack">
-      <input type="radio" name="{idPrefix}-mode" value="headless" bind:group={mode} />
-      <b>{t("shell.form.headless")}</b>
-      <p>{t("shell.form.headlessHelp")}</p>
-    </label>
+{#if !shellOnly}
+  <fieldset class="field bare">
+    <legend class="label">{t("shell.form.mode")}</legend>
+    <div class="opts">
+      <label class="opt stack">
+        <input type="radio" name="{idPrefix}-mode" value="interactive" bind:group={mode} />
+        <b>{t("shell.form.interactive")}</b>
+        <p>{t("shell.form.interactiveHelp")}</p>
+      </label>
+      <label class="opt stack">
+        <input type="radio" name="{idPrefix}-mode" value="headless" bind:group={mode} />
+        <b>{t("shell.form.headless")}</b>
+        <p>{t("shell.form.headlessHelp")}</p>
+      </label>
+    </div>
+  </fieldset>
+
+  <div class="field">
+    <label class="label" for="{idPrefix}-prompt">{headless ? t("shell.form.prompt") : t("shell.form.firstMessage")}</label>
+    <textarea
+      class="textarea"
+      id="{idPrefix}-prompt"
+      bind:this={promptEl}
+      bind:value={prompt}
+      oninput={() => (promptError = "")}
+      aria-invalid={promptError ? "true" : undefined}
+      aria-describedby={promptError ? `${idPrefix}-prompt-error` : undefined}
+      placeholder={headless
+        ? t("shell.form.promptPlaceholder", { cli: CLI_LABEL[cli] })
+        : t("shell.form.messagePlaceholder", { cli: CLI_LABEL[cli] })}
+    ></textarea>
+    {#if promptError}<p class="error" id="{idPrefix}-prompt-error">{promptError}</p>{/if}
   </div>
-</fieldset>
 
-<div class="field">
-  <label class="label" for="{idPrefix}-prompt">{headless ? t("shell.form.prompt") : t("shell.form.firstMessage")}</label>
-  <textarea
-    class="textarea"
-    id="{idPrefix}-prompt"
-    bind:this={promptEl}
-    bind:value={prompt}
-    oninput={() => (promptError = "")}
-    aria-invalid={promptError ? "true" : undefined}
-    aria-describedby={promptError ? `${idPrefix}-prompt-error` : undefined}
-    placeholder={headless
-      ? t("shell.form.promptPlaceholder", { cli: CLI_LABEL[cli] })
-      : t("shell.form.messagePlaceholder", { cli: CLI_LABEL[cli] })}
-  ></textarea>
-  {#if promptError}<p class="error" id="{idPrefix}-prompt-error">{promptError}</p>{/if}
-</div>
-
-<div class="field">
-  <label class="label" for="{idPrefix}-perm">{t("shell.form.permMode")}</label>
-  <select class="select" id="{idPrefix}-perm" bind:value={permissionMode} aria-describedby="{idPrefix}-perm-help">
-    {#each MODES as m (m.id)}<option value={m.id}>{m.label}</option>{/each}
-  </select>
-  <p class="help" id="{idPrefix}-perm-help">{modeInfo.short} {t("shell.form.permDefault")}</p>
-  {#if permissionMode === "bypass"}
-    <p class="error" role="note">{t("shell.form.bypassWarning", { cli: CLI_LABEL[cli] })}</p>
-  {/if}
-</div>
+  <div class="field">
+    <label class="label" for="{idPrefix}-perm">{t("shell.form.permMode")}</label>
+    <select class="select" id="{idPrefix}-perm" bind:value={permissionMode} aria-describedby="{idPrefix}-perm-help">
+      {#each MODES as m (m.id)}<option value={m.id}>{m.label}</option>{/each}
+    </select>
+    <p class="help" id="{idPrefix}-perm-help">{modeInfo.short} {t("shell.form.permDefault")}</p>
+    {#if permissionMode === "bypass"}
+      <p class="error" role="note">{t("shell.form.bypassWarning", { cli: CLI_LABEL[cli] })}</p>
+    {/if}
+  </div>
+{/if}
 
 <style>
   .bare {

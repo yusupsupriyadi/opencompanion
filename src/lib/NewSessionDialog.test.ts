@@ -5,7 +5,7 @@ import { goto } from "$app/navigation";
 import { setUrl } from "../test/app-state.svelte";
 import { CLIS, backend, session } from "../test/fixtures";
 import NewSessionDialog from "./NewSessionDialog.svelte";
-import { app, askNewSession, pendingNew } from "./store.svelte";
+import { app, askNewSession, pendingNew, toast } from "./store.svelte";
 
 beforeEach(() => {
   app.clis = CLIS;
@@ -44,4 +44,20 @@ test("opened without a folder, you choose one", async () => {
   await user.click(screen.getByRole("button", { name: "Cancel" }));
   expect(screen.queryByRole("heading", { name: "New session" })).not.toBeInTheDocument();
   expect(pendingNew.open).toBe(false);
+});
+
+test("a blank terminal opens in the folder and says so", async () => {
+  const api = backend({
+    recent_projects: () => [],
+    folder_exists: () => true,
+    start_session: () => session({ id: "t1", cli: "terminal", cwd: "C:\\p\\uninote", status: "shell" }),
+  });
+  const user = userEvent.setup();
+  render(NewSessionDialog);
+  askNewSession("C:\\p\\uninote");
+  await user.click(await screen.findByLabelText(/Blank terminal/));
+  await user.click(screen.getByRole("button", { name: "Open a terminal in uninote" }));
+  await vi.waitFor(() => expect(goto).toHaveBeenCalledWith("/session?id=t1"));
+  expect(api.calls("start_session")).toEqual([{ req: expect.objectContaining({ cli: "terminal", mode: "interactive", prompt: "", source: "manual" }) }]);
+  expect(toast.text).toBe("Opened a terminal in uninote.");
 });

@@ -544,6 +544,7 @@ pub fn run(kind: CliKind, exe: &Path, work_dir: &Path, extra: &[String], input: 
             String::new()
         }
         CliKind::Gemini => return Err("Gemini CLI cannot be the chat planner yet.".into()),
+        CliKind::Terminal => return Err("A blank terminal cannot be the chat planner.".into()),
         CliKind::Pi | CliKind::Omp => {
             let tools: &[&str] = if can_read { &["--tools", crate::pi::read_only_tools(kind)] } else { &["--no-tools"] };
             cmd.args(["--mode", "json", "--no-session"]).args(tools);

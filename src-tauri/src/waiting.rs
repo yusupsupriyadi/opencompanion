@@ -51,7 +51,7 @@ pub fn detect(kind: CliKind, screen: &str) -> Option<WaitingPrompt> {
             None
         }
         CliKind::Cursor => cursor(&lines),
-        CliKind::Opencode | CliKind::Gemini | CliKind::Pi | CliKind::Omp => None,
+        CliKind::Opencode | CliKind::Gemini | CliKind::Pi | CliKind::Omp | CliKind::Terminal => None,
     }
 }
 

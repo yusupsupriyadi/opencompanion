@@ -77,7 +77,7 @@ pub fn read_in(home: &Path, kind: CliKind, cwd: Option<&Path>, started_at: u64) 
         CliKind::Ccs => claude(&crate::ccs::claude_dirs(home), cwd, since),
         CliKind::Codex => codex(home, cwd, since),
         CliKind::Opencode => opencode(home, cwd, since),
-        CliKind::Gemini => return unavailable("Transcript not available for this CLI."),
+        CliKind::Gemini | CliKind::Terminal => return unavailable("Transcript not available for this CLI."),
         CliKind::Pi | CliKind::Omp => pi(kind, home, cwd, since),
         CliKind::Cursor => cursor(home, cwd, since),
     };

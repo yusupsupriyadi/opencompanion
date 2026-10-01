@@ -10,11 +10,12 @@
   async function start(v: SessionValues) {
     const s = await api.startSession({ ...v, source: "manual" });
     pendingNew.open = false;
-    showToast(t("shell.newSession.started", { cli: CLI_LABEL[v.cli], folder: folderName(v.cwd) }));
+    const folder = folderName(v.cwd);
+    showToast(v.cli === "terminal" ? t("shell.newSession.opened", { folder }) : t("shell.newSession.started", { cli: CLI_LABEL[v.cli], folder }));
     await goto(`/session?id=${s.id}`);
   }
 </script>
 
 <Dialog bind:open={pendingNew.open} labelledby="ns-title">
-  <SessionForm title={t("shell.newSession")} initial={{ cwd: pendingNew.cwd || undefined }} onsubmit={start} oncancel={() => (pendingNew.open = false)} />
+  <SessionForm title={t("shell.newSession")} initial={{ cwd: pendingNew.cwd || undefined }} blank onsubmit={start} oncancel={() => (pendingNew.open = false)} />
 </Dialog>

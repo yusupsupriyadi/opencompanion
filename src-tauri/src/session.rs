@@ -18,8 +18,10 @@ use crate::cli::{self, CliKind};
 use crate::db::{self, Db, EventRow, Mode, Notice, SessionInfo, Status, Waiting};
 use crate::events::{self, SessionEvent};
 use crate::headless::{self, HeadlessRun, PermMode, Stream, TurnOptions};
-use crate::pty::{PtySession, PtySpec, Stay};
+use crate::pty::{OutputSink, PtySession, PtySpec, Stay};
+use crate::shell_integration::{self, Reports};
 use crate::signals::{self, Said};
+use crate::terminal;
 use crate::waiting;
 
 /// Everything the manager tells the outside world. The Tauri app forwards these to the
@@ -43,6 +45,8 @@ pub trait Emit: Send + Sync {
     fn settings_changed(&self) {}
     /// An automation was saved, deleted or ran, here or on the phone.
     fn automations_changed(&self) {}
+    /// A blank terminal's shell in `folder` ran `command`, which is saved for suggestions already.
+    fn command(&self, _folder: &str, _command: &str) {}
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -513,6 +517,9 @@ impl Manager {
         if cwd.is_empty() || !Path::new(&cwd).is_dir() {
             return Err("This folder does not exist.".into());
         }
+        if req.mode == Mode::Headless && req.cli == CliKind::Terminal {
+            return Err("A blank terminal has no headless mode.".into());
+        }
         if req.mode == Mode::Headless && req.prompt.trim().is_empty() {
             return Err("Headless sessions need a prompt.".into());
         }
@@ -526,7 +533,25 @@ impl Manager {
                 return Err(format!("Headless mode through CCS needs its default profile or an account profile, not {profile}. Pick Interactive."));
             }
         }
-        let exe = self.resolve_exe(req.cli)?;
+        // A blank terminal runs no CLI: its shell is found when it starts.
+        let exe = match req.cli {
+            CliKind::Terminal => None,
+            kind => Some(self.resolve_exe(kind)?),
+        };
+        let permission_mode = match req.cli {
+            CliKind::Terminal => None,
+            // The session's own choice, else the default from Settings.
+            _ => Some(
+                PermMode::parse(
+                    req.permission_mode
+                        .as_deref()
+                        .filter(|m| !m.is_empty())
+                        .unwrap_or(&self.db.settings()?.permission_mode),
+                )
+                .as_str()
+                .to_string(),
+            ),
+        };
         let now = db::now_ms();
         let info = SessionInfo {
             id: db::new_id(),
@@ -548,26 +573,17 @@ impl Manager {
             last_event: None,
             waiting: None,
             source: req.source.clone().unwrap_or_else(|| "manual".into()),
-            // The session's own choice, else the default from Settings.
-            permission_mode: Some(
-                PermMode::parse(
-                    req.permission_mode
-                        .as_deref()
-                        .filter(|m| !m.is_empty())
-                        .unwrap_or(&self.db.settings()?.permission_mode),
-                )
-                .as_str()
-                .to_string(),
-            ),
+            permission_mode,
             updated_at: now,
         };
         self.db.upsert_session(&info)?;
         self.db.touch_project(&cwd)?;
         let live = self.register(info.clone(), self.hooks(req.cli) && req.mode == Mode::Interactive);
 
-        let result = match req.mode {
-            Mode::Interactive => self.spawn_pty(&live, &exe, &req.prompt, None, req.cols, req.rows),
-            Mode::Headless => self.spawn_turn(&live, &exe, &req.prompt, None),
+        let result = match (&exe, req.mode) {
+            (None, _) => self.spawn_shell(&live, req.cols, req.rows),
+            (Some(exe), Mode::Interactive) => self.spawn_pty(&live, exe, &req.prompt, None, req.cols, req.rows),
+            (Some(exe), Mode::Headless) => self.spawn_turn(&live, exe, &req.prompt, None),
         };
         if let Err(e) = result {
             self.finish(&live, Status::Error, None, Some(format!("Could not start: {e}")));
@@ -825,12 +841,6 @@ impl Manager {
         again.extend(headless::interactive_args(info.cli, "", None, mode, extra).0);
         args.extend(cli_args);
 
-        let sink_live = Arc::clone(live);
-        let sink_self = Arc::clone(self);
-        let session_id = info.id.clone();
-        let names_task = info.cli.runs_claude_code();
-        let tells = matches!(info.cli, CliKind::Codex | CliKind::Gemini).then_some(info.cli);
-        let mut osc_carry = String::new();
         let session = PtySession::spawn(
             PtySpec {
                 program: exe.to_path_buf(),
@@ -846,56 +856,123 @@ impl Manager {
                     rc: self.shell_rc_path(&info.id),
                 }),
             },
-            Box::new(move |bytes| {
-                let text = {
-                    let mut carry = sink_live.utf8_carry.lock().unwrap_or_else(|p| p.into_inner());
-                    decode_utf8(&mut carry, bytes)
-                };
-                if let Ok(mut log) = sink_live.log.lock() {
-                    if let Some(f) = log.as_mut() {
-                        let _ = f.write_all(bytes);
-                    }
-                }
-                if let Ok(mut t) = sink_live.last_output.lock() {
-                    *t = Instant::now();
-                }
-                if text.is_empty() {
-                    return;
-                }
-                let seq = {
-                    let mut out = sink_live.output.lock().unwrap_or_else(|p| p.into_inner());
-                    out.push_str(&text);
-                    keep_tail(&mut out, OUTPUT_KEEP);
-                    sink_live.output_seq.fetch_add(1, Ordering::SeqCst) + 1
-                };
-                sink_self.emit.output(&session_id, &text, seq);
-                if let Some(name) = names_task.then(|| terminal_task_name(&text)).flatten() {
-                    sink_self.adopt_task_name(&sink_live, &name);
-                }
-                if let Some(kind) = tells {
-                    for body in signals::osc_bodies(&mut osc_carry, &text) {
-                        if let Some((said, method)) = signals::from_osc(kind, &body) {
-                            sink_self.apply_said(&sink_live, said, method);
-                        }
-                    }
-                }
-            }),
+            self.pty_sink(live, None),
         )?;
+        self.attach_pty(live, session, !prompt.trim().is_empty());
+        Ok(())
+    }
+
+    /// A blank terminal: the default shell in the session's folder, at its prompt, with command suggestions as in a
+    /// shell tab while they are on.
+    fn spawn_shell(self: &Arc<Self>, live: &Arc<Live>, cols: Option<u16>, rows: Option<u16>) -> Result<(), String> {
+        let info = self.info(live);
+        let shell = terminal::default_shell()?;
+        let scripts = terminal::scripts_dir(&self.data_dir);
+        let start = terminal::shell_start(&shell, self.suggests().then_some(scripts.as_path()));
+        let session = PtySession::spawn(
+            PtySpec {
+                program: PathBuf::from(&shell.path),
+                args: start.args,
+                cwd: PathBuf::from(&info.cwd),
+                cols: cols.unwrap_or(120),
+                rows: rows.unwrap_or(32),
+                env: start.env,
+                powershell: None,
+                stay: None,
+            },
+            self.pty_sink(live, start.reports),
+        )?
+        .is_shell();
+        self.attach_pty(live, session, false);
+        Ok(())
+    }
+
+    /// Whether shells start with the command suggestion script (Settings › History).
+    fn suggests(&self) -> bool {
+        self.db.settings().map(|s| s.shell_suggestions).unwrap_or(false)
+    }
+
+    /// Saves a command a blank terminal's shell ran, for suggestions, while they are on.
+    fn record_command(&self, folder: &str, command: &str) {
+        let Some(command) = shell_integration::keep(command).filter(|_| self.suggests()) else { return };
+        if let Err(e) = self.db.add_shell_command(folder, &command, db::now_ms()) {
+            eprintln!("A shell command could not be saved: {e}");
+            return;
+        }
+        self.emit.command(folder, &command);
+    }
+
+    /// Where a session's terminal output goes: the log, the replay buffer and the webview. On the way it reads what
+    /// the CLI says about itself, and the commands `reports` finds in a blank terminal's shell.
+    fn pty_sink(self: &Arc<Self>, live: &Arc<Live>, mut reports: Option<Reports>) -> OutputSink {
+        let info = self.info(live);
+        let sink_live = Arc::clone(live);
+        let sink_self = Arc::clone(self);
+        let session_id = info.id;
+        let folder = info.cwd;
+        let names_task = info.cli.runs_claude_code();
+        let tells = matches!(info.cli, CliKind::Codex | CliKind::Gemini).then_some(info.cli);
+        let mut osc_carry = String::new();
+        Box::new(move |bytes| {
+            let text = {
+                let mut carry = sink_live.utf8_carry.lock().unwrap_or_else(|p| p.into_inner());
+                decode_utf8(&mut carry, bytes)
+            };
+            if let Ok(mut log) = sink_live.log.lock() {
+                if let Some(f) = log.as_mut() {
+                    let _ = f.write_all(bytes);
+                }
+            }
+            if let Ok(mut t) = sink_live.last_output.lock() {
+                *t = Instant::now();
+            }
+            if text.is_empty() {
+                return;
+            }
+            let seq = {
+                let mut out = sink_live.output.lock().unwrap_or_else(|p| p.into_inner());
+                out.push_str(&text);
+                keep_tail(&mut out, OUTPUT_KEEP);
+                sink_live.output_seq.fetch_add(1, Ordering::SeqCst) + 1
+            };
+            sink_self.emit.output(&session_id, &text, seq);
+            if let Some(name) = names_task.then(|| terminal_task_name(&text)).flatten() {
+                sink_self.adopt_task_name(&sink_live, &name);
+            }
+            if let Some(kind) = tells {
+                for body in signals::osc_bodies(&mut osc_carry, &text) {
+                    if let Some((said, method)) = signals::from_osc(kind, &body) {
+                        sink_self.apply_said(&sink_live, said, method);
+                    }
+                }
+            }
+            if let Some(reports) = reports.as_mut() {
+                for command in reports.feed(&text) {
+                    sink_self.record_command(&folder, &command);
+                }
+            }
+        })
+    }
+
+    /// Runs the session in `session` from now on and starts watching it. `turn_open` when a first prompt went in.
+    fn attach_pty(self: &Arc<Self>, live: &Arc<Live>, session: PtySession, turn_open: bool) {
         let pid = session.pid();
         let generation = live.generation.fetch_add(1, Ordering::SeqCst) + 1;
         if let Ok(mut r) = live.runner.lock() {
             *r = Runner::Pty(session);
         }
-        live.own_cli.store(true, Ordering::SeqCst);
+        // A blank terminal opens at its shell prompt, with no CLI in it until one is typed.
+        let blank = self.info(live).cli == CliKind::Terminal;
+        live.own_cli.store(!blank, Ordering::SeqCst);
         live.cli_seen.store(false, Ordering::SeqCst);
         live.cli_misses.store(0, Ordering::SeqCst);
-        live.turn_open.store(!prompt.trim().is_empty(), Ordering::SeqCst);
+        live.turn_open.store(turn_open, Ordering::SeqCst);
         if let Ok(mut t) = live.spawned_at.lock() {
             *t = Instant::now();
         }
         self.update(live, |i| {
             i.pid = pid;
-            i.status = Status::Running;
+            i.status = if blank { Status::Shell } else { Status::Running };
             i.ended_at = None;
             i.exit_code = None;
         });
@@ -903,7 +980,6 @@ impl Manager {
         let me = Arc::clone(self);
         let watched = Arc::clone(live);
         thread::spawn(move || me.watch_pty(watched, generation));
-        Ok(())
     }
 
     /// Polls exit, hook reports and the screen for one interactive session.
@@ -1443,10 +1519,15 @@ impl Manager {
         if info.status.is_live() {
             return Err("This session is still running.".into());
         }
-        let exe = self.resolve_exe(info.cli)?;
         match info.mode {
             Mode::Headless => Err("Send a message to continue a headless session.".into()),
+            Mode::Interactive if info.cli == CliKind::Terminal => {
+                let live = self.register(info, false);
+                self.spawn_shell(&live, cols, rows)?;
+                Ok(self.info(&live))
+            }
             Mode::Interactive => {
+                let exe = self.resolve_exe(info.cli)?;
                 let live = self.register(info.clone(), self.hooks(info.cli));
                 live.stop_requested.store(false, Ordering::SeqCst);
                 live.done_requested.store(false, Ordering::SeqCst);
@@ -1779,6 +1860,68 @@ mod tests {
         let v: Value = serde_json::from_str(&s).unwrap();
         let cmd = v["hooks"]["Stop"][0]["hooks"][0]["command"].as_str().unwrap();
         assert_eq!(cmd, r"cat >> 'C:/Users/O'\''Neil/hooks/a.jsonl'; echo >> 'C:/Users/O'\''Neil/hooks/a.jsonl'");
+    }
+
+    /// Keeps the commands a blank terminal's shell reported.
+    #[derive(Default)]
+    struct Commands(Mutex<Vec<(String, String)>>);
+    impl Emit for Commands {
+        fn session(&self, _: &SessionInfo) {}
+        fn output(&self, _: &str, _: &str, _: u64) {}
+        fn event(&self, _: &EventRow) {}
+        fn notify(&self, _: &str, _: &str, _: &str) {}
+        fn command(&self, folder: &str, command: &str) {
+            self.0.lock().unwrap().push((folder.to_string(), command.to_string()));
+        }
+    }
+
+    fn wait_for(what: &str, mut ok: impl FnMut() -> bool) {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while !ok() {
+            assert!(Instant::now() < deadline, "timed out waiting for {what}");
+            thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    #[test]
+    fn a_blank_terminal_opens_at_its_shell_prompt_saves_its_commands_and_ends_on_exit() {
+        let dir = std::env::temp_dir().join(format!("air-blank-{}", db::new_id()));
+        let folder = dir.join("project");
+        fs::create_dir_all(&folder).unwrap();
+        let cwd = folder.display().to_string();
+        let db = Arc::new(Db::open_in_memory().unwrap());
+        let emit = Arc::new(Commands::default());
+        let m = Manager::new(Arc::clone(&db), emit.clone(), dir.clone());
+        let req = |mode| StartRequest {
+            cli: CliKind::Terminal,
+            cwd: cwd.clone(),
+            mode,
+            prompt: String::new(),
+            title: None,
+            permission_mode: Some("bypass".into()),
+            source: None,
+            cols: Some(120),
+            rows: Some(30),
+        };
+        assert_eq!(m.start(req(Mode::Headless)).unwrap_err(), "A blank terminal has no headless mode.");
+
+        let s = m.start(req(Mode::Interactive)).expect("the shell starts");
+        assert_eq!((s.status, s.title.as_str(), s.permission_mode.as_deref()), (Status::Shell, "Terminal in project", None));
+        assert!(!m.cli_in_terminal(&s.id));
+        assert_eq!(db.session(&s.id).unwrap().unwrap().cli, CliKind::Terminal);
+
+        // Suggestions are on by default, so a shell with a script reports what runs in it, saved for its folder.
+        if shell_integration::kind(&terminal::default_shell().unwrap().path).is_some() {
+            m.send_input(&s.id, "echo oc-blank-ok\r").unwrap();
+            wait_for("the command", || !emit.0.lock().unwrap().is_empty());
+            assert_eq!(emit.0.lock().unwrap()[0], (cwd.clone(), "echo oc-blank-ok".to_string()));
+            assert_eq!(db.shell_commands(&cwd).unwrap().here, ["echo oc-blank-ok"]);
+        }
+
+        m.send_input(&s.id, "exit\r").unwrap();
+        wait_for("the shell to exit", || db.session(&s.id).unwrap().unwrap().status == Status::Done);
+        assert_eq!(db.session(&s.id).unwrap().unwrap().last_event.as_deref(), Some("Terminal closed"));
+        let _ = fs::remove_dir_all(&dir);
     }
 
     struct NoEmit;

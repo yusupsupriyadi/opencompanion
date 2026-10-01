@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/svelte";
+import { cleanup, render, screen } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import { CLIS, backend } from "../test/fixtures";
@@ -10,8 +10,8 @@ beforeEach(() => {
   app.clisState = "ready";
 });
 
-function setup(onsubmit = vi.fn(async () => undefined)) {
-  render(SessionForm, { title: "New session", initial: {}, onsubmit, oncancel: vi.fn() });
+function setup(onsubmit = vi.fn(async () => undefined), blank = false) {
+  render(SessionForm, { title: "New session", initial: {}, onsubmit, oncancel: vi.fn(), blank });
   return { user: userEvent.setup(), onsubmit };
 }
 
@@ -78,4 +78,30 @@ test("a start error from the backend is shown in the form", async () => {
   await user.type(screen.getByLabelText("Project folder"), "C:\\p\\x");
   await user.click(screen.getByRole("button", { name: "Start Claude Code in x" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Claude Code is not installed or not on PATH.");
+});
+
+test("a blank terminal needs only a folder, and what the hidden fields held is not sent", async () => {
+  backend({ recent_projects: () => [], folder_exists: () => true });
+  const { user, onsubmit } = setup(undefined, true);
+  await user.click(screen.getByLabelText(/Headless/));
+  await user.type(screen.getByLabelText("Prompt"), "Fix the failing tests");
+  await user.click(screen.getByLabelText(/Blank terminal/));
+  expect(screen.queryByLabelText(/Headless/)).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Prompt")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Permission mode")).not.toBeInTheDocument();
+  await user.type(screen.getByLabelText("Project folder"), "C:\\p\\x");
+  await user.click(screen.getByRole("button", { name: "Open a terminal in x" }));
+  expect(onsubmit).toHaveBeenCalledWith(expect.objectContaining({ cli: "terminal", cwd: "C:\\p\\x", mode: "interactive", prompt: "" }));
+});
+
+test("the blank terminal is offered only where it is asked for, and is the pick when no CLI is installed", () => {
+  backend({ recent_projects: () => [] });
+  setup();
+  expect(screen.queryByLabelText(/Blank terminal/)).not.toBeInTheDocument();
+  cleanup();
+
+  app.clis = CLIS.map((c) => ({ ...c, path: null, version: null }));
+  setup(undefined, true);
+  expect(screen.getByLabelText(/Blank terminal/)).toBeChecked();
+  expect(screen.getByRole("button", { name: "Open a terminal in …" })).toBeEnabled();
 });

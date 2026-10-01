@@ -309,3 +309,23 @@ test("a shell without the prompt mark, such as Command Prompt, gets no suggestio
   key(input, { key: "ArrowRight", keyCode: 39 });
   await vi.waitFor(() => expect(sent()).toEqual(["\x1b[C"]));
 });
+
+test("a blank terminal session's own terminal acts as a shell: it suggests commands and sends keys to the session", async () => {
+  resetHistory();
+  let output: ((e: { payload: { id: string; data: string; seq: number } }) => void) | undefined;
+  vi.mocked(listen).mockImplementation(async (event, handler) => {
+    if (event === "session-output") output = handler as typeof output;
+    return () => undefined;
+  });
+  const calls = backend({
+    session_output: () => ({ data: PROMPT, seq: 1 }),
+    shell_history: () => ({ here: ["git status"], elsewhere: [], imported: [] }),
+  });
+  const { container } = render(Terminal, { id: "s1", live: true, label: "Terminal in app", shell: true, folder: String.raw`C:\app` });
+  const input = container.querySelector("textarea") as HTMLTextAreaElement;
+  await vi.waitFor(() => expect(calls.calls("shell_history")).toEqual([{ folder: String.raw`C:\app` }]));
+  output?.({ payload: { id: "s1", data: "git st", seq: 2 } });
+  await vi.waitFor(() => expect(container.querySelector(".suggestion")?.textContent).toBe("atus"));
+  key(input, { key: "ArrowRight", keyCode: 39 });
+  await vi.waitFor(() => expect(calls.calls("send_input").map((a) => a.text)).toEqual(["atus"]));
+});

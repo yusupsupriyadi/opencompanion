@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TerminalIcon from "phosphor-svelte/lib/Terminal";
   import type { CliKind } from "./api";
   import claudeUrl from "./logos/claude.svg?url";
   import geminiUrl from "./logos/gemini.svg?url";
@@ -19,6 +20,9 @@
     <img src={geminiUrl} alt="" />
   {:else if kind === "codex"}
     {@html openai}
+  {:else if kind === "terminal"}
+    <!-- A blank terminal has no brand: the same prompt glyph as the New terminal button. -->
+    <TerminalIcon />
   {:else if kind === "ccs"}
     CCS
   {:else if kind === "pi"}

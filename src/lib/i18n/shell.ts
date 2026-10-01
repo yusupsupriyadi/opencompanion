@@ -113,7 +113,9 @@ export const en = {
 
   // New session dialog and the session form
   "shell.newSession.started": "Started {cli} in {folder}.",
+  "shell.newSession.opened": "Opened a terminal in {folder}.",
   "shell.form.start": "Start {cli} in {folder}",
+  "shell.form.openTerminal": "Open a terminal in {folder}",
   "shell.form.starting": "Starting…",
   "shell.form.folderMissing": "This folder does not exist.",
   "shell.form.folderEmpty": "Choose the project folder.",
@@ -124,6 +126,8 @@ export const en = {
   "shell.form.noCli": "No supported CLI was found. Install one and press Rescan on the CLIs screen.",
   "shell.form.versionUnknown": "version unknown",
   "shell.form.notInstalled": "Not installed",
+  "shell.form.blank": "Blank terminal",
+  "shell.form.blankHelp": "Your default shell, with no AI CLI",
   "shell.form.mode": "Mode",
   "shell.form.interactive": "Interactive",
   "shell.form.interactiveHelp": "A terminal you can type into. Pick this when the CLI may ask questions.",
@@ -255,7 +259,9 @@ export const id: Record<keyof typeof en, string> = {
   "shell.horizon.count": "Aktivitas: {n} perintah, edit file, dan persetujuan",
 
   "shell.newSession.started": "{cli} dimulai di {folder}.",
+  "shell.newSession.opened": "Terminal dibuka di {folder}.",
   "shell.form.start": "Mulai {cli} di {folder}",
+  "shell.form.openTerminal": "Buka terminal di {folder}",
   "shell.form.starting": "Memulai…",
   "shell.form.folderMissing": "Folder ini tidak ada.",
   "shell.form.folderEmpty": "Pilih folder project.",
@@ -266,6 +272,8 @@ export const id: Record<keyof typeof en, string> = {
   "shell.form.noCli": "CLI yang didukung tidak ditemukan. Pasang salah satunya, lalu tekan Pindai ulang di layar CLI.",
   "shell.form.versionUnknown": "versi tidak diketahui",
   "shell.form.notInstalled": "Belum terpasang",
+  "shell.form.blank": "Terminal kosong",
+  "shell.form.blankHelp": "Shell bawaan Anda, tanpa CLI AI",
   "shell.form.mode": "Mode",
   "shell.form.interactive": "Interaktif",
   "shell.form.interactiveHelp": "Terminal tempat Anda bisa mengetik. Pilih ini jika CLI mungkin bertanya.",

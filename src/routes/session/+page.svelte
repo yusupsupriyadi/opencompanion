@@ -702,6 +702,8 @@
     woke = false;
   });
   const version = $derived(s ? app.clis.find((c) => c.kind === s.cli)?.version : null);
+  // A blank terminal session: its own terminal is a shell, like a shell tab, with no CLI, mode or permissions of its own.
+  const blank = $derived(s?.cli === "terminal");
   const files = $derived.by(() => {
     const counts = new Map<string, number>();
     for (const e of events) if (e.event.kind === "file_changed") counts.set(e.event.path, (counts.get(e.event.path) ?? 0) + 1);
@@ -1032,16 +1034,26 @@
                       <Terminal
                         id={s.id}
                         {live}
-                        label={t("sessions.detail.terminalLabel", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) })}
+                        shell={blank}
+                        folder={s.cwd}
+                        label={blank
+                          ? t("terminal.label", { shell: CLI_LABEL[s.cli], folder: folderName(s.cwd) })
+                          : t("sessions.detail.terminalLabel", { cli: CLI_LABEL[s.cli], folder: folderName(s.cwd) })}
                         onmenu={(e, m) => termMenu(e, TERM, m)}
                         onwake={reopen}
                       />
                     {/key}
                     {#if live}
-                      <p class="sr-only" id="session-term-keys">{t("sessions.detail.terminalLive", { paste: pasteKey(), cli: CLI_LABEL[s.cli], command: s.cli })}</p>
+                      <p class="sr-only" id="session-term-keys">
+                        {blank ? t("terminal.live", { paste: pasteKey() }) : t("sessions.detail.terminalLive", { paste: pasteKey(), cli: CLI_LABEL[s.cli], command: s.cli })}
+                      </p>
                     {:else}
                       <div class="term-note" role="status">
-                        {reopening ? t("sessions.detail.reopening", { cli: CLI_LABEL[s.cli] }) : t("sessions.detail.terminalClosed", { cli: CLI_LABEL[s.cli] })}
+                        {#if blank}
+                          {reopening ? t("sessions.detail.shellReopening") : t("sessions.detail.shellClosed")}
+                        {:else}
+                          {reopening ? t("sessions.detail.reopening", { cli: CLI_LABEL[s.cli] }) : t("sessions.detail.terminalClosed", { cli: CLI_LABEL[s.cli] })}
+                        {/if}
                       </div>
                     {/if}
                   {:else}
@@ -1192,8 +1204,10 @@
           <div class="side-group">
             <h3>{t("sessions.detail.about")}</h3>
             <div class="kv"><span>{t("sessions.detail.cli")}</span><b>{CLI_LABEL[s.cli]}{version ? ` ${version}` : ""}</b></div>
-            <div class="kv"><span>{t("sessions.detail.mode")}</span><b>{t(`sessions.mode.${s.mode}`)}</b></div>
-            <div class="kv"><span>{t("sessions.detail.permissions")}</span><b>{modeLabel(s.permissionMode)}</b></div>
+            {#if !blank}
+              <div class="kv"><span>{t("sessions.detail.mode")}</span><b>{t(`sessions.mode.${s.mode}`)}</b></div>
+              <div class="kv"><span>{t("sessions.detail.permissions")}</span><b>{modeLabel(s.permissionMode)}</b></div>
+            {/if}
             <div class="kv"><span>{t("sessions.detail.folder")}</span><b class="mono" title={s.cwd}>{shortPath(s.cwd)}</b></div>
             <div class="kv"><span>{t("sessions.detail.started")}</span><b>{clock(s.startedAt)}</b></div>
             {#if s.source === "chat"}<div class="kv"><span>{t("sessions.detail.startedFrom")}</span><b>{t("sessions.detail.chat")}</b></div>{/if}
@@ -1223,6 +1237,7 @@
               {:else if s.cli === "pi"}{t("sessions.detail.signalPi")}
               {:else if s.cli === "omp"}{t("sessions.detail.signalOmp")}
               {:else if s.cli === "cursor"}{t("sessions.detail.signalCursor")}
+              {:else if blank}{t("sessions.detail.signalTerminal")}
               {:else}{SIGNAL_TEXT.screen}{/if}
             </p>
           </div>

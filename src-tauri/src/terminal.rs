@@ -151,6 +151,51 @@ pub fn available_shells() -> Vec<Shell> {
     out
 }
 
+/// The shell a terminal opens in when none is picked: the first of `available_shells`.
+pub fn default_shell() -> Result<Shell, String> {
+    available_shells().into_iter().next().ok_or_else(|| "No shell was found on this computer.".into())
+}
+
+/// The folder the command suggestion scripts are written to.
+pub fn scripts_dir(data_dir: &Path) -> PathBuf {
+    data_dir.join("shell")
+}
+
+/// How a shell starts: its arguments and environment, and the reader of its command reports when it starts with the
+/// script from `scripts` for command suggestions.
+pub struct ShellStart {
+    pub args: Vec<String>,
+    pub env: Vec<(String, String)>,
+    pub reports: Option<Reports>,
+}
+
+/// Starts `shell` with the command suggestion script from `scripts`, or as it is with `None`.
+pub fn shell_start(shell: &Shell, scripts: Option<&Path>) -> ShellStart {
+    // New for every start, so only this shell's script can sign a report.
+    let nonce = db::new_id();
+    // A shell whose script cannot be written starts as it is, without suggestions.
+    let launch = scripts.and_then(|dir| {
+        let kind = shell_integration::kind(&shell.path)?;
+        shell_integration::launch(kind, dir, &nonce)
+            .map_err(|e| eprintln!("{} starts without command suggestions: {e}", shell.label))
+            .ok()
+    });
+    // What xterm.js understands, so tools that read these pick colors and keys that work.
+    let mut env = vec![
+        ("TERM".to_string(), "xterm-256color".to_string()),
+        ("COLORTERM".to_string(), "truecolor".to_string()),
+    ];
+    let reports = launch.is_some().then(|| Reports::new(&nonce));
+    let args = match launch {
+        Some(l) => {
+            env.extend(l.env);
+            l.args
+        }
+        None => shell.args.clone(),
+    };
+    ShellStart { args, env, reports }
+}
+
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|p| p.into_inner())
 }
@@ -225,13 +270,12 @@ impl Terminals {
         if cwd.is_empty() || !Path::new(cwd).is_dir() {
             return Err("This folder does not exist.".into());
         }
-        let shells = available_shells();
         let shell = match shell {
-            Some(id) => shells
+            Some(id) => available_shells()
                 .into_iter()
                 .find(|s| s.id == id)
                 .ok_or("That shell is not installed on this computer.")?,
-            None => shells.into_iter().next().ok_or("No shell was found on this computer.")?,
+            None => default_shell()?,
         };
         let id = db::new_id();
         let term = Arc::new(Term {
@@ -270,36 +314,16 @@ impl Terminals {
         let sink_term = Arc::clone(term);
         let emit = Arc::clone(&self.emit);
         let folder = term.info().cwd;
-        // New for every start, so only this shell's script can sign a report.
-        let nonce = db::new_id();
-        // A shell whose script cannot be written starts as it is, without suggestions.
-        let launch = self.integrated().and_then(|i| {
-            let kind = shell_integration::kind(&term.shell.path)?;
-            shell_integration::launch(kind, &i.dir, &nonce)
-                .map_err(|e| eprintln!("{} starts without command suggestions: {e}", term.shell.label))
-                .ok()
-        });
-        // What xterm.js understands, so tools that read these pick colors and keys that work.
-        let mut env = vec![
-            ("TERM".to_string(), "xterm-256color".to_string()),
-            ("COLORTERM".to_string(), "truecolor".to_string()),
-        ];
-        let mut reports = launch.is_some().then(|| (Reports::new(&nonce), Arc::clone(self)));
-        let args = match launch {
-            Some(l) => {
-                env.extend(l.env);
-                l.args
-            }
-            None => term.shell.args.clone(),
-        };
+        let start = shell_start(&term.shell, self.integrated().map(|i| i.dir.as_path()));
+        let mut reports = start.reports.map(|r| (r, Arc::clone(self)));
         let session = PtySession::spawn(
             PtySpec {
                 program: PathBuf::from(&term.shell.path),
-                args,
+                args: start.args,
                 cwd: PathBuf::from(&folder),
                 cols: cols.unwrap_or(120),
                 rows: rows.unwrap_or(32),
-                env,
+                env: start.env,
                 powershell: None,
                 stay: None,
             },
