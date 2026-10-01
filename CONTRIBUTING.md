@@ -131,6 +131,8 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-The workflow runs CI first. Then it builds on Windows (`.msi`, `.exe`), Ubuntu 22.04 (`.deb`, `.rpm`, AppImage) and macOS (`.dmg`, for Apple Silicon and for Intel), and uploads everything to a draft release. Check the assets, then publish the draft from the Releases page.
+The workflow runs CI first. Then it builds on Windows (`.msi`, `.exe`), Ubuntu 22.04 (`.deb`, `.rpm`, AppImage) and macOS (`.dmg`, for Apple Silicon and for Intel), and uploads everything to a draft release. Check the assets, then publish the draft from the Releases page. Installed apps see the new version only after you publish it, because the update check reads `releases/latest/download/latest.json`.
+
+The in-app updater only installs files signed with the updater key. The release build adds `--config src-tauri/tauri.updater.conf.json`, which turns on the signed updater files: `latest.json`, which holds every signature, and a `.app.tar.gz` for each macOS build. The key and its password come from the `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` repository secrets. The public key is `plugins.updater.pubkey` in `tauri.conf.json`. Keep a backup of the private key: if it is lost, installed apps cannot accept another update, and every user has to download a build signed with a new key by hand. Local builds and CI leave the updater files off, so they need no key.
 
 The builds are not code-signed, so Windows SmartScreen and macOS Gatekeeper ask before the first start. The macOS builds are ad-hoc signed (`signingIdentity` in `src-tauri/tauri.macos.conf.json`); without that, macOS on Apple Silicon reports a downloaded app as damaged.

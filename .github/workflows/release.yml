@@ -1,5 +1,6 @@
 # Pushing a tag like v0.2.0 runs CI, then builds the installers for Windows, Linux and macOS
-# into a draft release. Publish the draft by hand once its assets look right.
+# into a draft release, with the signed files the in-app updater reads. Publish the draft by hand
+# once its assets look right: installed apps see the update only once it is the latest release.
 name: Release
 
 on:
@@ -90,22 +91,22 @@ jobs:
           rust-targets: ${{ matrix.target }}
           cache-key: ${{ matrix.target }}
       - run: bun install --frozen-lockfile
-      # Build only. Uploading through tauri-action would also attach the macOS .app packed as
-      # .app.tar.gz, which only the updater reads, and the app has no updater yet.
-      - id: tauri
-        uses: tauri-apps/tauri-action@v1
-        with:
-          tauriScript: bun run tauri
-          args: ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
-      - name: Attach the installers to the draft
-        shell: bash
+      # tauri.updater.conf.json turns on the signed updater bundles, which builds without the key
+      # (local, CI, e2e) leave off. The draft gets the installers, the macOS .app.tar.gz the updater
+      # installs from, and latest.json for the app's update check. latest.json carries every
+      # signature, so no .sig file is attached.
+      - uses: tauri-apps/tauri-action@v1
         env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          ARTIFACTS: ${{ steps.tauri.outputs.artifactPaths }}
-        run: |
-          # jq.exe on Windows ends lines with CRLF. The .app is a directory, so -f skips it.
-          jq -r '.[]' <<<"$ARTIFACTS" | tr -d '\r' | while IFS= read -r path; do
-            [ -f "$path" ] || continue
-            gh release upload "$GITHUB_REF_NAME" "$path" --clobber
-          done
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          releaseId: ${{ needs.draft.outputs.id }}
+          tagName: ${{ github.ref_name }}
+          releaseDraft: true
+          tauriScript: bun run tauri
+          args: --config src-tauri/tauri.updater.conf.json ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
+          uploadUpdaterSignatures: false
+          # The plain `windows-x86_64` entry, for an install that does not say how it was installed,
+          # points at the per-user NSIS installer rather than the per-machine MSI.
+          updaterJsonPreferNsis: true
