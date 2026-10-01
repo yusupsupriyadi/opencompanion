@@ -21,7 +21,7 @@
 - Every permission mode, Bypass included, with the New session Bypass warning.
 - UI copy in English and Indonesian, no em dash, no emoji, buttons name their action.
 - Commits: Conventional Commits, no AI attribution lines; stage only this task's files (other agents share the tree).
-- Run Vitest and cargo test from `C:\Users\yusup\Project` (capital P) or path-case failures appear.
+- Run Vitest and cargo test from the checkout path in its real letter case, or path-case failures appear on Windows.
 
 ## Review Focus
 

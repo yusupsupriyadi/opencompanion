@@ -18,7 +18,7 @@
 - Every user-facing string exists in English and Indonesian (`src/lib/i18n/*.ts`); backend messages get a pattern in `src/lib/i18n/backend.ts`.
 - Copy follows DESIGN.md section 13: no em dashes, name the thing, no buzzwords.
 - `cargo clippy --all-targets -- -D warnings` must pass on Windows and Linux; macOS-only code is kept tiny and cfg-gated so it cannot warn elsewhere.
-- Commits: Conventional Commits in English, no AI attribution lines. Tests run from `C:\Users\yusup\Project\opencompanion` (capital P).
+- Commits: Conventional Commits in English, no AI attribution lines. Tests run from the checkout path in its real letter case, since a Windows working folder that differs only in case breaks path comparisons.
 
 ## Review Focus
 

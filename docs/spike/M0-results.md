@@ -16,7 +16,7 @@ M0's done criteria in the PRD: all three CLIs can run interactive and headless f
 |---|---|---|---|
 | Detection + version | pass | pass | pass (npm shim redirected to the native exe) |
 | Interactive PTY (ConPTY) | pass | pass | pass with `--pure`; without it, it crashes because of a plugin in the user's config |
-| Headless + event parsing | pass | failure path only: 401 from the `inferhub` provider | pass with `--pure` |
+| Headless + event parsing | pass | failure path only: 401 from the configured provider | pass with `--pure` |
 | Headless "waiting for permission" signal | pass: `control_request` / `can_use_tool`, answered by the host | not tested (auth) | none: `run` rejects by itself, the path is through `opencode serve` |
 | PTY "waiting for permission" signal | pass: `PermissionRequest` and `Notification` hooks, plus text patterns | text patterns for the update offer only | not tested |
 | External process detection | pass, with working folder | pass, with working folder | pass, with working folder; the wrapper exe and the platform exe count as one session |
@@ -42,8 +42,8 @@ M0's done criteria in the PRD: all three CLIs can run interactive and headless f
 ### Headless and events (FR-11, FR-14)
 
 - **Claude Code**: `-p --output-format stream-json --input-format stream-json --verbose --permission-prompts host --permission-prompt-tool stdio --permission-mode manual`, with the prompt sent as a `user` message on stdin. Events observed: `system/init`, `system/hook_*`, `assistant` (text, tool_use, thinking), `user` (tool_result, `tool_use_result.filePath` for Write), `control_request`, `rate_limit_event`, `result`.
-- The user's hooks, `CLAUDE.md`, 15 MCP servers and 385 skills also load in headless mode (84 tools). One small run is worth 0.32 to 0.34 USD according to `total_cost_usd`; the account is a subscription (`apiKeySource: none`), so this uses quota, not API billing. For the orchestrator chat (FR-20) the context needs to be limited, for example with `--setting-sources`, `--strict-mcp-config` and `--tools`.
-- **Codex**: `exec --json --skip-git-repo-check -s workspace-write -C <dir> -`, with the prompt on stdin. The `inferhub` provider in `~/.codex/config.toml` has neither `env_key` nor `requires_openai_auth`, so every request is rejected with 401. Events observed: `thread.started`, `turn.started`, `item.completed` (type `error` for config warnings), `error` ("Reconnecting... n/5"), `turn.failed`. The item types for a successful run (`agent_message`, `command_execution`, `file_change`) come from the Codex docs and have not been observed.
+- The user's hooks, `CLAUDE.md`, MCP servers and skills also load in headless mode (84 tools on the test machine). One small run is worth 0.32 to 0.34 USD according to `total_cost_usd`; the account is a subscription (`apiKeySource: none`), so this uses quota, not API billing. For the orchestrator chat (FR-20) the context needs to be limited, for example with `--setting-sources`, `--strict-mcp-config` and `--tools`.
+- **Codex**: `exec --json --skip-git-repo-check -s workspace-write -C <dir> -`, with the prompt on stdin. The custom provider set in `~/.codex/config.toml` on the test machine had neither `env_key` nor `requires_openai_auth`, so every request was rejected with 401. Events observed: `thread.started`, `turn.started`, `item.completed` (type `error` for config warnings), `error` ("Reconnecting... n/5"), `turn.failed`. The item types for a successful run (`agent_message`, `command_execution`, `file_change`) come from the Codex docs and have not been observed.
 - **OpenCode**: `run --format json --dir <dir> --pure <prompt>`. Events: `step_start`, `tool_use` (`part.tool`, `part.state.status/input/output`, `metadata.files` for changed files), `text`, `step_finish` (tokens and cost). There is no "finished" event; the Done status comes from the process exit. `--pure` turns plugins off, but MCP servers still load.
 - The `events.rs` parser normalizes all three into `SessionEvent` and is checked again against real recordings through `air-spike replay`. Unknown lines become `Raw`.
 
@@ -76,6 +76,6 @@ M0's done criteria in the PRD: all three CLIs can run interactive and headless f
 
 ## Not done yet
 
-- Codex: a successful run and the permission signal, after the owner fixes the provider auth in `~/.codex/config.toml`.
+- Codex: a successful run and the permission signal, on a machine where Codex can sign in to its provider.
 - OpenCode: PTY and runs without `--pure` after the failing plugin is fixed; the permission signal through `opencode serve`.
 - Gemini CLI: not installed yet.
