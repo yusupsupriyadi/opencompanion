@@ -16,6 +16,7 @@ import time
 import traceback
 import urllib.error
 import urllib.request
+from http.client import RemoteDisconnected
 
 DRIVER = "http://127.0.0.1:4444"
 APP = os.environ.get("OC_APP", "/usr/bin/opencompanion")
@@ -34,12 +35,19 @@ def http(method, path, body=None, timeout=60):
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(DRIVER + path, data=data, method=method,
                                  headers={"Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return json.loads(r.read() or b"{}").get("value")
-    except urllib.error.HTTPError as e:
-        payload = e.read().decode(errors="replace")
-        raise RuntimeError(f"{method} {path} -> {e.code}: {payload[:400]}")
+    # tauri-driver passes each request on to WebKitWebDriver over a pooled connection. When that connection was
+    # closed while idle, the request never reaches WebKitWebDriver ("client error (SendRequest) ... Connection reset
+    # by peer" in tauri-driver.log) and this end sees the connection drop, so it is sent once more.
+    for attempt in (1, 2):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read() or b"{}").get("value")
+        except urllib.error.HTTPError as e:
+            payload = e.read().decode(errors="replace")
+            raise RuntimeError(f"{method} {path} -> {e.code}: {payload[:400]}")
+        except (RemoteDisconnected, ConnectionResetError):
+            if attempt == 2:
+                raise
 
 
 class App:
