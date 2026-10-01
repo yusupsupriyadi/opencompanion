@@ -19,8 +19,7 @@
   </a>
 </p>
 
-<!-- Replace the line below with a screenshot or a short GIF, for example docs/media/overview.png. -->
-> Screenshot placeholder: the Overview with one session waiting for you.
+<img width="1103" height="640" alt="opencompanion vercel app_ (1)" src="https://github.com/user-attachments/assets/26372313-31a2-4e74-9139-0dd334502094" />
 
 Run Claude Code, Codex CLI or OpenCode in several folders at once and each session stops now and then to ask for permission, which you only notice when you look at its terminal. OpenCompanion starts those sessions, lists them on one screen, tells you when one is waiting, and lets you answer from the desktop or your phone.
 
