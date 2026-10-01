@@ -79,7 +79,7 @@ Phone access stays off until you turn it on in Settings › Phone access. Then s
 - [Privacy and data](docs/privacy.md): what leaves your computer and where OpenCompanion keeps its data
 - [Status, known limits and roadmap](docs/status.md)
 - [Project layout](docs/project-layout.md) and [CONTRIBUTING.md](CONTRIBUTING.md) for development, checks and releases
-- [CHANGELOG.md](CHANGELOG.md), plus [DESIGN.md](DESIGN.md), the [PRD](docs/PRD.md) and the [M0 spike results](docs/spike/M0-results.md), which are written in Indonesian
+- [CHANGELOG.md](CHANGELOG.md), [DESIGN.md](DESIGN.md), the [PRD](docs/PRD.md) and the [M0 spike results](docs/spike/M0-results.md)
 
 ## Contributing and security
 

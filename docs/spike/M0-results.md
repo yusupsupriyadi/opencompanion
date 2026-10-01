@@ -1,81 +1,81 @@
-# Hasil M0 Spike
+# M0 Spike results
 
 | | |
 |---|---|
-| Tanggal | 2026-09-25 |
-| Mesin | Windows 11 Home 10.0.26200, Rust 1.96 (MSVC), WebView2 153 |
-| Versi CLI | Claude Code 2.1.282, Codex CLI 0.153.4, OpenCode 1.18.30, Gemini CLI tidak terpasang |
-| Alat uji | `src-tauri/src/bin/air-spike.rs` (subperintah `detect`, `scan`, `pty`, `headless`, `replay`, `waiting`) |
-| Folder uji | folder scratch kosong di luar repo, satu per CLI |
+| Date | 2026-09-25 |
+| Machine | Windows 11 Home 10.0.26200, Rust 1.96 (MSVC), WebView2 153 |
+| CLI versions | Claude Code 2.1.282, Codex CLI 0.153.4, OpenCode 1.18.30, Gemini CLI not installed |
+| Test tool | `src-tauri/src/bin/air-spike.rs` (subcommands `detect`, `scan`, `pty`, `headless`, `replay`, `waiting`) |
+| Test folder | an empty scratch folder outside the repo, one per CLI |
 
-Kriteria selesai M0 di PRD: tiga CLI bisa dijalankan interaktif dan headless dari prototipe Rust, dan hasil uji deteksi izin tercatat per CLI. Status per kriteria ada di tabel ringkasan; bagian yang belum lolos disebut terang di bawahnya.
+M0's done criteria in the PRD: all three CLIs can run interactive and headless from a Rust prototype, and the permission detection results are recorded per CLI. The status per criterion is in the summary table; the parts that did not pass are named plainly below it.
 
-## Ringkasan
+## Summary
 
 | | Claude Code | Codex CLI | OpenCode |
 |---|---|---|---|
-| Deteksi + versi | lolos | lolos | lolos (shim npm diarahkan ke exe native) |
-| PTY interaktif (ConPTY) | lolos | lolos | lolos dengan `--pure`; tanpa itu crash karena plugin di konfigurasi pengguna |
-| Headless + parse event | lolos | hanya jalur gagal: 401 dari provider `inferhub` | lolos dengan `--pure` |
-| Sinyal "menunggu izin" headless | lolos: `control_request` / `can_use_tool`, dijawab host | belum teruji (auth) | tidak ada: `run` menolak sendiri, jalurnya lewat `opencode serve` |
-| Sinyal "menunggu izin" PTY | lolos: hook `PermissionRequest` dan `Notification`, plus pola teks | pola teks untuk tawaran update saja | belum teruji |
-| Deteksi proses eksternal | lolos, dengan folder kerja | lolos, dengan folder kerja | lolos, dengan folder kerja; exe pembungkus dan exe platform dihitung satu sesi |
+| Detection + version | pass | pass | pass (npm shim redirected to the native exe) |
+| Interactive PTY (ConPTY) | pass | pass | pass with `--pure`; without it, it crashes because of a plugin in the user's config |
+| Headless + event parsing | pass | failure path only: 401 from the `inferhub` provider | pass with `--pure` |
+| Headless "waiting for permission" signal | pass: `control_request` / `can_use_tool`, answered by the host | not tested (auth) | none: `run` rejects by itself, the path is through `opencode serve` |
+| PTY "waiting for permission" signal | pass: `PermissionRequest` and `Notification` hooks, plus text patterns | text patterns for the update offer only | not tested |
+| External process detection | pass, with working folder | pass, with working folder | pass, with working folder; the wrapper exe and the platform exe count as one session |
 
-## Temuan per area
+## Findings per area
 
-### Deteksi CLI (FR-01, FR-02)
+### CLI detection (FR-01, FR-02)
 
-- `which` + folder instal umum (`~/.local/bin`, `%APPDATA%/npm`, `~/.bun/bin`, `~/.opencode/bin`) menemukan ketiga CLI dalam 731 ms, paralel.
-- Shim npm `.cmd` yang hanya meneruskan ke exe native (OpenCode) diganti dengan exe itu. Prompt tidak lewat `cmd.exe`, jadi aturan quoting batch tidak berlaku.
-- Codex di mesin ini dipasang lewat installer native (`%LOCALAPPDATA%/Programs/OpenAI/Codex/bin/codex.exe`), bukan npm.
+- `which` + common install folders (`~/.local/bin`, `%APPDATA%/npm`, `~/.bun/bin`, `~/.opencode/bin`) found all three CLIs in 731 ms, in parallel.
+- An npm `.cmd` shim that only forwards to a native exe (OpenCode) is replaced by that exe. The prompt does not go through `cmd.exe`, so batch quoting rules do not apply.
+- Codex on this machine was installed through the native installer (`%LOCALAPPDATA%/Programs/OpenAI/Codex/bin/codex.exe`), not npm.
 
 ### PTY (FR-10)
 
-- **ConPTY menahan semua output sampai pertanyaan posisi kursor (`ESC[6n`) dijawab.** Tanpa jawaban, setiap CLI hanya mengeluarkan 4 byte lalu diam. Rust core kini menjawabnya dari posisi kursor emulator `vt100`, sehingga sesi tanpa tampilan terminal tetap berjalan. Keputusan untuk M1: xterm.js di webview tidak boleh meneruskan jawaban CPR miliknya sendiri ke PTY.
-- Output pertama sekitar 270 ms setelah spawn. Resize dan Ctrl+C berfungsi: Claude Code keluar dengan kode 1, Codex dan OpenCode dengan kode 0.
-- Layar pertama tiap CLI bisa berupa dialog yang menunggu pengguna:
-  - Claude Code: dialog kepercayaan folder baru. Pilihan default adalah "No, exit".
-  - Codex: tawaran update. Pilihan default adalah "Update now", yang menjalankan skrip instal. **OpenCompanion tidak boleh mengirim Enter ke layar ini secara otomatis.**
-- OpenCode tanpa `--pure` keluar dalam 4 detik dengan "Unexpected server error". Log OpenCode mencatat `plugin config hook failed` lalu `n.provider` null; error yang sama sudah muncul sejak 2026-09-10, jadi ini masalah plugin di konfigurasi pengguna, bukan PTY.
-- `vt100` `contents()` menyambung baris yang ber-flag wrap. Teks layar kini dibaca per baris.
+- **ConPTY holds back all output until the cursor position query (`ESC[6n`) is answered.** Without an answer, every CLI emits only 4 bytes and then goes quiet. The Rust core now answers it from the `vt100` emulator's cursor position, so sessions with no terminal view keep running. Decision for M1: xterm.js in the webview must not pass its own CPR answer to the PTY.
+- First output arrives about 270 ms after spawn. Resize and Ctrl+C work: Claude Code exits with code 1, Codex and OpenCode with code 0.
+- Each CLI's first screen can be a dialog waiting for the user:
+  - Claude Code: the trust dialog for a new folder. The default choice is "No, exit".
+  - Codex: an update offer. The default choice is "Update now", which runs an install script. **OpenCompanion must never send Enter to this screen automatically.**
+- OpenCode without `--pure` exits within 4 seconds with "Unexpected server error". The OpenCode log records `plugin config hook failed` and then a null `n.provider`; the same error has appeared since 2026-09-10, so this is a problem with a plugin in the user's config, not the PTY.
+- `vt100` `contents()` joins lines that carry the wrap flag. Screen text is now read line by line.
 
-### Headless dan event (FR-11, FR-14)
+### Headless and events (FR-11, FR-14)
 
-- **Claude Code**: `-p --output-format stream-json --input-format stream-json --verbose --permission-prompts host --permission-prompt-tool stdio --permission-mode manual`, prompt dikirim sebagai pesan `user` di stdin. Event yang teramati: `system/init`, `system/hook_*`, `assistant` (text, tool_use, thinking), `user` (tool_result, `tool_use_result.filePath` untuk Write), `control_request`, `rate_limit_event`, `result`.
-- Hooks, `CLAUDE.md`, 15 server MCP, dan 385 skill milik pengguna ikut termuat di mode headless (84 tool). Satu run kecil bernilai setara 0.32 sampai 0.34 USD menurut `total_cost_usd`; akunnya langganan (`apiKeySource: none`), jadi ini memakai kuota, bukan tagihan API. Untuk chat orchestrator (FR-20) konteks perlu dibatasi, misalnya `--setting-sources`, `--strict-mcp-config`, dan `--tools`.
-- **Codex**: `exec --json --skip-git-repo-check -s workspace-write -C <dir> -`, prompt di stdin. Provider `inferhub` di `~/.codex/config.toml` tidak punya `env_key` maupun `requires_openai_auth`, sehingga setiap request ditolak 401. Event yang teramati: `thread.started`, `turn.started`, `item.completed` (tipe `error` untuk peringatan konfigurasi), `error` ("Reconnecting... n/5"), `turn.failed`. Jenis item untuk run yang berhasil (`agent_message`, `command_execution`, `file_change`) diambil dari dokumentasi Codex dan belum teramati.
-- **OpenCode**: `run --format json --dir <dir> --pure <prompt>`. Event: `step_start`, `tool_use` (`part.tool`, `part.state.status/input/output`, `metadata.files` untuk file yang diubah), `text`, `step_finish` (token dan biaya). Tidak ada event "selesai"; status Done diambil dari exit proses. `--pure` mematikan plugin, tapi server MCP tetap termuat.
-- Parser `events.rs` menyeragamkan ketiganya menjadi `SessionEvent` dan dicek ulang terhadap rekaman nyata lewat `air-spike replay`. Baris yang tidak dikenal menjadi `Raw`.
+- **Claude Code**: `-p --output-format stream-json --input-format stream-json --verbose --permission-prompts host --permission-prompt-tool stdio --permission-mode manual`, with the prompt sent as a `user` message on stdin. Events observed: `system/init`, `system/hook_*`, `assistant` (text, tool_use, thinking), `user` (tool_result, `tool_use_result.filePath` for Write), `control_request`, `rate_limit_event`, `result`.
+- The user's hooks, `CLAUDE.md`, 15 MCP servers and 385 skills also load in headless mode (84 tools). One small run is worth 0.32 to 0.34 USD according to `total_cost_usd`; the account is a subscription (`apiKeySource: none`), so this uses quota, not API billing. For the orchestrator chat (FR-20) the context needs to be limited, for example with `--setting-sources`, `--strict-mcp-config` and `--tools`.
+- **Codex**: `exec --json --skip-git-repo-check -s workspace-write -C <dir> -`, with the prompt on stdin. The `inferhub` provider in `~/.codex/config.toml` has neither `env_key` nor `requires_openai_auth`, so every request is rejected with 401. Events observed: `thread.started`, `turn.started`, `item.completed` (type `error` for config warnings), `error` ("Reconnecting... n/5"), `turn.failed`. The item types for a successful run (`agent_message`, `command_execution`, `file_change`) come from the Codex docs and have not been observed.
+- **OpenCode**: `run --format json --dir <dir> --pure <prompt>`. Events: `step_start`, `tool_use` (`part.tool`, `part.state.status/input/output`, `metadata.files` for changed files), `text`, `step_finish` (tokens and cost). There is no "finished" event; the Done status comes from the process exit. `--pure` turns plugins off, but MCP servers still load.
+- The `events.rs` parser normalizes all three into `SessionEvent` and is checked again against real recordings through `air-spike replay`. Unknown lines become `Raw`.
 
-### Sinyal "menunggu izin" (FR-16, FR-17)
+### "Waiting for permission" signal (FR-16, FR-17)
 
-- **Claude Code headless**: `--permission-prompts host` saja tidak cukup; izin langsung ditolak (`system/permission_denied` dan `result.permission_denials`). Dengan tambahan `--permission-prompt-tool stdio`, permintaan datang sebagai `control_request` subtype `can_use_tool` (field `request_id`, `tool_name`, `input`, `permission_suggestions`, `tool_use_id`) 11.7 detik setelah start. Jawaban `control_response` dengan `behavior: allow` membuat file benar-benar dibuat. Ini jalur Approve/Deny utama untuk M1.
-- **Claude Code PTY**: hook yang disuntik lewat `--settings <file>` terpicu saat dialog izin muncul. `PermissionRequest` membawa `tool_name` dan `tool_input`; `Notification` membawa `notification_type: permission_prompt`. Pola teks cadangan ("Do you want to …?" + "Esc to cancel") mendeteksi dialog pada layar ke-29 dari 30 dan tidak memberi deteksi palsu di 28 layar lain. Esc menolak izin.
-- **OpenCode**: dengan izin `ask`, `opencode run` menulis `permission requested: edit (…); auto-rejecting` ke stderr dan tool call gagal. Approve/Deny untuk OpenCode di M1 harus lewat `opencode serve` dan API HTTP-nya.
-- **Codex**: belum teruji karena auth. Jalur kandidat: `codex app-server` (JSON-RPC, eksperimental) dan hooks Codex.
+- **Claude Code headless**: `--permission-prompts host` alone is not enough; permissions are denied right away (`system/permission_denied` and `result.permission_denials`). With `--permission-prompt-tool stdio` added, the request arrives as a `control_request` of subtype `can_use_tool` (fields `request_id`, `tool_name`, `input`, `permission_suggestions`, `tool_use_id`) 11.7 seconds after start. A `control_response` answer with `behavior: allow` makes the file actually get created. This is the main Approve/Deny path for M1.
+- **Claude Code PTY**: hooks injected through `--settings <file>` fire when the permission dialog appears. `PermissionRequest` carries `tool_name` and `tool_input`; `Notification` carries `notification_type: permission_prompt`. The fallback text pattern ("Do you want to …?" + "Esc to cancel") detects the dialog on screen 29 of 30 and gives no false detection on the other 28 screens. Esc denies the permission.
+- **OpenCode**: with the `ask` permission, `opencode run` writes `permission requested: edit (…); auto-rejecting` to stderr and the tool call fails. Approve/Deny for OpenCode in M1 has to go through `opencode serve` and its HTTP API.
+- **Codex**: not tested because of auth. Candidate paths: `codex app-server` (JSON-RPC, experimental) and Codex hooks.
 
-### Proses eksternal (FR-31)
+### External processes (FR-31)
 
-- `sysinfo` 0.39 membaca nama, argumen, folder kerja, waktu mulai, CPU, dan memori. Scan pertama 32 sampai 53 ms, berikutnya 13 sampai 25 ms.
-- Uji dengan tiga CLI terbuka sekaligus (Claude Code, Codex, OpenCode, masing-masing di terminal terpisah): ketiganya muncul tepat satu kali dengan folder kerja yang benar.
-- Nama proses di mesin ini: `claude.exe`, `codex.exe`, `opencode.exe`. Helper seperti `codex-windows-sandbox-service.exe` dan `codex-code-mode-host.exe` tidak dihitung sebagai sesi. Anak dari CLI yang sama (exe pembungkus OpenCode) dan proses turunan OpenCompanion dilewati.
-- Mode dibaca dari flag (`-p`, `exec`, `run`, `serve`), tanpa menyimpan command line lengkap karena bisa berisi prompt atau token.
+- `sysinfo` 0.39 reads the name, arguments, working folder, start time, CPU and memory. The first scan takes 32 to 53 ms, later ones 13 to 25 ms.
+- Test with three CLIs open at once (Claude Code, Codex, OpenCode, each in a separate terminal): each appears exactly once with the right working folder.
+- Process names on this machine: `claude.exe`, `codex.exe`, `opencode.exe`. Helpers such as `codex-windows-sandbox-service.exe` and `codex-code-mode-host.exe` do not count as sessions. Children of the same CLI (the OpenCode wrapper exe) and processes spawned by OpenCompanion are skipped.
+- The mode is read from flags (`-p`, `exec`, `run`, `serve`), without storing the full command line, because it can contain a prompt or token.
 
 ### Environment
 
-- Sesi Claude Code mewariskan 10 variabel penanda (termasuk `CLAUDE_CODE_MESSAGING_TOKEN`) ke proses anak. Akibatnya CLI yang dijalankan dari dalamnya mematikan penyimpanan transcript. OpenCompanion kini membuang variabel ini dari setiap CLI yang dijalankan (`proc::INHERITED_SESSION_VARS`); peringatan "Transcript saving is off" hilang setelahnya.
+- A Claude Code session passes 10 marker variables (including `CLAUDE_CODE_MESSAGING_TOKEN`) down to child processes. As a result, a CLI started from inside it turns off transcript saving. OpenCompanion now drops these variables from every CLI it starts (`proc::INHERITED_SESSION_VARS`); the "Transcript saving is off" warning is gone after that.
 
-## Keputusan untuk M1
+## Decisions for M1
 
-1. Claude Code headless memakai protokol stdio control (`can_use_tool`) untuk Approve/Deny.
-2. Claude Code interaktif memakai hook `PermissionRequest` dan `Notification` lewat `--settings` sebagai sinyal utama, pola teks sebagai cadangan, dan metode yang dipakai ditampilkan di detail sesi.
-3. OpenCode dijalankan lewat `opencode serve` supaya izin bisa dijawab; spike berikutnya mengukur API itu.
-4. Rust core menjawab `ESC[6n`; terminal di webview tidak meneruskan jawaban CPR.
-5. Dialog pembuka CLI (trust folder, tawaran update) ditampilkan sebagai "Waiting for you" dan tidak pernah dijawab otomatis.
-6. Chat orchestrator memakai konteks CLI yang dibatasi supaya kuota tidak habis untuk memuat tool dan skill.
+1. Headless Claude Code uses the stdio control protocol (`can_use_tool`) for Approve/Deny.
+2. Interactive Claude Code uses the `PermissionRequest` and `Notification` hooks through `--settings` as the main signal, text patterns as the fallback, and the method used is shown in the session detail.
+3. OpenCode runs through `opencode serve` so permissions can be answered; the next spike measures that API.
+4. The Rust core answers `ESC[6n`; the terminal in the webview does not pass on CPR answers.
+5. CLI opening dialogs (folder trust, update offer) are shown as "Waiting for you" and are never answered automatically.
+6. The orchestrator chat uses a limited CLI context so quota is not spent loading tools and skills.
 
-## Belum selesai
+## Not done yet
 
-- Codex: run yang berhasil dan sinyal izin, setelah auth provider di `~/.codex/config.toml` diperbaiki pemiliknya.
-- OpenCode: PTY dan run tanpa `--pure` setelah plugin yang gagal diperbaiki; sinyal izin lewat `opencode serve`.
-- Gemini CLI: belum terpasang.
+- Codex: a successful run and the permission signal, after the owner fixes the provider auth in `~/.codex/config.toml`.
+- OpenCode: PTY and runs without `--pure` after the failing plugin is fixed; the permission signal through `opencode serve`.
+- Gemini CLI: not installed yet.
