@@ -22,6 +22,7 @@ test("every item points at a Settings screen, grouped under its heading", () => 
         ["Phone access", "/settings"],
         ["Window and sign-in", "/settings?s=window"],
         ["Language", "/settings?s=language"],
+        ["Updates", "/settings?s=updates"],
       ],
     ],
     [
@@ -87,7 +88,7 @@ test("search keeps the items whose name or text matches, and Escape brings them 
 
   await user.keyboard("{Escape}");
   expect(box).toHaveValue("");
-  expect(nav().getAllByRole("link")).toHaveLength(13);
+  expect(nav().getAllByRole("link")).toHaveLength(14);
 });
 
 test("a search with no match says so, and Enter opens the first match", async () => {

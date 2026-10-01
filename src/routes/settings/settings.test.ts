@@ -1,9 +1,10 @@
 import { render, screen, within } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, onTestFinished, test, vi } from "vitest";
-import type { Settings } from "$lib/api";
+import type { Settings, UpdateView } from "$lib/api";
 import { setLang } from "$lib/i18n.svelte";
 import { app, initTheme, toast } from "$lib/store.svelte";
+import { update } from "$lib/update.svelte";
 import { setUrl } from "../../test/app-state.svelte";
 import { CLIS, backend } from "../../test/fixtures";
 import SettingsPage from "./+page.svelte";
@@ -35,6 +36,7 @@ const base: Settings = {
   autoRunFolders: [],
   language: "en",
   shellSuggestions: true,
+  updateCheck: true,
 };
 
 let stored: Settings;
@@ -378,4 +380,63 @@ test("Day and Dusk switch the theme and show which one is on", async () => {
   await user.click(screen.getByRole("radio", { name: "Day" }));
   expect(document.documentElement.dataset.theme).toBe("light");
   expect(dusk).not.toBeChecked();
+});
+
+const upToDate: UpdateView = {
+  current: "0.3.0",
+  available: null,
+  dismissed: false,
+  phase: "idle",
+  received: 0,
+  total: null,
+  checkedAt: null,
+  error: null,
+};
+
+test("Updates shows the version, checks on request and saves the automatic check", async () => {
+  api();
+  const calls = backend({
+    get_settings: () => stored,
+    save_settings: (a) => {
+      stored = a?.settings as Settings;
+      return stored;
+    },
+    app_info: () => ({ version: "0.3.0", dataDir: String.raw`C:\data`, counts: { sessions: 0, devices: 0 } }),
+    check_update: () => ({ ...upToDate, available: "0.4.0", checkedAt: Date.now() }),
+  });
+  update.view = { ...upToDate, checkedAt: app.now - 2 * 3600_000 };
+  onTestFinished(() => {
+    update.view = null;
+  });
+  const user = userEvent.setup();
+  open("updates");
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Updates");
+  expect(await screen.findByText("You have OpenCompanion 0.3.0.")).toBeInTheDocument();
+  expect(screen.getByRole("status")).toHaveTextContent("You have the latest version. Last checked 2 h ago.");
+
+  await user.click(screen.getByRole("button", { name: "Check for updates" }));
+  expect(calls.calls("check_update")).toHaveLength(1);
+  expect(await screen.findByText("Version 0.4.0 is available.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Update and restart" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "What's new in 0.4.0" })).toBeInTheDocument();
+
+  const auto = screen.getByRole("checkbox", { name: "Check for updates automatically" });
+  expect(auto).toBeChecked();
+  await user.click(auto);
+  expect(stored.updateCheck).toBe(false);
+  expect(screen.getByText("Only Check for updates asks GitHub.")).toBeInTheDocument();
+  // Turning it off asks nothing more of GitHub.
+  expect(calls.calls("check_update")).toHaveLength(1);
+});
+
+test("a failed install keeps the updater's message and offers the release page", async () => {
+  api();
+  update.view = { ...upToDate, available: "0.4.0", error: { step: "install", message: "signature verification failed" } };
+  onTestFinished(() => {
+    update.view = null;
+  });
+  open("updates");
+  expect(await screen.findByText("The update did not install.")).toHaveAttribute("role", "status");
+  expect(screen.getByText("signature verification failed")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Download 0.4.0 from GitHub" })).toBeInTheDocument();
 });

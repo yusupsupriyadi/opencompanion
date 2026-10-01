@@ -6,6 +6,8 @@ Notable changes to OpenCompanion are listed here. The format follows [Keep a Cha
 
 ### Added
 
+- Updates inside the app. OpenCompanion checks the latest GitHub release when it starts and once a day. When a newer version is out, it sends one notification and shows a card in the sidebar. Update downloads the new version, checks its updater signature, installs it and restarts the app. When sessions are running, it asks first, because the restart stops them. Settings › Updates shows your version, has Check for updates and What's new, and turns the automatic check off. Releases now also carry `latest.json`, plus the macOS `.app.tar.gz` that the updater installs from. You need to download this version by hand once; updates after it arrive in the app.
+
 - Blank terminal in New session: the last choice beside the CLIs starts a session that runs only your default shell in the folder (PowerShell on Windows, your login shell on Linux and macOS), with command suggestions as in a shell tab. It starts as "No CLI running", a CLI you start in it shows as running, and `exit` closes it. Mode, first message and permission mode are hidden for it, and automations do not offer it.
 
 ## [0.2.0] - 2026-10-01

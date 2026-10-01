@@ -330,6 +330,19 @@ pub struct Settings {
     /// Shell tabs start with a script that marks the prompt and reports each command, which is saved and suggested
     /// while typing. Off, shells start as they are and nothing is saved.
     pub shell_suggestions: bool,
+    /// Ask GitHub for a newer release at start and once a day (`updater`). Off, only the Check button asks.
+    pub update_check: bool,
+}
+
+/// What the updater remembers between starts. It is kept apart from `Settings`, so a save from a
+/// window that loaded its settings earlier cannot write an older copy back.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct UpdateMarks {
+    /// The newest version an OS notification was sent for.
+    pub notified: String,
+    /// The version whose sidebar card was closed with Later.
+    pub dismissed: String,
 }
 
 /// The kinds of notification a session sends.
@@ -474,6 +487,7 @@ impl Default for Settings {
             auto_run_folders: Vec::new(),
             language: "en".into(),
             shell_suggestions: true,
+            update_check: true,
         }
     }
 }
@@ -1193,8 +1207,25 @@ impl Db {
     // Settings
 
     pub fn settings(&self) -> R<Settings> {
+        self.stored("settings")
+    }
+
+    pub fn save_settings(&self, s: &Settings) -> R<()> {
+        self.store("settings", s)
+    }
+
+    pub fn update_marks(&self) -> R<UpdateMarks> {
+        self.stored("update")
+    }
+
+    pub fn save_update_marks(&self, m: &UpdateMarks) -> R<()> {
+        self.store("update", m)
+    }
+
+    /// The JSON value saved under `key` in the settings table; a missing or unreadable one is the default.
+    fn stored<T: serde::de::DeserializeOwned + Default>(&self, key: &str) -> R<T> {
         let raw: Option<String> = self.with(|c| {
-            c.query_row("SELECT value FROM settings WHERE key = 'settings'", [], |r| r.get(0))
+            c.query_row("SELECT value FROM settings WHERE key = ?1", [key], |r| r.get(0))
                 .optional()
         })?;
         Ok(raw
@@ -1202,13 +1233,13 @@ impl Db {
             .unwrap_or_default())
     }
 
-    pub fn save_settings(&self, s: &Settings) -> R<()> {
-        let value = serde_json::to_string(s).map_err(err)?;
+    fn store<T: Serialize>(&self, key: &str, value: &T) -> R<()> {
+        let value = serde_json::to_string(value).map_err(err)?;
         self.with(|c| {
             c.execute(
-                "INSERT INTO settings (key, value) VALUES ('settings', ?1)
+                "INSERT INTO settings (key, value) VALUES (?1, ?2)
                  ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                [value],
+                [key, value.as_str()],
             )
             .map(|_| ())
         })
@@ -1334,6 +1365,23 @@ mod tests {
     fn settings_saved_before_shell_suggestions_turn_them_on() {
         let s: Settings = serde_json::from_str(r#"{"onboarded":true}"#).unwrap();
         assert!(s.shell_suggestions);
+    }
+
+    #[test]
+    fn settings_saved_before_updates_check_for_them() {
+        let s: Settings = serde_json::from_str(r#"{"onboarded":true}"#).unwrap();
+        assert!(s.update_check);
+    }
+
+    #[test]
+    fn a_settings_save_leaves_the_update_marks_alone() {
+        let db = Db::open_in_memory().unwrap();
+        assert_eq!(db.update_marks().unwrap(), UpdateMarks::default());
+        let marks = UpdateMarks { notified: "0.3.0".into(), dismissed: "0.3.0".into() };
+        db.save_update_marks(&marks).unwrap();
+        db.save_settings(&Settings { update_check: false, ..Settings::default() }).unwrap();
+        assert_eq!(db.update_marks().unwrap(), marks);
+        assert!(!db.settings().unwrap().update_check);
     }
 
     #[test]

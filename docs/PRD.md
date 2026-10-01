@@ -241,7 +241,7 @@ How the orchestrator chat works:
 
 ## 11. Security and privacy
 
-- No telemetry and no network calls from OpenCompanion itself, except the companion server when you turn it on.
+- No telemetry and no network calls from OpenCompanion itself, except the companion server when you turn it on and the update check (added 2026-10-01 at the owner's request): a download of the release list from GitHub at start and once a day, which Settings › Updates turns off.
 - OpenCompanion does not store CLI credentials. Sign-in stays with each CLI.
 - Companion server: off by default, accepts only paired devices, tokens stored as hashes, one-time pairing codes with a short lifetime, a limit on pairing attempts.
 - HTTP on the LAN is not encrypted. Settings shows this warning and recommends a VPN with HTTPS (for example Tailscale) for use outside a trusted network.

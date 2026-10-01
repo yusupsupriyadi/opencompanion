@@ -21,6 +21,7 @@
     type PlannerApi,
     type ProjectFolder,
     type Settings,
+    type UpdateView,
   } from "$lib/api";
   import { forgetSaved } from "$lib/command-history";
   import { MODES, TEXT_SIZES, ago, folderName, modeLabel, shortPath } from "$lib/format";
@@ -28,6 +29,7 @@
   import SettingsHead from "$lib/SettingsHead.svelte";
   import { sectionOf } from "$lib/settings-nav";
   import { app, currentTheme, loadSettings, refreshSessions, saveSettings, setTheme, showToast } from "$lib/store.svelte";
+  import { askInstall, openRelease, progressText, update } from "$lib/update.svelte";
 
   // One section at a time, the one picked in the Settings sidebar. Its name is the page's H1.
   const section = $derived(sectionOf(page.url));
@@ -275,6 +277,33 @@
     if (el instanceof HTMLInputElement) el.checked = Boolean(was);
     else if (stored) el.value = String(stored[Object.keys(patch)[0] as keyof Settings]);
     return false;
+  }
+
+  /** One line for where the updater stands. */
+  function updateLine(u: UpdateView): string {
+    const version = u.available ?? "";
+    if (u.phase === "checking") return t("settings.updates.checking");
+    if (u.phase === "downloading") return t("settings.updates.downloading", { version, progress: progressText(u) });
+    if (u.phase === "installing") return t("settings.updates.installing", { version });
+    if (u.error?.step === "check") return t("settings.updates.checkFailed");
+    if (u.error?.step === "install") return t("settings.updates.installFailed");
+    if (u.available) return t("settings.updates.available", { version });
+    if (u.checkedAt) return t("settings.updates.latest", { when: ago(u.checkedAt, app.now) });
+    return t("settings.updates.never");
+  }
+
+  async function checkUpdates() {
+    try {
+      update.view = await api.checkUpdate();
+    } catch {
+      // The failure arrives in `update-changed` too.
+    }
+  }
+
+  // Turned on, it checks straight away instead of waiting for the next start.
+  async function setUpdateCheck(el: HTMLInputElement) {
+    const on = el.checked;
+    if ((await saveControl(el, { updateCheck: on }, on ? t("settings.updates.autoOnSaved") : t("settings.updates.autoOffSaved"))) && on) checkUpdates();
   }
 
   async function newCode() {
@@ -766,6 +795,38 @@
           </label>
         {/if}
       </section>
+    {:else if section === "updates"}
+      <section class="card" id="updates" aria-labelledby="settings-title">
+        {#if update.view}
+          {@const u = update.view}
+          <div class="field">
+            <p class="desc">{t("settings.updates.current", { version: u.current })}</p>
+            <p class="meta" role="status" style="margin:0">{updateLine(u)}</p>
+            {#if u.phase === "downloading"}
+              <progress class="upd-progress" max={u.total ?? undefined} value={u.total ? u.received : undefined} aria-label={updateLine(u)}></progress>
+            {/if}
+            {#if u.error}<p class="err-text upd-detail">{u.error.message}</p>{/if}
+          </div>
+          <div class="upd-actions">
+            {#if u.available && u.phase === "idle"}
+              <button class="btn primary" type="button" id="btn-settings-update" onclick={askInstall}>{t("settings.updates.install")}</button>
+              <button class="btn secondary" type="button" onclick={() => u.available && openRelease(u.available)}>
+                {u.error?.step === "install" ? t("settings.updates.download", { version: u.available }) : t("settings.updates.notes", { version: u.available })}
+              </button>
+            {/if}
+            <button class="btn secondary" type="button" id="btn-check-updates" disabled={u.phase !== "idle"} onclick={checkUpdates}>
+              {t("settings.updates.check")}
+            </button>
+          </div>
+        {/if}
+        <div class="field">
+          <label class="check-row">
+            <input type="checkbox" checked={settings.updateCheck} onchange={(e) => setUpdateCheck(e.currentTarget)} />
+            <span>{t("settings.updates.auto")}</span>
+          </label>
+          <p class="meta" style="margin:0">{settings.updateCheck ? t("settings.updates.autoOn") : t("settings.updates.autoOff")}</p>
+        </div>
+      </section>
     {:else if section === "outside"}
       <section class="card" id="outside" aria-labelledby="settings-title">
         <div class="field">
@@ -852,6 +913,24 @@
     font-size: 14px;
     color: var(--ink-2);
     max-width: 640px;
+  }
+  .upd-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .upd-progress {
+    width: 100%;
+    max-width: 480px;
+    height: 8px;
+    accent-color: var(--forest);
+  }
+  /* The updater's own message, in English: kept whole, wrapped at any character for long URLs. */
+  .upd-detail {
+    margin: 0;
+    max-width: 640px;
+    font-size: 13px;
+    overflow-wrap: anywhere;
   }
   .pair {
     display: grid;

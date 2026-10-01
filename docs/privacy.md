@@ -1,6 +1,6 @@
 # Privacy and data
 
-- OpenCompanion makes network connections of its own in two cases only: the phone companion, on your local network and only while phone access is on, and a custom Chat planner endpoint, if you set one.
+- OpenCompanion makes network connections of its own in three cases only: the phone companion, on your local network and only while phone access is on; a custom Chat planner endpoint, if you set one; and the update check. The update check downloads `latest.json` from the project's latest GitHub release when the app starts and once a day, and the update itself once you press Update. The request carries no session data, though GitHub sees your IP address as with any download. Settings › Updates turns the automatic check off; Check for updates still works.
 - The CLIs you run talk to their own providers with your own login and quota, as in your terminal. A Chat planner that runs a CLI headless uses that CLI's quota.
 - The Chat planner receives your message with its context: recent Chat turns, the installed CLIs, your project folder paths and the current sessions. A CLI planner passes that to the CLI's provider; a custom endpoint receives it directly.
 - Data lives in the app data folder. Settings shows the exact path.

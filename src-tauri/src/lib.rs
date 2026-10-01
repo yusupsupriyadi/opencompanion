@@ -25,6 +25,8 @@ pub mod signals;
 pub mod skills;
 pub mod terminal;
 pub mod transcript;
+#[cfg(desktop)]
+pub mod updater;
 pub mod waiting;
 
 use std::collections::{HashMap, HashSet};
@@ -1077,6 +1079,13 @@ pub fn run() {
                     }
                 });
             }
+            #[cfg(desktop)]
+            {
+                app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+                let handle = app.handle().clone();
+                let db = Arc::clone(&app.state::<AppState>().db);
+                updater::manage(app.handle(), db, move || shut_down(&handle));
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1150,6 +1159,14 @@ pub fn run() {
             list_devices,
             remove_device,
             app_info,
+            #[cfg(desktop)]
+            updater::update_status,
+            #[cfg(desktop)]
+            updater::check_update,
+            #[cfg(desktop)]
+            updater::dismiss_update,
+            #[cfg(desktop)]
+            updater::install_update,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
@@ -1161,11 +1178,16 @@ pub fn run() {
             show_main(handle);
         }
         if let RunEvent::Exit = event {
-            if let Some(state) = handle.try_state::<AppState>() {
-                state.manager.kill_all();
-                state.terminals.kill_all();
-                state.companion.stop();
-            }
+            shut_down(handle);
         }
     });
+}
+
+/// Stops every session, shell and the phone server, as the app exits or an update replaces it.
+fn shut_down(handle: &AppHandle) {
+    if let Some(state) = handle.try_state::<AppState>() {
+        state.manager.kill_all();
+        state.terminals.kill_all();
+        state.companion.stop();
+    }
 }

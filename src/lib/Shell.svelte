@@ -12,6 +12,8 @@
   import TitleBar from "./TitleBar.svelte";
   import Toast from "./Toast.svelte";
   import { app, initTheme, startDesktop } from "./store.svelte";
+  import UpdateDialog from "./UpdateDialog.svelte";
+  import { startUpdates } from "./update.svelte";
 
   let { children }: { children: Snippet } = $props();
 
@@ -29,6 +31,7 @@
     startDesktop().then(() => {
       if (app.settings && !app.settings.onboarded && page.url.pathname !== "/onboarding") goto("/onboarding");
     });
+    startUpdates();
     // A click on a desktop notification opens the session it is about (PRD FR-40).
     const un = listen<string>("open-session", (e) => goto(`/session?id=${encodeURIComponent(e.payload)}`));
     return () => {
@@ -46,6 +49,7 @@
   </div>
   <DeleteSessionDialog />
   <NewSessionDialog />
+  <UpdateDialog />
   <ContextMenu />
 {/if}
 <!-- Last in the DOM so Tab reaches the page first; CSS pins it to the top of the window. -->

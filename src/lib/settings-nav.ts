@@ -1,4 +1,5 @@
 import AppWindow from "phosphor-svelte/lib/AppWindow";
+import ArrowCircleUp from "phosphor-svelte/lib/ArrowCircleUp";
 import Bell from "phosphor-svelte/lib/Bell";
 import Binoculars from "phosphor-svelte/lib/Binoculars";
 import Books from "phosphor-svelte/lib/Books";
@@ -20,6 +21,7 @@ export type SectionId =
   | "phone"
   | "window"
   | "language"
+  | "updates"
   | "planner"
   | "permissions"
   | "projects"
@@ -53,6 +55,7 @@ export const SETTINGS_GROUPS: { key: Key; items: SettingsItem[] }[] = [
       section("phone", "settings.phone.title", DeviceMobile, ["settings.phone.desc"]),
       section("window", "settings.window.title", AppWindow, ["settings.window.tray", "settings.window.login"]),
       section("language", "settings.language.title", Translate, ["settings.language.label"]),
+      section("updates", "settings.updates.title", ArrowCircleUp, ["settings.updates.check", "settings.updates.auto"]),
     ],
   },
   {

@@ -18,6 +18,7 @@
   import { CLI_LABEL, STATUS, folderName, runsCli } from "./format";
   import { plural, t } from "./i18n.svelte";
   import { app, askNewSession } from "./store.svelte";
+  import UpdateCard from "./UpdateCard.svelte";
 
   // CLIs, Skills, Phone access and the theme live under Settings.
   const NAV = [
@@ -141,6 +142,7 @@
       </a>
     {/each}
   </nav>
+  <UpdateCard />
   <div class="side-sessions">
     <div class="side-head">
       <span class="side-label">{t("shell.sidebar.sessions")}</span>

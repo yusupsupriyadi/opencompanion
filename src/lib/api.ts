@@ -338,6 +338,25 @@ export interface Settings {
   language: "en" | "id";
   /** Shell tabs mark their prompt and report commands, which are saved and suggested while typing. */
   shellSuggestions: boolean;
+  /** Ask GitHub for a newer release at start and once a day. Off, only Check for updates asks. */
+  updateCheck: boolean;
+}
+
+/** Mirrors `updater::UpdateView`: what Settings › Updates and the sidebar card show. */
+export interface UpdateView {
+  /** The running version. */
+  current: string;
+  /** A newer release the last check found. */
+  available: string | null;
+  /** The sidebar card of `available` was closed with Later. */
+  dismissed: boolean;
+  phase: "idle" | "checking" | "downloading" | "installing";
+  received: number;
+  total: number | null;
+  /** When the last check that reached GitHub finished, in ms. */
+  checkedAt: number | null;
+  /** A check the owner asked for, or an install, that failed, with the updater's English message. */
+  error: { step: "check" | "install"; message: string } | null;
 }
 
 /** Mirrors `db::NotifyRule`: which notifications one CLI or one folder sends. */
@@ -634,6 +653,13 @@ export const api = {
   listDevices: () => invoke<Device[]>("list_devices"),
   removeDevice: (id: string) => invoke<void>("remove_device", { id }),
   appInfo: () => invoke<AppInfo>("app_info"),
+
+  updateStatus: () => invoke<UpdateView>("update_status"),
+  checkUpdate: () => invoke<UpdateView>("check_update"),
+  /** Hides the sidebar card until a newer version comes out. */
+  dismissUpdate: () => invoke<UpdateView>("dismiss_update"),
+  /** Downloads, installs and restarts; running sessions stop. Progress arrives as `update-changed`. */
+  installUpdate: () => invoke<void>("install_update"),
 };
 
 /** True inside the Tauri webview; false in the phone browser. */
