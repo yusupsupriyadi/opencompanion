@@ -157,7 +157,10 @@ class App:
 
     def nav(self, href):
         """Client-side navigation through a real link, as a click in the sidebar does."""
-        self.click_css(f'a[href="{href}"]')
+        el = self.wait_css(f'a[href="{href}"]')
+        # The Settings sidebar scrolls at 1280x800 and clips its last links, which WebKitWebDriver will not click.
+        self.js("arguments[0].scrollIntoView({block: 'center'})", {ELEMENT: el})
+        self.click(el)
         self.wait(lambda: self.js("return location.pathname") == href.split("?")[0], 10, f"route {href}")
 
 
