@@ -4,11 +4,21 @@ Notable changes to OpenCompanion are listed here. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-01
+
 ### Added
 
 - Cursor CLI (`cursor-agent`) as a CLI: interactive and headless sessions (`cursor-agent -p --output-format stream-json`, prompt on stdin), follow-ups and Resume with `--resume`, the Chat planner in ask mode with `--list-models`, outside sessions with transcripts from `~/.cursor/projects`, and its skill folder `~/.cursor/skills`. Its approval menus, workspace trust and MCP dialogs show as Waiting for you. On Windows it starts with the node.exe in its newest `versions` folder, so prompts pass through neither cmd.exe nor PowerShell. Only the path without a Cursor login has been run so far.
 
 - Command suggestions in shell tabs, as in Warp: while you type in a PowerShell, Git Bash, bash or zsh tab, the last command you ran that starts the same way shows after the cursor in dim text, from the same project first, then your other projects, then the shell's own history. Right Arrow accepts it. The tabs start with a small script after your profile that marks the prompt (OSC 133) and reports each command (OSC 633), as Orca and VS Code do. Commands that start with a space, span several lines or contain PSReadLine's sensitive words are never saved. Settings › History turns it off and deletes the saved commands. Command Prompt gets no suggestions.
+
+- Links in session and shell terminals open in the default browser on Ctrl+click (Cmd+click on macOS), as in Windows Terminal and Orca: printed URLs, and OSC 8 links behind other text. A tooltip names the key, and a plain click still focuses the terminal or starts a selection.
+
+### Changed
+
+- Codex CLI, Gemini CLI and OpenCode now report their own permission prompts and the end of their turns, as Claude Code already did, instead of being read from the screen or from silence. Codex sends OSC 9 notifications (`-c tui.notifications=true` with `osc9` and `always`), Gemini CLI's terminal title shows `✋` while it asks, and OpenCode loads a plugin through `OPENCODE_CONFIG_DIR` that writes permission, question, busy and idle to the session. Once a CLI reports the end of its turn, eight seconds of silence no longer counts as one. The same notification for a session within five seconds is dropped, and a session shown on the desktop still tells the phone.
+- The landing page moved from `landing/` to its own repository, and Vercel publishes it at [opencompanion.vercel.app](https://opencompanion.vercel.app).
+- The README is short now. The full feature list, CLI notes, platform notes, phone companion, privacy and project layout moved to `docs/`.
 
 ### Fixed
 
@@ -58,5 +68,6 @@ The first public release. Windows 11 is tested by hand, Linux end to end in Dock
 - On a GNOME desktop the tray icon shows only with the AppIndicator extension.
 - On macOS and Linux, a child that detaches into a session of its own outlives Stop.
 
-[Unreleased]: https://github.com/yusupsupriyadi/opencompanion/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/yusupsupriyadi/opencompanion/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/yusupsupriyadi/opencompanion/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/yusupsupriyadi/opencompanion/releases/tag/v0.1.1
