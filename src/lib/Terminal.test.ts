@@ -300,6 +300,20 @@ test("other output arriving before a key's echo does not bring back the suggesti
   await vi.waitFor(() => expect(container.querySelector(".suggestion")?.textContent).toBe("t status"));
 });
 
+test("after Backspace the suggestion comes back once the keys stop, even while the clock lags the timer", async () => {
+  const { container, input, echo, sent } = shellTab(PROMPT);
+  await tick();
+  echo("git st");
+  await vi.waitFor(() => expect(container.querySelector(".suggestion")?.textContent).toBe("atus"));
+  // Node can run a 150 ms timer when Date.now() has moved only 149 ms; a clock standing still is the far end of that.
+  vi.spyOn(Date, "now").mockReturnValue(Date.now());
+  key(input, { key: "Backspace", keyCode: 8 });
+  await vi.waitFor(() => expect(sent()).toEqual(["\x7f"]));
+  expect(container.querySelector(".suggestion")).toBeNull();
+  echo("\b\x1b[K");
+  await vi.waitFor(() => expect(container.querySelector(".suggestion")?.textContent).toBe("tatus"));
+});
+
 test("a shell without the prompt mark, such as Command Prompt, gets no suggestion", async () => {
   const { container, input, echo, sent } = shellTab("C:\\app>");
   await tick();

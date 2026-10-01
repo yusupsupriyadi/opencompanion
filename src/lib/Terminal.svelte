@@ -202,7 +202,8 @@
     // has been sent for QUIET ms.
     const QUIET = 150;
     let expected: string | null = null;
-    let lastKeyAt = 0;
+    // The quiet timer clears it, not a clock reading: a timer can run a millisecond before Date.now() shows its delay.
+    let keysRecent = false;
     let quietTimer: ReturnType<typeof setTimeout> | undefined;
     const hideGhost = () => {
       ghost?.decoration.dispose();
@@ -214,9 +215,12 @@
       hideGhost();
       if (data.includes("\r")) atPrompt = false;
       expected = expected !== null && !/[\x00-\x1f\x7f]/.test(data) ? expected + data : null;
-      lastKeyAt = Date.now();
+      keysRecent = true;
       clearTimeout(quietTimer);
-      quietTimer = setTimeout(schedule, QUIET);
+      quietTimer = setTimeout(() => {
+        keysRecent = false;
+        schedule();
+      }, QUIET);
     };
     const suggested = (): { rest: string; full: string } | null => {
       if (!acceptInput || !atPrompt || !focused || !prompt || prompt.marker.isDisposed || app.settings?.shellSuggestions === false) return null;
@@ -225,7 +229,7 @@
       const typedNow = typedText(buf, { y: prompt.marker.line, x: prompt.x }, { y: buf.baseY + buf.cursorY, x: buf.cursorX });
       if (typedNow === null) return null;
       if (typedNow !== expected) {
-        if (Date.now() - lastKeyAt < QUIET) return null;
+        if (keysRecent) return null;
         expected = typedNow;
       }
       const full = suggestFor(where, typedNow);
