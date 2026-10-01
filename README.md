@@ -15,10 +15,7 @@
 
 <p align="center">
   <a href="https://www.producthunt.com/products/opencompanion?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-opencompanion">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1265167&theme=dark">
-      <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1265167&theme=light" width="250" height="54" alt="OpenCompanion on Product Hunt">
-    </picture>
+    <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1265167&theme=light" width="250" height="54" alt="OpenCompanion on Product Hunt">
   </a>
 </p>
 
