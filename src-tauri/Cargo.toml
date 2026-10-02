@@ -13,7 +13,10 @@ default-run = "opencompanion"
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "opencompanion_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+# Desktop links only the rlib. Tauri's template also builds `staticlib` (iOS) and `cdylib`
+# (Android), and the static library alone is over 1 GB per debug build. Add them back for a mobile
+# target.
+crate-type = ["rlib"]
 
 # The test stand-in CLI and the spike tool, with the integration tests that run fake-cli. They
 # need `--features dev-tools`, so `tauri build` leaves them out of the installers.
@@ -79,6 +82,10 @@ libc = "0.2"
 [target.'cfg(not(any(target_os = "macos", target_os = "android", target_os = "ios")))'.dependencies]
 notify-rust = "4.11"
 
+# File and line numbers for panics and backtraces, without the full debug info that made
+# `target/debug` grow by gigabytes. Set `debug = true` locally to inspect variables in a debugger.
+[profile.dev]
+debug = "line-tables-only"
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
